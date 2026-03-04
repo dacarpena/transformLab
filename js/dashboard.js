@@ -57,15 +57,6 @@ function renderHeader() {
             <div class="header-goal">
                 <span class="goal-label">🎯 ${targetInfo}</span>
             </div>
-            <div class="header-actions">
-                <button class="header-export-btn" onclick="exportProjectData()" title="Exportar datos">
-                    <span>📄</span>
-                </button>
-                <button class="header-settings-btn" onclick="showSettingsModal()" title="Configuración">
-                    <span class="settings-icon">⚙️</span>
-                    <span class="start-date-label">Inicio: ${startDateFormatted}</span>
-                </button>
-            </div>
         `;
     }
 }
@@ -291,32 +282,124 @@ function renderNavigation() {
 function renderPhaseMarkers() {
     const container = document.getElementById('phaseMarkers');
     if (!container) return;
-    
-    const phases = AppState.data.phases;
-    const totalDays = getTotalDays();
-    
-    let html = '';
+
+    const phases    = AppState.data.phases;
+    const milestones = AppState.data.milestones || [];
+    const totalDays  = getTotalDays();
+    const { currentDay } = AppState.navigation;
+
+    let segmentsHTML = '';
     let accumulatedDays = 0;
-    
+
     phases.forEach(phase => {
-        const phaseDays = phase.days || phase.totalDays || 30;
-        const startPct = (accumulatedDays / totalDays) * 100;
-        const widthPct = (phaseDays / totalDays) * 100;
-        
-        // Usar color de fase
+        const phaseDays  = phase.days || 30;
+        const startPct   = (accumulatedDays / totalDays) * 100;
+        const widthPct   = (phaseDays / totalDays) * 100;
         const phaseColor = PHASE_COLORS[phase.type] || '#666';
-        
-        html += `
-            <div class="phase-marker" 
-                 style="left: ${startPct}%; width: ${widthPct}%; background: ${phaseColor}"
+
+        segmentsHTML += `
+            <div class="phase-segment"
+                 style="left: ${startPct.toFixed(2)}%; width: ${widthPct.toFixed(2)}%; background: ${phaseColor}"
                  title="${phase.name}: ${phaseDays} días">
+                <span class="phase-segment-label">${phase.name}</span>
             </div>
         `;
-        
+
         accumulatedDays += phaseDays;
     });
-    
-    container.innerHTML = html;
+
+    // Milestone diamonds (max 12 for clarity)
+    const milestoneDiamondsHTML = milestones
+        .filter(m => m.estimatedDay && m.estimatedDay <= totalDays)
+        .slice(0, 12)
+        .map(m => {
+            const pct = (m.estimatedDay / totalDays) * 100;
+            const isUnlocked = m.estimatedDay <= currentDay;
+            return `<span class="timeline-milestone-diamond ${isUnlocked ? 'unlocked' : ''}"
+                         style="left: ${pct.toFixed(2)}%"
+                         title="${m.name || m.title}">◆</span>`;
+        }).join('');
+
+    // Today indicator with pulse animation
+    const todayPct = Math.min(100, (currentDay / totalDays) * 100);
+    const todayHTML = `<span class="timeline-today-indicator" style="left: ${todayPct.toFixed(2)}%" title="Hoy - Día ${currentDay}">
+        <span class="today-pulse"></span>
+    </span>`;
+
+    container.innerHTML = segmentsHTML + milestoneDiamondsHTML + todayHTML;
+}
+
+// ============================================
+// SPARKLINES — inline SVG mini-charts
+// ============================================
+
+/**
+ * Build an inline SVG sparkline from an array of values.
+ * No external library required.
+ *
+ * @param {number[]} values - Data points
+ * @param {string}   color  - Stroke colour
+ * @param {number}   [w]    - Width in px (default 80)
+ * @param {number}   [h]    - Height in px (default 28)
+ * @returns {string} SVG markup string
+ */
+function createSparklineSVG(values, color, w = 80, h = 28) {
+    if (!values || values.length < 2) return '';
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const points = values.map((v, i) => {
+        const x = (i / (values.length - 1)) * w;
+        const y = h - ((v - min) / range) * (h - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<svg width="${w}" height="${h}" class="sparkline" aria-hidden="true">
+        <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+/**
+ * Get the last N daily weight values relative to the current day.
+ *
+ * @param {string} metricPath - Dot-path like 'physical.weight' or 'wellbeing.energy'
+ * @param {number} days       - Number of days to look back
+ * @returns {number[]}
+ */
+function getRecentDailyValues(metricPath, days = 7) {
+    const { currentDay } = AppState.navigation;
+    const dailyData = AppState.data.daily;
+    if (!dailyData) return [];
+
+    const keys = metricPath.split('.');
+    const start = Math.max(0, currentDay - days);
+    const end   = currentDay;
+
+    return dailyData.slice(start, end).map(d => {
+        let val = d;
+        for (const k of keys) val = val?.[k];
+        return typeof val === 'number' ? val : null;
+    }).filter(v => v !== null);
+}
+
+// ============================================
+// ANIMATED RENDER HELPER
+// ============================================
+
+/**
+ * Update an element's HTML with a brief fade-out/in transition.
+ * Falls back to direct assignment if the element isn't found.
+ *
+ * @param {string} elementId - DOM id
+ * @param {string} html      - New inner HTML
+ */
+function animatedRender(elementId, html) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.classList.add('card-updating');
+    setTimeout(() => {
+        el.innerHTML = html;
+        el.classList.remove('card-updating');
+    }, 120);
 }
 
 // ============================================
@@ -357,29 +440,47 @@ function renderMetricCards() {
     
     if (!physical) return;
     
+    // Sparkline data (last 7 days)
+    const weightSparkVals  = getRecentDailyValues('physical.weight',  7);
+    const muscleSparkVals  = getRecentDailyValues('physical.muscleKg', 7);
+    const fatPctSparkVals  = getRecentDailyValues('physical.fatPct',  7);
+    const energySparkVals  = getRecentDailyValues('wellbeing.energy', 7);
+
+    // Refeed / plateau badge for current day
+    const currentDayData = AppState.data.daily?.[AppState.navigation.currentDay - 1];
+    const refeedBadge = currentDayData?.isRefeedDay
+        ? `<span class="badge badge-refeed">${currentDayData.refeedLabel || 'Recarga'}</span>`
+        : '';
+    const plateauBadge = currentDayData?.isPlateauDay
+        ? `<span class="badge badge-plateau">Meseta</span>`
+        : '';
+
     // Tarjeta Físico
-    const physicalCard = document.getElementById('physicalCard');
-    if (physicalCard && physical) {
-        physicalCard.innerHTML = `
+    if (physical) {
+        animatedRender('physicalCard', `
             <div class="card-header">
                 <span class="card-icon">📊</span>
                 <span class="card-title">Físico</span>
+                ${refeedBadge}${plateauBadge}
             </div>
             <div class="metric-grid">
                 <div class="metric-item">
                     <span class="metric-label">Peso</span>
                     <span class="metric-value" style="color: ${METRIC_COLORS.weight}">${formatNumber(physical.weight)} kg</span>
                     <span class="metric-change ${getChangeClass(changes.weight, true)}">${getChangeIcon(changes.weight)} ${formatChange(changes.weight)} kg</span>
+                    ${createSparklineSVG(weightSparkVals, METRIC_COLORS.weight)}
                 </div>
                 <div class="metric-item">
                     <span class="metric-label">Músculo</span>
                     <span class="metric-value" style="color: ${METRIC_COLORS.muscleKg}">${formatNumber(physical.muscleKg)} kg</span>
                     <span class="metric-change ${getChangeClass(changes.muscleKg)}">${getChangeIcon(changes.muscleKg)} ${formatChange(changes.muscleKg)} kg</span>
+                    ${createSparklineSVG(muscleSparkVals, METRIC_COLORS.muscleKg)}
                 </div>
                 <div class="metric-item">
                     <span class="metric-label">% Grasa</span>
                     <span class="metric-value" style="color: ${METRIC_COLORS.fatPct}">${formatNumber(physical.fatPct)}%</span>
                     <span class="metric-change ${getChangeClass(changes.fatPct, true)}">${getChangeIcon(changes.fatPct)} ${formatChange(changes.fatPct)}%</span>
+                    ${createSparklineSVG(fatPctSparkVals, METRIC_COLORS.fatPct)}
                 </div>
                 <div class="metric-item">
                     <span class="metric-label">Grasa</span>
@@ -387,13 +488,12 @@ function renderMetricCards() {
                     <span class="metric-change ${getChangeClass(changes.fatKg, true)}">${getChangeIcon(changes.fatKg)} kg</span>
                 </div>
             </div>
-        `;
+        `);
     }
     
     // Tarjeta Rendimiento
-    const performanceCard = document.getElementById('performanceCard');
-    if (performanceCard && performance) {
-        performanceCard.innerHTML = `
+    if (performance) {
+        animatedRender('performanceCard', `
             <div class="card-header">
                 <span class="card-icon">💪</span>
                 <span class="card-title">Rendimiento</span>
@@ -414,13 +514,12 @@ function renderMetricCards() {
                     <span class="metric-value">${formatNumber(performance.agility || 0)}/10</span>
                 </div>
             </div>
-        `;
+        `);
     }
-    
+
     // Tarjeta Bienestar
-    const wellbeingCard = document.getElementById('wellbeingCard');
-    if (wellbeingCard && wellbeing) {
-        wellbeingCard.innerHTML = `
+    if (wellbeing) {
+        animatedRender('wellbeingCard', `
             <div class="card-header">
                 <span class="card-icon">🧠</span>
                 <span class="card-title">Bienestar</span>
@@ -429,6 +528,7 @@ function renderMetricCards() {
                 <div class="metric-item mini">
                     <span class="metric-label">Energía</span>
                     <span class="metric-value" style="color: ${METRIC_COLORS.energy}">${formatNumber(wellbeing.energy || 0)}</span>
+                    ${createSparklineSVG(energySparkVals, METRIC_COLORS.energy, 60, 22)}
                 </div>
                 <div class="metric-item mini">
                     <span class="metric-label">Estética</span>
@@ -443,7 +543,7 @@ function renderMetricCards() {
                     <span class="metric-value" style="color: ${METRIC_COLORS.generalFeeling}">${formatNumber(wellbeing.generalFeeling || 0)}</span>
                 </div>
             </div>
-        `;
+        `);
     }
     
     // Tarjeta Metabólica (BMR/TDEE)

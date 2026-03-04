@@ -177,6 +177,46 @@ function generateInsights() {
         }
     }
     
+    // 5. Plateau insight (daily view)
+    if (granularity === 'daily') {
+        const dayData = AppState.data.daily?.[currentIdx];
+        if (dayData?.isPlateauDay) {
+            insights.unshift({
+                type: 'warning',
+                icon: '📊',
+                text: 'Estás en una meseta de adaptación',
+                detail: 'El cuerpo retiene agua temporalmente. Es normal — la pérdida de grasa continúa. Un día de recarga puede ayudar.'
+            });
+        }
+        if (dayData?.isRefeedDay) {
+            insights.unshift({
+                type: 'info',
+                icon: '⚡',
+                text: dayData.refeedType === 'diet_break'
+                    ? 'Semana de recarga — come a mantenimiento'
+                    : 'Día de recarga — aumenta carbohidratos',
+                detail: 'La recarga restaura la leptina y previene la adaptación metabólica.'
+            });
+        }
+    }
+
+    // 6. Menstrual cycle insight (females only, daily view)
+    if (granularity === 'daily' && AppState.userProfile?.profile?.sex === 'female') {
+        const CYCLE = 28;
+        const dayData = AppState.data.daily?.[currentIdx];
+        if (dayData) {
+            const cycleDay = ((dayData.day - 1) % CYCLE) + 1;
+            if (cycleDay >= 20 && cycleDay <= 28) {
+                insights.push({
+                    type: 'info',
+                    icon: '🌙',
+                    text: 'Fase lútea — retención de agua normal',
+                    detail: 'El aumento de peso que ves es agua hormonal, no grasa. Continúa con tu plan.'
+                });
+            }
+        }
+    }
+
     // Limitar a 5 insights máximo
     return insights.slice(0, 5);
 }
