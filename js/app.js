@@ -1,5 +1,5 @@
 // ============================================
-// TRANSFORMLAB - App Principal v3.0
+// TRANSFORMLAB - App Principal v4.0
 // Sistema adaptativo de transformación física
 // Basado en ciencia: Mifflin-St Jeor, Aragon 2017, McDonald/Helms
 // ============================================
@@ -8,10 +8,10 @@
 const AppState = {
     // Perfil de usuario (desde onboarding)
     userProfile: null,
-    
+
     // Fecha de inicio del proceso
     startDate: null,
-    
+
     // Datos generados dinámicamente
     data: {
         daily: null,
@@ -19,8 +19,12 @@ const AppState = {
         monthly: null,
         phases: null,
         metadata: null,
-        milestones: null
+        milestones: null,
+        refeedSchedule: []
     },
+
+    // Check-ins reales del usuario (semana a semana)
+    realCheckins: [],
     
     // Estado de navegación
     navigation: {
@@ -114,17 +118,30 @@ async function loadAllData() {
         const savedData = localStorage.getItem('transformlab_generatedData');
         if (savedData) {
             const data = JSON.parse(savedData);
-            AppState.data = {
-                daily: data.daily,
-                weekly: data.weekly,
-                monthly: data.monthly,
-                phases: data.phases,
-                metadata: data.metadata,
-                milestones: data.milestones || []
-            };
+            // Migrate: v3.x data lacks non-linear curves — regenerate
+            if (!data.metadata?.version || data.metadata.version < '4.0') {
+                console.log('⬆️ Datos obsoletos (v3.x), regenerando con v4.0...');
+                regenerateData();
+            } else {
+                AppState.data = {
+                    daily: data.daily,
+                    weekly: data.weekly,
+                    monthly: data.monthly,
+                    phases: data.phases,
+                    metadata: data.metadata,
+                    milestones: data.milestones || [],
+                    refeedSchedule: data.refeedSchedule || []
+                };
+            }
         } else {
             // Regenerar datos
             regenerateData();
+        }
+
+        // Cargar check-ins guardados
+        const savedCheckins = localStorage.getItem('transformlab_checkins');
+        if (savedCheckins) {
+            AppState.realCheckins = JSON.parse(savedCheckins);
         }
         
         console.log(`✅ Datos cargados: ${AppState.data.daily.length} días, ${AppState.data.weekly.length} semanas`);
@@ -148,31 +165,30 @@ async function loadAllData() {
 // Regenerar datos de transformación
 function regenerateData() {
     if (!AppState.userProfile) return;
-    
-    console.log('🧮 Generando datos de transformación...');
+
+    console.log('🧮 Generando datos de transformación v4.0...');
     const data = DataGenerator.generateTransformationData(AppState.userProfile);
-    const milestones = DataGenerator.generateMilestones(AppState.userProfile, data.phases);
-    
+    const milestones = data.milestones;
+
     AppState.data = {
         daily: data.daily,
         weekly: data.weekly,
         monthly: data.monthly,
         phases: data.phases,
         metadata: data.metadata,
-        milestones: milestones
+        milestones: milestones,
+        refeedSchedule: data.refeedSchedule || []
     };
-    
+
     // Guardar datos generados
-    localStorage.setItem('transformlab_generatedData', JSON.stringify({
-        ...data,
-        milestones
-    }));
-    
+    localStorage.setItem('transformlab_generatedData', JSON.stringify(AppState.data));
+
     console.log('✅ Datos regenerados:', {
         days: data.daily.length,
         weeks: data.weekly.length,
         phases: data.phases.length,
-        milestones: milestones.length
+        milestones: milestones.length,
+        refeeds: (data.refeedSchedule || []).length
     });
 }
 
@@ -205,9 +221,10 @@ function initializeWithGeneratedData(data, userProfile) {
         monthly: data.monthly,
         phases: data.phases,
         metadata: data.metadata,
-        milestones: data.milestones || []
+        milestones: data.milestones || [],
+        refeedSchedule: data.refeedSchedule || []
     };
-    
+
     calculateCurrentPosition();
     initializeApp();
 }
@@ -396,8 +413,34 @@ function showError(message) {
 function initializeApp() {
     // Cargar preferencias guardadas
     loadPreferences();
-    
-    // Renderizar componentes
+
+    // Inicializar router multi-pantalla
+    if (typeof Router !== 'undefined') {
+        Router.init();
+        // Re-render views when navigating
+        window.addEventListener('viewchange', (e) => {
+            const { to } = e.detail;
+            if (to === 'dashboard') {
+                renderHeader();
+                renderNavigation();
+                renderDashboard();
+                renderMainChart();
+                renderInsights();
+            } else if (to === 'checkin' && typeof CheckinModule !== 'undefined') {
+                CheckinModule.render();
+            } else if (to === 'nutrition' && typeof NutritionModule !== 'undefined') {
+                NutritionModule.render();
+            } else if (to === 'training' && typeof TrainingModule !== 'undefined') {
+                TrainingModule.render();
+            } else if (to === 'milestones' && typeof MilestonesModule !== 'undefined') {
+                MilestonesModule.render();
+            } else if (to === 'body' && typeof BodyVisualizer !== 'undefined') {
+                BodyVisualizer.render();
+            }
+        });
+    }
+
+    // Renderizar dashboard inicial
     renderHeader();
     renderNavigation();
     renderDashboard();
@@ -405,14 +448,14 @@ function initializeApp() {
     renderPhaseIndicator();
     renderGoalProgress();
     renderInsights();
-    
+
     // Configurar eventos
     setupEventListeners();
-    
+
     // Efectos visuales
     setupVisualEffects();
-    
-    console.log('🚀 TransformLab inicializado');
+
+    console.log('🚀 TransformLab v4.0 inicializado');
 }
 
 function loadPreferences() {

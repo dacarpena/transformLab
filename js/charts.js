@@ -47,7 +47,15 @@ function renderMainChart() {
     const datasets = visibleMetrics.map((metric, idx) => {
         const data = getMetricData(sourceData, metric, granularity);
         const color = METRIC_COLORS[metric] || '#ffffff';
-        
+
+        // Mark refeed days as hollow points on the weight line
+        const pointStyles = granularity === 'daily' && metric === 'weight'
+            ? (AppState.data.daily || []).map(d => d.isRefeedDay ? 'circle' : false)
+            : undefined;
+        const pointRadii = granularity === 'daily' && metric === 'weight'
+            ? (AppState.data.daily || []).map(d => d.isRefeedDay ? 5 : 0)
+            : undefined;
+
         return {
             label: getMetricLabel(metric),
             data: data,
@@ -56,12 +64,41 @@ function renderMainChart() {
             fill: idx === 0,
             tension: 0.3,
             borderWidth: granularity === 'daily' ? 1.5 : 2.5,
-            pointRadius: granularity === 'daily' ? 0 : (granularity === 'weekly' ? 4 : 6),
+            pointRadius: pointRadii || (granularity === 'daily' ? 0 : (granularity === 'weekly' ? 4 : 6)),
             pointHoverRadius: 8,
-            pointBackgroundColor: color,
+            pointBackgroundColor: 'transparent',
+            pointBorderColor: color,
+            pointStyle: pointStyles || 'circle',
             yAxisID: getAxisForMetric(metric)
         };
     });
+
+    // Overlay real check-in weight data (weekly/monthly views only)
+    const checkins = AppState.realCheckins || [];
+    if (checkins.length > 0 && granularity !== 'daily') {
+        const nullArray = new Array(sourceData.length).fill(null);
+        const realWeightData = [...nullArray];
+
+        checkins.forEach(c => {
+            const idx = granularity === 'weekly' ? c.week - 1 : Math.floor((c.week - 1) / 4);
+            if (idx >= 0 && idx < realWeightData.length) {
+                realWeightData[idx] = c.measurements.weight;
+            }
+        });
+
+        datasets.push({
+            label: 'Peso Real',
+            type: 'scatter',
+            data: realWeightData,
+            borderColor: '#fbbf24',
+            backgroundColor: '#fbbf24',
+            pointRadius: 8,
+            pointHoverRadius: 10,
+            pointStyle: 'star',
+            showLine: false,
+            yAxisID: 'y'
+        });
+    }
     
     // Determinar si necesitamos eje secundario
     const needsSecondAxis = visibleMetrics.some(m => ['fatPct', 'strength', 'aesthetics', 'selfEsteem', 'sleepQuality', 'agility'].includes(m)) &&

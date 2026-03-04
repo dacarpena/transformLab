@@ -1,7 +1,7 @@
 // ============================================
 // TRANSFORMLAB - Dynamic Data Generator
 // Generates complete transformation data at runtime
-// v3.1 - Fixed weight calculation to use measured muscle mass
+// v4.0 - Non-linear curves, plateau model, refeed days
 // ============================================
 
 const DataGenerator = {
@@ -53,12 +53,16 @@ const DataGenerator = {
         
         // Calculate phase plan
         const phasePlan = Calculations.calculatePhaseDurations(initial, target, profile);
-        
+
         // Generate phases with dates
         const phases = this.generatePhases(phasePlan, startDate, initial, target, profile, otherLeanTissue);
-        
+
+        // Build refeed schedule (cut phases only)
+        const refeedSchedule = Calculations.getRefeedSchedule(phases);
+        console.log(`🔄 Generated ${refeedSchedule.length} refeed/diet-break days`);
+
         // Generate daily data
-        const dailyData = this.generateDailyData(phases, initial, target, profile, startDate);
+        const dailyData = this.generateDailyData(phases, initial, target, profile, startDate, refeedSchedule);
         
         // Generate weekly aggregations
         const weeklyData = this.generateWeeklyData(dailyData, phases);
@@ -68,19 +72,21 @@ const DataGenerator = {
         
         // Create metadata
         const metadata = this.generateMetadata(userProfile, phasePlan, phases);
-        
+        metadata.version = '4.0'; // Mark version so app.js can detect stale data
+
         // Generate dynamic milestones based on user profile and phases
         const milestones = this.generateMilestones(userProfile, phases);
-        
+
         console.log(`✅ Generated ${milestones.length} dynamic milestones`);
-        
+
         return {
             daily: dailyData,
             weekly: weeklyData,
             monthly: monthlyData,
             phases,
             metadata,
-            milestones
+            milestones,
+            refeedSchedule
         };
     },
     
@@ -224,75 +230,117 @@ const DataGenerator = {
     },
     
     /**
-     * Generate daily data points for the entire transformation
+     * Generate daily data points for the entire transformation.
+     *
+     * v4.0 changes:
+     * - Non-linear interpolation curves per phase type
+     * - Plateau water-retention model during cut phases
+     * - Refeed / diet-break caloric and water adjustments
+     * - Menstrual cycle offset (via Calculations.addDailyFluctuation sex param)
+     *
+     * @param {Array}  phases          - Phase definitions
+     * @param {object} initial         - Initial composition
+     * @param {object} target          - Target composition
+     * @param {object} profile         - User profile (including sex)
+     * @param {string} startDate       - ISO date string
+     * @param {Array}  refeedSchedule  - Output of Calculations.getRefeedSchedule
      */
-    generateDailyData(phases, initial, target, profile, startDate) {
+    generateDailyData(phases, initial, target, profile, startDate, refeedSchedule = []) {
         const dailyData = [];
         const start = new Date(startDate);
-        
+        const sex = profile.sex || 'male';
+
+        // Build a quick lookup map: globalDay → refeed entry
+        const refeedMap = {};
+        refeedSchedule.forEach(r => { refeedMap[r.day] = r; });
+
         phases.forEach(phase => {
             const daysInPhase = phase.days;
-            
+
+            // Choose interpolation curves per phase type
+            const weightCurve  = (phase.type === 'cut' || phase.type === 'recomposition') ? 'logarithmic' : 'easeInOut';
+            const muscleCurve  = phase.type === 'bulk' ? 'sigmoid' : 'easeInOut';
+            const fatPctCurve  = (phase.type === 'cut') ? 'logarithmic' : 'easeInOut';
+
             for (let dayInPhase = 1; dayInPhase <= daysInPhase; dayInPhase++) {
                 const globalDay = phase.startDay + dayInPhase - 1;
                 const currentDate = new Date(start);
                 currentDate.setDate(currentDate.getDate() + globalDay - 1);
-                
-                // Calculate progress within phase (0-1)
+
+                // Progress within phase [0, 1] — avoid 0 exactly on first day
                 const phaseProgress = dayInPhase / daysInPhase;
-                
-                // Calculate overall progress (0-100)
-                const overallProgress = ((phase.startDay + dayInPhase - 1) / phases[phases.length - 1].endDay) * 100;
-                
-                // Interpolate composition values
-                const weight = this.interpolate(
+
+                // Overall progress [0, 100]
+                const overallProgress = (globalDay / phases[phases.length - 1].endDay) * 100;
+
+                // --- Non-linear interpolation ---
+                const weight   = Calculations.interpolateCurved(
                     phase.startComposition.weight,
                     phase.endComposition.weight,
-                    phaseProgress
+                    phaseProgress,
+                    weightCurve
                 );
-                
-                const fatPct = this.interpolate(
+                const fatPct   = Calculations.interpolateCurved(
                     phase.startComposition.fatPct,
                     phase.endComposition.fatPct,
-                    phaseProgress
+                    phaseProgress,
+                    fatPctCurve
                 );
-                
-                const muscleKg = this.interpolate(
+                const muscleKg = Calculations.interpolateCurved(
                     phase.startComposition.muscleKg,
                     phase.endComposition.muscleKg,
-                    phaseProgress
+                    phaseProgress,
+                    muscleCurve
                 );
-                
-                // Add daily fluctuation to weight
-                const displayWeight = Calculations.addDailyFluctuation(weight, globalDay);
-                
-                const fatKg = displayWeight * (fatPct / 100);
+
+                // --- Plateau water offset ---
+                const plateau = Calculations.calculatePlateauEffect(dayInPhase, phase.type);
+
+                // --- Refeed / diet-break ---
+                const refeed = refeedMap[globalDay];
+                const refeedWater   = refeed ? refeed.waterGainKg : 0;
+                const refeedCalMult = refeed ? refeed.calorieMultiplier : 1.0;
+
+                // --- Daily fluctuation (deterministic, sex-aware) ---
+                const displayWeight = Calculations.addDailyFluctuation(
+                    weight + plateau.waterOffset + refeedWater,
+                    globalDay,
+                    sex
+                );
+
+                const fatKg     = displayWeight * (fatPct / 100);
                 const leanMassKg = displayWeight - fatKg;
-                
-                // Calculate performance metrics
+
+                // --- Performance metrics ---
                 const performance = Calculations.calculatePerformanceMetrics(
                     globalDay,
                     { muscleKg, fatPct },
                     phase.type,
                     initial
                 );
-                
-                // Calculate wellbeing metrics
+
+                // --- Wellbeing metrics ---
                 const weekInPhase = Math.ceil(dayInPhase / 7);
-                const wellbeing = Calculations.calculateWellbeingMetrics(
+                const wellbeing   = Calculations.calculateWellbeingMetrics(
                     globalDay,
                     phase.type,
                     overallProgress,
                     weekInPhase
                 );
-                
-                // Get day of week
+
+                // Boost energy/mood on refeed days
+                if (refeed) {
+                    wellbeing.energy        = Math.min(10, wellbeing.energy + 1.2);
+                    wellbeing.generalFeeling = Math.min(10, wellbeing.generalFeeling + 0.8);
+                }
+
                 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
                 const dayOfWeek = dayNames[currentDate.getDay()];
-                
-                // Previous day for change calculation
-                const prevDay = dailyData[dailyData.length - 1];
-                
+                const prevDay   = dailyData[dailyData.length - 1];
+
+                // Adjusted calories for refeed days
+                const targetCalories = Math.round(phase.dailyCalories * refeedCalMult);
+
                 dailyData.push({
                     day: globalDay,
                     date: currentDate.toISOString().split('T')[0],
@@ -303,33 +351,39 @@ const DataGenerator = {
                     dayInPhase,
                     weekInPhase,
                     week: Math.ceil(globalDay / 7),
+                    // Refeed metadata
+                    isRefeedDay:  !!refeed,
+                    refeedType:   refeed ? refeed.type : null,
+                    refeedLabel:  refeed ? refeed.label : null,
+                    // Plateau metadata
+                    isPlateauDay: plateau.active,
                     physical: {
-                        weight: Math.round(displayWeight * 100) / 100,
-                        fatPct: Math.round(fatPct * 100) / 100,
-                        fatKg: Math.round(fatKg * 100) / 100,
-                        muscleKg: Math.round(muscleKg * 100) / 100,
+                        weight:     Math.round(displayWeight * 100) / 100,
+                        fatPct:     Math.round(fatPct  * 100) / 100,
+                        fatKg:      Math.round(fatKg   * 100) / 100,
+                        muscleKg:   Math.round(muscleKg * 100) / 100,
                         leanMassKg: Math.round(leanMassKg * 100) / 100
                     },
                     performance,
                     wellbeing,
                     dailyChange: prevDay ? {
-                        weight: Math.round((displayWeight - prevDay.physical.weight) * 100) / 100,
-                        fatKg: Math.round((fatKg - prevDay.physical.fatKg) * 100) / 100,
+                        weight:   Math.round((displayWeight - prevDay.physical.weight) * 100) / 100,
+                        fatKg:    Math.round((fatKg - prevDay.physical.fatKg) * 100) / 100,
                         muscleKg: Math.round((muscleKg - prevDay.physical.muscleKg) * 100) / 100
                     } : { weight: 0, fatKg: 0, muscleKg: 0 },
                     cumulativeChange: {
-                        weight: Math.round((displayWeight - initial.weight) * 100) / 100,
-                        fatKg: Math.round((fatKg - initial.weight * initial.fatPct / 100) * 100) / 100,
+                        weight:   Math.round((displayWeight - initial.weight) * 100) / 100,
+                        fatKg:    Math.round((fatKg - initial.weight * initial.fatPct / 100) * 100) / 100,
                         muscleKg: Math.round((muscleKg - initial.muscleKg) * 100) / 100
                     },
                     nutrition: {
-                        targetCalories: phase.dailyCalories,
-                        targetProtein: Math.round(displayWeight * 2.2) // 2.2g/kg for muscle preservation
+                        targetCalories,
+                        targetProtein: Math.round(displayWeight * (phase.type === 'cut' ? 2.2 : 1.8))
                     }
                 });
             }
         });
-        
+
         return dailyData;
     },
     

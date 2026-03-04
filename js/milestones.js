@@ -893,3 +893,38 @@ window.closeMilestonesGallery = closeMilestonesGallery;
 window.openMilestoneDetail = openMilestoneDetail;
 window.closeMilestoneDetail = closeMilestoneDetail;
 window.getMilestonesChartPlugin = getMilestonesChartPlugin;
+
+// ============================================
+// MÓDULO PARA VISTA DE HITOS (view-milestones)
+// ============================================
+const MilestonesModule = {
+    render() {
+        const container = document.getElementById('milestonesContent');
+        if (!container) return;
+
+        if (!AppState.data?.milestones) {
+            container.innerHTML = '<p class="text-muted">Completa el onboarding para ver los hitos.</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="milestones-layout">
+                <div class="milestones-top-row">
+                    <div id="milestoneStats" class="milestones-stats-panel card-glass"></div>
+                    <div id="nextMilestonePanel" class="next-milestone-panel card-glass"></div>
+                </div>
+                <div id="milestonesTimeline" class="milestones-timeline-panel card-glass"></div>
+                <div id="categoryProgressTable" class="milestones-categories-panel card-glass"></div>
+            </div>
+        `;
+
+        renderMilestoneStats();
+        renderNextMilestone();
+        renderMilestonesTimeline();
+        renderCategoryProgressTable();
+    }
+};
+
+if (typeof window !== 'undefined') {
+    window.MilestonesModule = MilestonesModule;
+}

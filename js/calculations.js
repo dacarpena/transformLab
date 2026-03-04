@@ -1,12 +1,13 @@
 // ============================================
 // TRANSFORMLAB - Scientific Calculations Engine
 // Based on peer-reviewed research
-// v3.1 - Fixed target weight calculation bug
+// v4.0 - Non-linear curves, plateau model, refeed days,
+//        menstrual cycle, realistic wellbeing
 // ============================================
 
 /**
  * Scientific calculation engine for body composition tracking
- * 
+ *
  * References:
  * - Mifflin-St Jeor (1990): BMR calculation
  * - Aragon (2017): Safe fat loss rates
@@ -62,6 +63,201 @@ const Calculations = {
         female: 45
     },
     
+    // ============================================
+    // DETERMINISTIC PRNG (mulberry32)
+    // Ensures daily fluctuations are reproducible
+    // ============================================
+
+    /**
+     * Deterministic pseudo-random number [0,1) seeded by an integer.
+     * Using the same seed always returns the same value, preventing
+     * data changes on regeneration.
+     *
+     * @param {number} seed - Integer seed
+     * @returns {number} Value in [0, 1)
+     */
+    seededRandom(seed) {
+        let t = (seed + 0x6D2B79F5) | 0;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+
+    // ============================================
+    // NON-LINEAR PROGRESSION CURVES
+    // ============================================
+
+    /**
+     * Progression curve functions for realistic data generation.
+     * Each function maps t ∈ [0,1] → curved value ∈ [0,1].
+     */
+    CURVE_FUNCTIONS: {
+        /** Gradual start and end, fast middle — generic default */
+        easeInOut: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+
+        /** Fast initial progress that slows to a plateau — typical fat loss */
+        logarithmic: (t) => Math.log(1 + t * 9) / Math.log(10),
+
+        /** Slow → fast → slow S-curve — typical muscle hypertrophy */
+        sigmoid: (t) => 1 / (1 + Math.exp(-10 * (t - 0.5))),
+
+        /** Linear — neutral, no curve */
+        linear: (t) => t,
+    },
+
+    /**
+     * Interpolate between start and end using a non-linear curve.
+     *
+     * @param {number} start - Starting value
+     * @param {number} end   - Ending value
+     * @param {number} t     - Progress in [0, 1]
+     * @param {string} curveType - Key of CURVE_FUNCTIONS
+     * @returns {number}
+     */
+    interpolateCurved(start, end, t, curveType = 'easeInOut') {
+        const clamped = Math.max(0, Math.min(1, t));
+        const fn = this.CURVE_FUNCTIONS[curveType] || this.CURVE_FUNCTIONS.easeInOut;
+        return start + (end - start) * fn(clamped);
+    },
+
+    // ============================================
+    // PLATEAU MODEL
+    // ============================================
+
+    /**
+     * Calculate the plateau effect on weight during a cut.
+     * Typical diet plateaus occur at weeks 3–4, 7–8 and 12–13.
+     * During a plateau the body retains water (+0.2–0.5 kg) as a
+     * homeostatic response before breaking through.
+     *
+     * @param {number} dayInPhase - Day number within the cut/recomp phase
+     * @param {string} phaseType  - Phase type
+     * @returns {{ active: boolean, waterOffset: number }}
+     */
+    calculatePlateauEffect(dayInPhase, phaseType) {
+        if (phaseType !== 'cut' && phaseType !== 'recomposition') {
+            return { active: false, waterOffset: 0 };
+        }
+
+        const plateauStartWeeks = [3, 7, 12]; // weeks within phase
+        const currentWeek = Math.ceil(dayInPhase / 7);
+
+        for (const pw of plateauStartWeeks) {
+            if (currentWeek >= pw && currentWeek < pw + 2) {
+                const weekInPlateau = currentWeek - pw; // 0 or 1
+                const dayInWeek = ((dayInPhase - 1) % 7) + 1;
+                // Water retention peaks mid-plateau (sin bell)
+                const progress = (weekInPlateau * 7 + dayInWeek - 1) / 14;
+                const waterOffset = 0.45 * Math.sin(progress * Math.PI);
+                return { active: true, waterOffset: Math.round(waterOffset * 100) / 100 };
+            }
+        }
+
+        return { active: false, waterOffset: 0 };
+    },
+
+    // ============================================
+    // REFEED DAYS & DIET BREAKS
+    // ============================================
+
+    /**
+     * Build a schedule of refeed days and diet breaks for cut phases.
+     * - Refeed: 1 day every 14 days of cut (+20% kcal, +0.5 kg water)
+     * - Diet break: 7 days every 8 weeks of cut (maintenance kcal, +1.5 kg water)
+     *
+     * @param {Array} phases - Generated phases array
+     * @returns {Array} Sorted array of refeed events
+     */
+    getRefeedSchedule(phases) {
+        const refeeds = [];
+
+        phases.forEach(phase => {
+            if (phase.type !== 'cut') return;
+
+            const start = phase.startDay;
+            const end = phase.endDay;
+
+            // Refeed every 14 days
+            for (let day = start + 13; day <= end; day += 14) {
+                // Skip if a diet break starts on this day
+                refeeds.push({
+                    day,
+                    type: 'refeed',
+                    durationDays: 1,
+                    calorieMultiplier: 1.2,
+                    waterGainKg: 0.5,
+                    label: 'Día de Recarga'
+                });
+            }
+
+            // Diet break every 56 days (8 weeks)
+            for (let day = start + 55; day <= end - 7; day += 56) {
+                // Remove any refeeds that overlap with this diet break
+                const breakEnd = day + 6;
+                for (let d = day; d <= breakEnd; d++) {
+                    const idx = refeeds.findIndex(r => r.day === d && r.type === 'refeed');
+                    if (idx !== -1) refeeds.splice(idx, 1);
+                }
+                for (let d = day; d <= breakEnd; d++) {
+                    refeeds.push({
+                        day: d,
+                        type: 'diet_break',
+                        durationDays: 7,
+                        calorieMultiplier: 1.0,
+                        waterGainKg: 0.25, // spread across 7 days → ~1.75 kg total
+                        label: 'Semana de Recarga'
+                    });
+                }
+            }
+        });
+
+        return refeeds.sort((a, b) => a.day - b.day);
+    },
+
+    // ============================================
+    // MENSTRUAL CYCLE WATER RETENTION (females only)
+    // ============================================
+
+    /**
+     * Estimate daily water retention due to the menstrual cycle.
+     * Cycle is modelled as 28-day average.
+     *
+     * Phases (approximate):
+     *  - Follicular (day 1–13): low retention
+     *  - Ovulation (day 14): mild peak +0.3 kg
+     *  - Luteal (day 15–28): rising retention, peak ~days 24–26 (+1.5 kg)
+     *  - Menstruation (day 1–5 of next cycle): rapid drop
+     *
+     * @param {number} globalDay - Absolute day of the plan
+     * @param {string} sex       - 'male' or 'female'
+     * @returns {number} Estimated water offset in kg
+     */
+    calculateMenstrualWaterRetention(globalDay, sex) {
+        if (sex !== 'female') return 0;
+
+        const CYCLE_LENGTH = 28;
+        const cycleDay = ((globalDay - 1) % CYCLE_LENGTH) + 1; // 1-28
+
+        if (cycleDay >= 15 && cycleDay <= 28) {
+            // Luteal phase: retention rises then falls
+            const luteaT = (cycleDay - 15) / 13; // 0→1
+            return Math.round(1.5 * Math.sin(luteaT * Math.PI) * 100) / 100;
+        }
+
+        if (cycleDay <= 5) {
+            // Early menstruation: residual retention dropping fast
+            return Math.round((1.0 - cycleDay * 0.18) * 100) / 100;
+        }
+
+        if (cycleDay === 14) {
+            // Ovulation: small peak
+            return 0.3;
+        }
+
+        // Follicular phase (days 6–13): minimal
+        return 0;
+    },
+
     // ============================================
     // BMR CALCULATION (Mifflin-St Jeor)
     // ============================================
@@ -571,84 +767,119 @@ const Calculations = {
     },
     
     /**
-     * Calculate wellbeing metrics based on phase and progress
-     * 
-     * @param {number} day - Current day number
-     * @param {string} phaseType - Current phase type
-     * @param {number} progressPct - Overall progress percentage
-     * @param {number} weekInPhase - Week number within current phase
+     * Calculate wellbeing metrics based on phase and progress.
+     *
+     * Improvements over v3.1:
+     * - Weekly energy modulator (lunes bajo, miércoles pico)
+     * - Deload week bonus every 4th week (full recovery)
+     * - Phase-specific fatigue patterns preserved
+     *
+     * @param {number} day          - Absolute day number
+     * @param {string} phaseType    - Current phase type
+     * @param {number} progressPct  - Overall progress percentage (0–100)
+     * @param {number} weekInPhase  - Week number within current phase
      * @returns {object} Wellbeing metrics
      */
     calculateWellbeingMetrics(day, phaseType, progressPct, weekInPhase) {
         let energy, mentalClarity, selfEsteem, sleepQuality, aesthetics, generalFeeling;
-        
-        // Base values that improve with progress
+
         const progressBonus = progressPct * 0.03;
-        
+
+        // --- Weekly energy pattern ---
+        const dayOfWeek = ((day - 1) % 7) + 1; // 1 = Mon, 7 = Sun
+        const weeklyEnergyMod = {
+            1: -0.8,  // Monday — sluggish after weekend
+            2:  0.2,  // Tuesday — warming up
+            3:  0.6,  // Wednesday — peak energy
+            4:  0.5,  // Thursday — still strong
+            5:  0.0,  // Friday — neutral
+            6:  0.3,  // Saturday — active rest
+            7:  0.1   // Sunday — genuine rest
+        }[dayOfWeek] || 0;
+
+        // --- Deload week (every 4th week) ---
+        const globalWeek = Math.ceil(day / 7);
+        const deloadBonus = (globalWeek % 4 === 0) ? 1.5 : 0;
+
         switch (phaseType) {
             case 'cut':
                 // Energy dips during cut, especially weeks 2-4
                 const cutFatigue = weekInPhase >= 2 && weekInPhase <= 4 ? -1.5 : -0.5;
-                energy = Math.max(3, Math.min(10, 6 + cutFatigue + progressBonus));
-                mentalClarity = Math.max(4, Math.min(10, 5 + progressBonus));
-                selfEsteem = Math.min(10, 5 + progressBonus * 1.5); // Improves with visible results
-                sleepQuality = Math.max(5, Math.min(10, 6 + progressBonus));
-                aesthetics = Math.min(10, 4 + progressPct * 0.06); // Visible improvement
-                generalFeeling = Math.max(4, Math.min(10, 5.5 + progressBonus));
+                energy = Math.max(3, Math.min(10, 6 + cutFatigue + progressBonus + weeklyEnergyMod + deloadBonus));
+                mentalClarity = Math.max(4, Math.min(10, 5 + progressBonus + weeklyEnergyMod * 0.5));
+                selfEsteem = Math.min(10, 5 + progressBonus * 1.5);
+                sleepQuality = Math.max(5, Math.min(10, 6 + progressBonus + deloadBonus * 0.5));
+                aesthetics = Math.min(10, 4 + progressPct * 0.06);
+                generalFeeling = Math.max(4, Math.min(10, 5.5 + progressBonus + weeklyEnergyMod * 0.4));
                 break;
-                
+
             case 'bulk':
-                energy = Math.min(10, 7 + progressBonus); // More energy with surplus
-                mentalClarity = Math.min(10, 6 + progressBonus);
+                energy = Math.min(10, 7 + progressBonus + weeklyEnergyMod + deloadBonus);
+                mentalClarity = Math.min(10, 6 + progressBonus + weeklyEnergyMod * 0.5);
                 selfEsteem = Math.min(10, 5 + progressBonus);
-                sleepQuality = Math.min(10, 7 + progressBonus);
-                aesthetics = Math.min(10, 5 + progressPct * 0.03); // Slower aesthetic gains
-                generalFeeling = Math.min(10, 7 + progressBonus);
+                sleepQuality = Math.min(10, 7 + progressBonus + deloadBonus * 0.3);
+                aesthetics = Math.min(10, 5 + progressPct * 0.03);
+                generalFeeling = Math.min(10, 7 + progressBonus + weeklyEnergyMod * 0.4);
                 break;
-                
+
             case 'recomposition':
-                energy = Math.min(10, 6 + progressBonus);
-                mentalClarity = Math.min(10, 6 + progressBonus);
+                energy = Math.min(10, 6 + progressBonus + weeklyEnergyMod + deloadBonus);
+                mentalClarity = Math.min(10, 6 + progressBonus + weeklyEnergyMod * 0.5);
                 selfEsteem = Math.min(10, 5 + progressBonus * 1.2);
-                sleepQuality = Math.min(10, 6.5 + progressBonus);
+                sleepQuality = Math.min(10, 6.5 + progressBonus + deloadBonus * 0.4);
                 aesthetics = Math.min(10, 4.5 + progressPct * 0.05);
-                generalFeeling = Math.min(10, 6 + progressBonus);
+                generalFeeling = Math.min(10, 6 + progressBonus + weeklyEnergyMod * 0.4);
                 break;
-                
+
             default: // adaptation, maintenance, transition
-                energy = Math.min(10, 6.5 + progressBonus);
-                mentalClarity = Math.min(10, 6 + progressBonus);
+                energy = Math.min(10, 6.5 + progressBonus + weeklyEnergyMod + deloadBonus);
+                mentalClarity = Math.min(10, 6 + progressBonus + weeklyEnergyMod * 0.5);
                 selfEsteem = Math.min(10, 5 + progressBonus);
-                sleepQuality = Math.min(10, 7 + progressBonus);
+                sleepQuality = Math.min(10, 7 + progressBonus + deloadBonus * 0.3);
                 aesthetics = Math.min(10, 5 + progressPct * 0.04);
-                generalFeeling = Math.min(10, 6.5 + progressBonus);
+                generalFeeling = Math.min(10, 6.5 + progressBonus + weeklyEnergyMod * 0.4);
         }
-        
-        // Add small daily variation
-        const variation = (Math.sin(day * 0.5) * 0.3);
-        
+
+        // Deterministic daily micro-variation (replaces Math.sin random feel)
+        const r = this.seededRandom(day * 53 + 7);
+        const variation = (r - 0.5) * 0.4;
+
         return {
-            energy: Math.round((energy + variation) * 10) / 10,
-            mentalClarity: Math.round((mentalClarity + variation * 0.5) * 10) / 10,
-            selfEsteem: Math.round(selfEsteem * 10) / 10,
-            sleepQuality: Math.round((sleepQuality + variation * 0.3) * 10) / 10,
-            aesthetics: Math.round(aesthetics * 10) / 10,
-            generalFeeling: Math.round((generalFeeling + variation * 0.4) * 10) / 10
+            energy:        Math.round(Math.max(1, Math.min(10, energy + variation)) * 10) / 10,
+            mentalClarity: Math.round(Math.max(1, Math.min(10, mentalClarity + variation * 0.5)) * 10) / 10,
+            selfEsteem:    Math.round(Math.max(1, Math.min(10, selfEsteem)) * 10) / 10,
+            sleepQuality:  Math.round(Math.max(1, Math.min(10, sleepQuality + variation * 0.3)) * 10) / 10,
+            aesthetics:    Math.round(Math.max(1, Math.min(10, aesthetics)) * 10) / 10,
+            generalFeeling:Math.round(Math.max(1, Math.min(10, generalFeeling + variation * 0.4)) * 10) / 10
         };
     },
     
     /**
-     * Add realistic daily weight fluctuations
-     * 
+     * Add realistic daily weight fluctuations.
+     * Uses a deterministic seeded PRNG so the data is reproducible
+     * across regenerations. Also includes menstrual-cycle water
+     * retention for female profiles.
+     *
      * @param {number} baseWeight - Calculated base weight for the day
-     * @param {number} day - Day number
+     * @param {number} day        - Absolute day number (used as seed)
+     * @param {string} [sex]      - 'male' or 'female' (default 'male')
      * @returns {number} Weight with natural fluctuation
      */
-    addDailyFluctuation(baseWeight, day) {
-        // Water retention varies by ~0.5-1.5kg day to day
-        const fluctuation = Math.sin(day * 0.7) * 0.4 + 
-                           Math.sin(day * 1.3) * 0.3 +
-                           (Math.random() - 0.5) * 0.4;
+    addDailyFluctuation(baseWeight, day, sex = 'male') {
+        // Deterministic pseudo-random noise (seed varies per day)
+        const r = this.seededRandom(day * 97 + 13);
+
+        // Two sinusoidal waves simulate glycogen/water oscillation
+        const sinFluctuation = Math.sin(day * 0.7) * 0.4 +
+                               Math.sin(day * 1.3) * 0.3;
+
+        // Seeded random noise ±0.2 kg
+        const noise = (r - 0.5) * 0.4;
+
+        // Menstrual cycle offset (0 for males)
+        const menstrualOffset = this.calculateMenstrualWaterRetention(day, sex);
+
+        const fluctuation = sinFluctuation + noise + menstrualOffset;
         return Math.round((baseWeight + fluctuation) * 100) / 100;
     }
 };
