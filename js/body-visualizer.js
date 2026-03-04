@@ -15,7 +15,7 @@ const BodyVisualizer = {
      * @param {string} sex            - 'male' or 'female'
      * @returns {string} SVG markup
      */
-    buildSilhouetteSVG(fatPct, muscleProgress, sex = 'male') {
+    buildSilhouetteSVG(fatPct, muscleProgress, sex = 'male', gradId = 'fatGrad') {
         // Fat opacity scales 0→0.7 as fatPct goes from 8→40
         const fatOpacity = Math.max(0, Math.min(0.7, (fatPct - 8) / 35));
         // Muscle saturation 0.2→1.0
@@ -28,7 +28,7 @@ const BodyVisualizer = {
         return `
 <svg viewBox="0 0 120 300" xmlns="http://www.w3.org/2000/svg" class="body-svg" aria-hidden="true">
     <defs>
-        <radialGradient id="fatGrad" cx="50%" cy="50%" r="50%">
+        <radialGradient id="${gradId}" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stop-color="${fatColor}" stop-opacity="${fatOpacity}"/>
             <stop offset="100%" stop-color="${fatColor}" stop-opacity="0"/>
         </radialGradient>
@@ -69,7 +69,7 @@ const BodyVisualizer = {
     <rect x="67" y="238" width="20" height="42" rx="10" fill="${muscleColor}" opacity="0.7"/>
 
     <!-- Fat overlay layer -->
-    <ellipse cx="60" cy="135" rx="44" ry="60" fill="url(#fatGrad)" class="fat-layer"/>
+    <ellipse cx="60" cy="135" rx="44" ry="60" fill="url(#${gradId})" class="fat-layer"/>
     <ellipse cx="60" cy="165" rx="36" ry="40" fill="${fatColor}" opacity="${(fatOpacity * 0.6).toFixed(2)}" class="fat-layer"/>
     <ellipse cx="35" cy="80"  rx="10" ry="18" fill="${fatColor}" opacity="${(fatOpacity * 0.4).toFixed(2)}" class="fat-layer"/>
     <ellipse cx="85" cy="80"  rx="10" ry="18" fill="${fatColor}" opacity="${(fatOpacity * 0.4).toFixed(2)}" class="fat-layer"/>
@@ -123,14 +123,11 @@ const BodyVisualizer = {
         const muscleGained  = currentDay.physical.muscleKg - initial.muscleKg;
         const muscleProgress = Math.max(0, Math.min(1, muscleGained / muscleRange));
 
-        // Initial silhouette
+        // Initial silhouette — each uses a unique gradient ID to avoid DOM ID conflicts
         const initMuscleProgress = 0;
-        const initSVG    = this.buildSilhouetteSVG(initial.fatPct, initMuscleProgress, sex);
-        const currentSVG = this.buildSilhouetteSVG(currentDay.physical.fatPct, muscleProgress, sex);
-        const targetSVG  = this.buildSilhouetteSVG(target.fatPct,
-            1, // full muscle target
-            sex
-        );
+        const initSVG    = this.buildSilhouetteSVG(initial.fatPct,             initMuscleProgress, sex, 'fatGrad_start');
+        const currentSVG = this.buildSilhouetteSVG(currentDay.physical.fatPct, muscleProgress,     sex, 'fatGrad_current');
+        const targetSVG  = this.buildSilhouetteSVG(target.fatPct,              1,                  sex, 'fatGrad_target');
 
         container.innerHTML = `
             <div class="body-visualizer-layout">

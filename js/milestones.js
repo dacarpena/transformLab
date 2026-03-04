@@ -17,7 +17,15 @@ const MILESTONE_COLORS = {
     proporciones: '#eab308',
     postura: '#14b8a6',
     cuello: '#6366f1',
-    milestone: '#fbbf24'
+    milestone: '#fbbf24',
+    // New dynamic-generator categories
+    definition: '#ff6b6b',
+    size: '#48bb78',
+    phase: '#fbbf24',
+    abs: '#22c55e',
+    vascularity: '#ec4899',
+    face: '#06b6d4',
+    arms: '#ef4444'
 };
 
 // Iconos por categoría
@@ -34,7 +42,15 @@ const MILESTONE_ICONS = {
     proporciones: '📐',
     postura: '🧘',
     cuello: '🦒',
-    milestone: '🏆'
+    milestone: '🏆',
+    // New dynamic-generator categories
+    definition: '🔥',
+    size: '💪',
+    phase: '🏆',
+    abs: '🎯',
+    vascularity: '🩸',
+    face: '✨',
+    arms: '💪'
 };
 
 // ============================================
@@ -898,14 +914,63 @@ window.getMilestonesChartPlugin = getMilestonesChartPlugin;
 // MÓDULO PARA VISTA DE HITOS (view-milestones)
 // ============================================
 const MilestonesModule = {
+
+    /**
+     * Normalize new-format milestones (estimatedDay/name/triggerType)
+     * to the legacy format expected by the existing render functions
+     * (day/title/fatPct_trigger/muscle_trigger/visibility/week/…).
+     */
+    _normalize(milestones) {
+        const visibilityMap = { subtle: 'sutil', notable: 'notable', very_notable: 'muy_notable' };
+        return milestones.map(m => {
+            const day = m.day ?? m.estimatedDay ?? 0;
+            const week = Math.ceil(day / 7) || 1;
+
+            // Find the phase this milestone falls in
+            const phases = AppState.data?.phases || [];
+            const phase = phases.find(p => day >= p.startDay && day <= p.endDay) || phases[0];
+
+            // Metrics snapshot from daily data (best-effort)
+            const dayData = AppState.data?.daily?.[day - 1];
+            const metricsAtMilestone = dayData?.physical
+                ? {
+                    weight:     Math.round(dayData.physical.weight * 10) / 10,
+                    fatPct:     Math.round(dayData.physical.fatPct * 10) / 10,
+                    muscleKg:   Math.round(dayData.physical.muscleKg * 10) / 10,
+                    strength:   dayData.performance?.strength ?? 0,
+                    aesthetics: dayData.wellbeing?.aesthetics ?? 0,
+                    selfEsteem: dayData.wellbeing?.selfEsteem ?? 0,
+                  }
+                : { weight: 0, fatPct: 0, muscleKg: 0, strength: 0, aesthetics: 0, selfEsteem: 0 };
+
+            return {
+                ...m,
+                day,
+                week,
+                title:          m.title  ?? m.name ?? '',
+                dateFormatted:  typeof formatDateForDay === 'function' ? formatDateForDay(day, 'short') : `Día ${day}`,
+                dayOfWeek:      (() => { const d = typeof getDateForDay === 'function' ? getDateForDay(day) : null; return d ? d.toLocaleDateString('es-ES', { weekday: 'long' }) : ''; })(),
+                phaseType:      phase?.type  ?? 'default',
+                phase:          phase?.name  ?? '',
+                visibility:     visibilityMap[m.visibility] ?? m.visibility ?? 'sutil',
+                fatPct_trigger: m.triggerType === 'fatPct'    ? m.triggerValue : (m.fatPct_trigger ?? null),
+                muscle_trigger: m.triggerType === 'muscleKg'  ? m.triggerValue : (m.muscle_trigger ?? null),
+                metricsAtMilestone,
+            };
+        });
+    },
+
     render() {
         const container = document.getElementById('milestonesContent');
         if (!container) return;
 
-        if (!AppState.data?.milestones) {
+        if (!AppState.data?.milestones?.length) {
             container.innerHTML = '<p class="text-muted">Completa el onboarding para ver los hitos.</p>';
             return;
         }
+
+        // Normalize once so all render functions see the expected shape
+        AppState.data.milestones = this._normalize(AppState.data.milestones);
 
         container.innerHTML = `
             <div class="milestones-layout">

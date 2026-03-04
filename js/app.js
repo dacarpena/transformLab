@@ -416,8 +416,7 @@ function initializeApp() {
 
     // Inicializar router multi-pantalla
     if (typeof Router !== 'undefined') {
-        Router.init();
-        // Re-render views when navigating
+        // Attach listener BEFORE Router.init() so the restored-view viewchange is caught
         window.addEventListener('viewchange', (e) => {
             const { to } = e.detail;
             if (to === 'dashboard') {
@@ -438,6 +437,7 @@ function initializeApp() {
                 BodyVisualizer.render();
             }
         });
+        Router.init();
     }
 
     // Renderizar dashboard inicial
