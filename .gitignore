@@ -1,0 +1,15 @@
+# Sistema
+.DS_Store
+
+# Claude Code (worktrees, ajustes locales)
+.claude/
+
+# Node
+node_modules/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Varios
+*.log
