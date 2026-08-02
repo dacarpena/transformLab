@@ -215,6 +215,16 @@ export const MILESTONE_CATEGORIES = Object.freeze({
 export const ABSOLUTE_MAX_FAT_PCT = 60;
 
 /**
+ * Suelo de ruido para juzgar una desviación, como fracción del peso corporal.
+ * Fuente: la variabilidad intrasemanal del peso ronda el 1 % por agua,
+ * glucógeno y contenido intestinal (Bhutani et al. 2017); se toma 1,3 % para
+ * dejar margen a la báscula y a la hora del pesaje. Lo consume `tracking.js`
+ * para que la tolerancia nunca baje del ruido real de una medición.
+ * @type {number}
+ */
+export const toleranceFloorPct = 0.013;
+
+/**
  * Límites del plan completo. Un plan que supere maxTotalDays no es un plan,
  * es una señal de objetivo desproporcionado: se devuelve error accionable en
  * lugar de proyectar una década. Decisión de producto.
