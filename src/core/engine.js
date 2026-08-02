@@ -121,12 +121,17 @@ export function makeComposition(input) {
 }
 
 /**
- * Peso corporal que corresponde a una composición objetivo, coherente con la
- * ruta de origen del músculo:
- * - `measured`: conserva el tejido magro no muscular actual (premisa física).
- * - `estimated`: conserva la PROPORCIÓN músculo/magra actual del usuario, de
- *   modo que la identidad es exacta por construcción.
- * Sin clamps. Entradas inválidas → NaN (los llamantes validan con isFinite).
+ * Peso corporal que corresponde a una composición objetivo.
+ *
+ * Premisa física única para AMBAS rutas de `muscleSource`: el tejido magro no
+ * muscular (hueso, órganos, agua estructural) se CONSERVA — ganar o perder
+ * músculo esquelético no lo altera de forma apreciable. Con ella, la identidad
+ * es exacta por construcción (objetivo = composición actual ⇒ peso actual),
+ * y el plan, la serie diaria y este cálculo cuadran entre sí al miligramo:
+ * lo que difiere entre rutas es CÓMO se obtuvo `muscleKg`/`otherLeanKg`
+ * (medido vs estimado por proporción), no el álgebra del objetivo.
+ * Sin clamps (anti C-1..C-3): lo implausible se avisa en ranges.js.
+ * Entradas inválidas → NaN (los llamantes validan con isFinite).
  * @param {number} targetMuscleKg
  * @param {number} targetFatPct
  * @param {Composition} current
@@ -135,16 +140,9 @@ export function makeComposition(input) {
 export function targetWeightKg(targetMuscleKg, targetFatPct, current) {
     if (!isFiniteNumber(targetMuscleKg) || targetMuscleKg <= 0) return NaN;
     if (!isFiniteNumber(targetFatPct) || targetFatPct <= 0 || targetFatPct >= 100) return NaN;
-    if (!current || !isFiniteNumber(current.leanKg) || current.leanKg <= 0) return NaN;
+    if (!current || !isFiniteNumber(current.otherLeanKg) || current.otherLeanKg < 0) return NaN;
 
-    let targetLeanKg;
-    if (current.muscleSource === 'measured') {
-        targetLeanKg = targetMuscleKg + current.otherLeanKg;
-    } else {
-        const muscleShare = current.muscleKg / current.leanKg;
-        if (!isFiniteNumber(muscleShare) || muscleShare <= 0) return NaN;
-        targetLeanKg = targetMuscleKg / muscleShare;
-    }
+    const targetLeanKg = targetMuscleKg + current.otherLeanKg;
     return targetLeanKg / (1 - targetFatPct / 100);
 }
 
