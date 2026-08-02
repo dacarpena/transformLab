@@ -61,14 +61,26 @@ export function isValidSex(sex) {
 }
 
 /**
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
+ */
+function isPlainInput(v) {
+    return v !== null && typeof v === 'object';
+}
+
+/**
  * Valida el perfil (sexo, edad, altura, actividad, estado de entrenamiento).
- * @param {{ sex?: unknown, age?: unknown, heightCm?: unknown, activityLevel?: unknown, trainingStatus?: unknown }} profile
+ * Entrada no-objeto (null, undefined, primitivos) → error, jamás excepción.
+ * @param {{ sex?: unknown, age?: unknown, heightCm?: unknown, activityLevel?: unknown, trainingStatus?: unknown } | null | undefined} profile
  * @returns {CheckResult}
  */
 export function checkProfile(profile) {
     /** @type {Issue[]} */ const errors = [];
     /** @type {Issue[]} */ const warnings = [];
 
+    if (!isPlainInput(profile)) {
+        return { errors: [{ code: 'profile.inputInvalid' }], warnings };
+    }
     if (!isValidSex(profile.sex)) {
         errors.push({ code: 'profile.sexUnknown' });
     }
@@ -86,10 +98,10 @@ export function checkProfile(profile) {
     } else if (profile.heightCm < LIMITS.heightCm.min || profile.heightCm > LIMITS.heightCm.max) {
         errors.push({ code: 'profile.heightOutOfRange', params: { min: LIMITS.heightCm.min, max: LIMITS.heightCm.max } });
     }
-    if (typeof profile.activityLevel !== 'string' || !(profile.activityLevel in ACTIVITY_MULTIPLIERS)) {
+    if (typeof profile.activityLevel !== 'string' || !Object.hasOwn(ACTIVITY_MULTIPLIERS, profile.activityLevel)) {
         errors.push({ code: 'profile.activityUnknown' });
     }
-    if (typeof profile.trainingStatus !== 'string' || !(profile.trainingStatus in MUSCLE_GAIN_RATES_PCT_BW_MONTH)) {
+    if (typeof profile.trainingStatus !== 'string' || !Object.hasOwn(MUSCLE_GAIN_RATES_PCT_BW_MONTH, profile.trainingStatus)) {
         errors.push({ code: 'profile.trainingStatusUnknown' });
     }
     return { errors, warnings };
@@ -109,6 +121,9 @@ export function checkComposition(input, sex) {
 
     if (!isValidSex(sex)) {
         return { errors: [{ code: 'profile.sexUnknown' }], warnings };
+    }
+    if (!isPlainInput(input)) {
+        return { errors: [{ code: 'composition.inputInvalid' }], warnings };
     }
     const { weightKg, fatPct, muscleKg } = input;
 
@@ -165,6 +180,12 @@ export function checkTarget(initial, target, sex) {
     if (!isValidSex(sex)) {
         return { errors: [{ code: 'profile.sexUnknown' }], warnings };
     }
+    if (!isPlainInput(initial) || !isFiniteNumber(initial.muscleKg) || initial.muscleKg <= 0) {
+        return { errors: [{ code: 'target.initialInvalid' }], warnings };
+    }
+    if (!isPlainInput(target)) {
+        return { errors: [{ code: 'target.inputInvalid' }], warnings };
+    }
     const { fatPct, muscleKg } = target;
 
     if (!isFiniteNumber(fatPct)) {
@@ -172,6 +193,10 @@ export function checkTarget(initial, target, sex) {
     } else if (fatPct < MIN_SAFE_FAT_PCT[sex]) {
         // objetivo sostenido bajo el mínimo seguro: bloquea (no es una medición)
         errors.push({ code: 'target.fatBelowSafe', params: { min: MIN_SAFE_FAT_PCT[sex] } });
+    } else if (fatPct > ABSOLUTE_MAX_FAT_PCT) {
+        // un objetivo por encima del techo absoluto es error, no aviso: el
+        // modelo no puede proyectar hacia ahí (y el peso objetivo se dispara)
+        errors.push({ code: 'target.fatAboveAbsoluteMax', params: { max: ABSOLUTE_MAX_FAT_PCT } });
     } else if (fatPct > MAX_FAT_PCT[sex]) {
         warnings.push({ code: 'target.fatAboveModelMax', params: { max: MAX_FAT_PCT[sex] } });
     }

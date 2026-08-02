@@ -26,9 +26,12 @@ import {
     CUT_MUSCLE_LOSS_PER_KG_FAT,
     BULK_FAT_PER_KG_MUSCLE,
     PHASE_DURATIONS,
-    METABOLIC_ADAPTATION
+    METABOLIC_ADAPTATION,
+    PLAN_LIMITS,
+    ABSOLUTE_MAX_FAT_PCT,
+    ESSENTIAL_FAT_PCT
 } from './constants.js';
-import { checkComposition, checkTarget, checkProfile, isValidSex } from './ranges.js';
+import { checkComposition, checkTarget, checkProfile, isValidSex, LIMITS } from './ranges.js';
 
 /**
  * @typedef {import('./ranges.js').Issue} Issue
@@ -97,8 +100,14 @@ function isFiniteNumber(v) {
  * @returns {EngineResult<Composition>}
  */
 export function makeComposition(input) {
+    if (input === null || typeof input !== 'object') {
+        return { ok: false, errors: [{ code: 'composition.inputInvalid' }] };
+    }
     const { weightKg, fatPct, sex } = input;
     if (!isValidSex(sex)) return { ok: false, errors: [{ code: 'profile.sexUnknown' }] };
+    if (input.muscleSource !== undefined && input.muscleSource !== 'measured' && input.muscleSource !== 'estimated') {
+        return { ok: false, errors: [{ code: 'composition.muscleSourceInvalid' }] };
+    }
 
     const provided = input.muscleKg !== undefined && input.muscleKg !== null;
     const check = checkComposition(
@@ -158,6 +167,7 @@ export function targetWeightKg(targetMuscleKg, targetFatPct, current) {
  * @returns {number} kcal/día
  */
 export function bmr(profile, weightKg) {
+    if (profile === null || typeof profile !== 'object') return NaN;
     if (!isValidSex(profile.sex) || !isFiniteNumber(weightKg) || !isFiniteNumber(profile.heightCm) || !isFiniteNumber(profile.age)) return NaN;
     const base = 10 * weightKg + 6.25 * profile.heightCm - 5 * profile.age;
     return Math.round(profile.sex === 'male' ? base + 5 : base - 161);
@@ -171,9 +181,9 @@ export function bmr(profile, weightKg) {
  * @returns {number} kcal/día
  */
 export function tdee(bmrKcal, activityLevel) {
-    const mult = ACTIVITY_MULTIPLIERS[activityLevel];
-    if (mult === undefined || !isFiniteNumber(bmrKcal)) return NaN;
-    return Math.round(bmrKcal * mult);
+    if (typeof activityLevel !== 'string' || !Object.hasOwn(ACTIVITY_MULTIPLIERS, activityLevel)) return NaN;
+    if (!isFiniteNumber(bmrKcal)) return NaN;
+    return Math.round(bmrKcal * ACTIVITY_MULTIPLIERS[activityLevel]);
 }
 
 /**
@@ -185,7 +195,16 @@ export function tdee(bmrKcal, activityLevel) {
  * @returns {{ targetKcal: number, deficitKcal: number, tdeeKcal: number, flooredBySafety: boolean }}
  */
 export function caloricTarget(input) {
+    if (input === null || typeof input !== 'object') {
+        return { targetKcal: NaN, deficitKcal: NaN, tdeeKcal: NaN, flooredBySafety: false };
+    }
     const { tdeeKcal, bmrKcal, sex, dailyFatDeltaKg, dailyMuscleDeltaKg } = input;
+    if (!isValidSex(sex) || !isFiniteNumber(tdeeKcal) || !isFiniteNumber(bmrKcal)
+        || !isFiniteNumber(dailyFatDeltaKg) || !isFiniteNumber(dailyMuscleDeltaKg)) {
+        // sexo o números inválidos: NUNCA se calcula sin suelo de seguridad
+        // (el patrón del legacy MOT-06 no vuelve): resultado NaN explícito.
+        return { targetKcal: NaN, deficitKcal: NaN, tdeeKcal: NaN, flooredBySafety: false };
+    }
     const dailyEnergyDelta = dailyFatDeltaKg * KCAL_PER_KG_FAT + dailyMuscleDeltaKg * KCAL_PER_KG_MUSCLE;
     const rawTarget = tdeeKcal + dailyEnergyDelta;
     const floor = Math.max(bmrKcal, CALORIC_FLOOR_KCAL[sex]);
@@ -205,9 +224,9 @@ export function caloricTarget(input) {
  * @returns {number} kg/semana
  */
 export function weeklyFatLossKg(weightKg, intensity) {
-    const rate = FAT_LOSS_RATES_PCT_BW_WEEK[intensity];
-    if (rate === undefined || !isFiniteNumber(weightKg)) return NaN;
-    return weightKg * rate;
+    if (typeof intensity !== 'string' || !Object.hasOwn(FAT_LOSS_RATES_PCT_BW_WEEK, intensity)) return NaN;
+    if (!isFiniteNumber(weightKg)) return NaN;
+    return weightKg * FAT_LOSS_RATES_PCT_BW_WEEK[intensity];
 }
 
 /**
@@ -220,10 +239,11 @@ export function weeklyFatLossKg(weightKg, intensity) {
  * @returns {number} kg/mes
  */
 export function monthlyMuscleGainKg(weightKg, trainingStatus, sex, bound = 'avg') {
-    const rates = MUSCLE_GAIN_RATES_PCT_BW_MONTH[trainingStatus];
-    if (rates === undefined || !isFiniteNumber(weightKg) || !isValidSex(sex)) return NaN;
+    if (typeof trainingStatus !== 'string' || !Object.hasOwn(MUSCLE_GAIN_RATES_PCT_BW_MONTH, trainingStatus)) return NaN;
+    if (!isFiniteNumber(weightKg) || !isValidSex(sex)) return NaN;
+    if (bound !== 'min' && bound !== 'avg' && bound !== 'max') return NaN;
     const factor = sex === 'female' ? FEMALE_MUSCLE_GAIN_FACTOR : 1;
-    return weightKg * rates[bound] * factor;
+    return weightKg * MUSCLE_GAIN_RATES_PCT_BW_MONTH[trainingStatus][bound] * factor;
 }
 
 // ============================================================
@@ -291,7 +311,11 @@ class PlanBuilder {
  */
 export function planPhases(initial, target, profile, options = {}) {
     /** @type {Issue[]} */ const warnings = [];
-    const intensity = options.intensity ?? 'moderate';
+    const opts = options ?? {};
+    const intensity = opts.intensity ?? 'moderate';
+    if (typeof intensity !== 'string' || !Object.hasOwn(FAT_LOSS_RATES_PCT_BW_WEEK, intensity)) {
+        return { ok: false, errors: [{ code: 'plan.intensityUnknown' }] };
+    }
 
     // ---- validación de entrada (C-5: nada no finito pasa de aquí) ----
     const profileCheck = checkProfile(profile);
@@ -309,27 +333,34 @@ export function planPhases(initial, target, profile, options = {}) {
     if (!isFiniteNumber(finalWeightKg)) {
         return { ok: false, errors: [{ code: 'plan.targetUnreachable' }] };
     }
+    if (finalWeightKg < LIMITS.weightKg.min || finalWeightKg > LIMITS.weightKg.max) {
+        return {
+            ok: false,
+            errors: [{ code: 'plan.targetWeightOutOfRange', params: { weightKg: Math.round(finalWeightKg * 10) / 10, min: LIMITS.weightKg.min, max: LIMITS.weightKg.max } }]
+        };
+    }
 
     const totals = {
         fatDeltaKg: finalWeightKg * (target.fatPct / 100) - initial.fatKg,
         muscleDeltaKg: target.muscleKg - initial.muscleKg
     };
-    const b = new PlanBuilder(initial, totals, profile);
 
-    const needsFatLoss = totals.fatDeltaKg < -CLOSE_ENOUGH_KG;
-    const needsFatGain = totals.fatDeltaKg > CLOSE_ENOUGH_KG;
-    const needsMuscleGain = totals.muscleDeltaKg > CLOSE_ENOUGH_KG;
-    const needsMuscleLoss = totals.muscleDeltaKg < -CLOSE_ENOUGH_KG;
-    const anyChange = needsFatLoss || needsFatGain || needsMuscleGain || needsMuscleLoss;
-
+    const anyChange = Math.abs(totals.fatDeltaKg) > CLOSE_ENOUGH_KG || Math.abs(totals.muscleDeltaKg) > CLOSE_ENOUGH_KG;
     const { adaptationDays, transitionDays, maintenanceDays } = PHASE_DURATIONS;
 
     if (!anyChange) {
-        // ---- rama «ya estás en el objetivo» (MOT-10): plan honesto, sin humo ----
+        // ---- rama «ya estás en el objetivo» (MOT-10): plan honesto, sin humo.
+        // El objetivo efectivo ES el estado actual: el summary lo refleja para
+        // que la suma de fases (0) y el aterrizaje de la serie cuadren exactos.
         warnings.push({ code: 'plan.alreadyAtTarget' });
-        b.push('maintenance', maintenanceDays, 0, 0);
-        return finishPlan(b, finalWeightKg, warnings, profile, intensity);
+        const b0 = new PlanBuilder(initial, { fatDeltaKg: 0, muscleDeltaKg: 0 }, profile);
+        b0.push('maintenance', maintenanceDays, 0, 0);
+        return finishPlan(b0, initial.weightKg, warnings, profile, intensity);
     }
+
+    const b = new PlanBuilder(initial, totals, profile);
+    const needsFatLoss = totals.fatDeltaKg < -CLOSE_ENOUGH_KG;
+    const needsMuscleGain = totals.muscleDeltaKg > CLOSE_ENOUGH_KG;
 
     // ---- adaptación: dos semanas de arranque suave hacia el objetivo ----
     {
@@ -357,15 +388,11 @@ export function planPhases(initial, target, profile, options = {}) {
     }
 
     // ---- definición: día a día sobre peso decreciente (MOT-16) ----
-    const runCut = (/** @type {number} */ fatToLose, /** @type {number} */ deliberateMuscleLoss) => {
+    const runCut = (/** @type {number} */ fatToLose) => {
         let w = b.currentWeightKg();
         let fat = 0;
         let muscle = 0;
         let days = 0;
-        const muscleLossPerDay = deliberateMuscleLoss > 0 && fatToLose > 0
-            ? 0 // la pérdida deliberada se gestiona en su propia rama
-            : 0;
-        void muscleLossPerDay;
         while (fat > -fatToLose && days < 1500) {
             const dailyFat = weeklyFatLossKg(w, intensity) / 7;
             const dailyMuscle = dailyFat * CUT_MUSCLE_LOSS_PER_KG_FAT;
@@ -377,37 +404,13 @@ export function planPhases(initial, target, profile, options = {}) {
         if (days > 0) b.push('cut', days, fat, muscle);
     };
 
-    if (needsFatLoss && b.remainingFat() < -CLOSE_ENOUGH_KG) {
-        runCut(Math.abs(b.remainingFat()), 0);
-    }
-
-    // ---- pérdida deliberada de músculo (MOT-10, rama explícita) ----
-    if (needsMuscleLoss && b.remainingMuscle() < -CLOSE_ENOUGH_KG) {
-        const w = b.currentWeightKg();
-        // aprox. documentada: el músculo se pierde en déficit al ritmo al que se ganaría
-        const monthlyLoss = monthlyMuscleGainKg(w, profile.trainingStatus, profile.sex);
-        const toLose = Math.abs(b.remainingMuscle());
-        const days = Math.max(7, Math.ceil((toLose / monthlyLoss) * 30));
-        b.push('cut', days, 0, -toLose);
-    }
-
-    // ---- ganancia deliberada de grasa (bajo peso; aprox. documentada) ----
-    if (needsFatGain && b.remainingFat() > CLOSE_ENOUGH_KG) {
-        const w = b.currentWeightKg();
-        const dailyFatGain = (w * 0.0025) / 7; // ~0,25 % PC/semana: superávit conservador
-        const toGain = b.remainingFat();
-        const days = Math.max(7, Math.ceil(toGain / dailyFatGain));
-        b.push('bulk', days, toGain, 0);
-    }
-
     // ---- volumen: día a día sobre peso creciente, con grasa acompañante ----
-    if (needsMuscleGain && b.remainingMuscle() > CLOSE_ENOUGH_KG) {
+    const runBulk = (/** @type {number} */ muscleToGain) => {
         let w = b.currentWeightKg();
         let muscle = 0;
         let fat = 0;
         let days = 0;
-        const goal = b.remainingMuscle();
-        while (muscle < goal && days < 1500) {
+        while (muscle < muscleToGain && days < 1500) {
             const dailyMuscle = monthlyMuscleGainKg(w, profile.trainingStatus, profile.sex) / 30;
             const dailyFat = dailyMuscle * BULK_FAT_PER_KG_MUSCLE;
             muscle += dailyMuscle;
@@ -416,28 +419,72 @@ export function planPhases(initial, target, profile, options = {}) {
             days++;
         }
         if (days > 0) b.push('bulk', days, fat, muscle);
+    };
 
-        // la grasa ganada en volumen se retira en una definición corta final
-        if (b.remainingFat() < -CLOSE_ENOUGH_KG) {
-            runCut(Math.abs(b.remainingFat()), 0);
-        }
+    // ---- pérdida deliberada de músculo (MOT-10, rama explícita) ----
+    const runMuscleLoss = (/** @type {number} */ toLose) => {
+        const w = b.currentWeightKg();
+        // aprox. documentada: el músculo se pierde en déficit al ritmo al que se ganaría
+        const monthlyLoss = monthlyMuscleGainKg(w, profile.trainingStatus, profile.sex);
+        const days = Math.max(7, Math.ceil((toLose / monthlyLoss) * 30));
+        b.push('cut', days, 0, -toLose);
+    };
+
+    // ---- ganancia deliberada de grasa (bajo peso; aprox. documentada) ----
+    const runFatGain = (/** @type {number} */ toGain) => {
+        const w = b.currentWeightKg();
+        const dailyFatGain = (w * 0.0025) / 7; // ~0,25 % PC/semana: superávit conservador
+        const days = Math.max(7, Math.ceil(toGain / dailyFatGain));
+        b.push('bulk', days, toGain, 0);
+    };
+
+    // ---- bucle de convergencia: cada fase puede consumir colateralmente lo
+    // que otra repone (la definición pierde músculo, el volumen gana grasa).
+    // Se itera sobre lo RESTANTE hasta cerrar, en lugar de decidir las ramas
+    // una sola vez sobre los totales iniciales (la rotura crítica del ataque:
+    // perder >10 kg de grasa manteniendo músculo dejaba un residuo muscular
+    // irrecuperable). Converge geométricamente (0.05 × 0.5 por vuelta).
+    for (let round = 0; round < 8; round++) {
+        const rf = b.remainingFat();
+        const rm = b.remainingMuscle();
+        if (rf < -CLOSE_ENOUGH_KG) runCut(Math.abs(rf));
+        else if (rm > CLOSE_ENOUGH_KG) runBulk(rm);
+        else if (rm < -CLOSE_ENOUGH_KG) runMuscleLoss(Math.abs(rm));
+        else if (rf > CLOSE_ENOUGH_KG) runFatGain(rf);
+        else break;
     }
 
-    // ---- cierre exacto: el residuo (fracciones de día, 2.º orden) se asigna
-    //      a la última fase corporal. Sustituye a las restas mágicas (MOT-08).
+    // ---- cierre exacto: el residuo (≤ CLOSE_ENOUGH por construcción) se
+    // asigna a la última fase con trabajo real. Sustituye a las restas
+    // mágicas del legacy (MOT-08).
     {
         const residualFat = b.remainingFat();
         const residualMuscle = b.remainingMuscle();
-        const lastBody = [...b.phases].reverse().find((p) => p.type !== 'adaptation');
-        if (lastBody && (Math.abs(residualFat) > 1e-12 || Math.abs(residualMuscle) > 1e-12)) {
+        if (Math.abs(residualFat) > 1e-12 || Math.abs(residualMuscle) > 1e-12) {
             if (Math.abs(residualFat) > 0.5 || Math.abs(residualMuscle) > 0.5) {
-                // nunca debería ocurrir: el residuo es fraccional por construcción
+                // inalcanzable tras el bucle de convergencia; guarda defensiva
                 return { ok: false, errors: [{ code: 'plan.closureFailed', params: { fat: residualFat, muscle: residualMuscle } }] };
             }
-            lastBody.fatDeltaKg += residualFat;
-            lastBody.muscleDeltaKg += residualMuscle;
+            const absorber = [...b.phases].reverse().find((p) => p.fatDeltaKg !== 0 || p.muscleDeltaKg !== 0)
+                ?? b.phases[b.phases.length - 1];
+            absorber.fatDeltaKg += residualFat;
+            absorber.muscleDeltaKg += residualMuscle;
             b.acc.fat += residualFat;
             b.acc.muscle += residualMuscle;
+        }
+    }
+
+    // ---- la trayectoria por fases debe quedar dentro del dominio del modelo ----
+    {
+        let fatKg = initial.fatKg;
+        let weightKg = initial.weightKg;
+        for (const p of b.phases) {
+            fatKg += p.fatDeltaKg;
+            weightKg += p.fatDeltaKg + p.muscleDeltaKg;
+            const fatPct = (fatKg / weightKg) * 100;
+            if (fatPct > ABSOLUTE_MAX_FAT_PCT + 1e-9 || fatPct < ESSENTIAL_FAT_PCT[profile.sex] - 0.5) {
+                return { ok: false, errors: [{ code: 'plan.trajectoryOutOfRange', params: { fatPct: Math.round(fatPct * 10) / 10 } }] };
+            }
         }
     }
 
@@ -574,11 +621,17 @@ function finishPlan(b, finalWeightKg, warnings, profile, intensity) {
 
     if (floored) warnings.push({ code: 'plan.flooredBySafety' });
 
+    const totalDays = phases.reduce((s, p) => s + p.days, 0);
+    if (totalDays > PLAN_LIMITS.maxTotalDays) {
+        // un plan de años no es un plan: objetivo desproporcionado → error accionable
+        return { ok: false, errors: [{ code: 'plan.tooLong', params: { days: totalDays, maxDays: PLAN_LIMITS.maxTotalDays } }] };
+    }
+
     return {
         ok: true,
         value: {
             phases,
-            totalDays: phases.reduce((s, p) => s + p.days, 0),
+            totalDays,
             summary: {
                 targetWeightKg: finalWeightKg,
                 fatDeltaKg: b.totals.fatDeltaKg,

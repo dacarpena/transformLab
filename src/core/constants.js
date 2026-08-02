@@ -214,6 +214,14 @@ export const MILESTONE_CATEGORIES = Object.freeze({
 /** Techo duro de %grasa admitido como entrada (medición) antes de error. */
 export const ABSOLUTE_MAX_FAT_PCT = 60;
 
+/**
+ * Límites del plan completo. Un plan que supere maxTotalDays no es un plan,
+ * es una señal de objetivo desproporcionado: se devuelve error accionable en
+ * lugar de proyectar una década. Decisión de producto.
+ * @type {Readonly<{maxTotalDays: number}>}
+ */
+export const PLAN_LIMITS = Object.freeze({ maxTotalDays: 1095 });
+
 /** Escenarios de la proyección (decisión B5). Exponentes de progreso:
  * <1 adelanta (optimista), >1 retrasa (pesimista); 1 = esperado. Los tres
  * cierran el plan por construcción (el progreso llega a 1 en el último día).

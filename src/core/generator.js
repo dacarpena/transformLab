@@ -18,9 +18,11 @@ import {
     KCAL_PER_KG_MUSCLE,
     FLUCTUATION_AMPLITUDE_PCT_BW,
     SCENARIO_PROGRESS_EXPONENTS,
-    MILESTONE_CATEGORIES
+    MILESTONE_CATEGORIES,
+    PLAN_LIMITS
 } from './constants.js';
 import { bmr, tdee, caloricTarget, adaptationStep } from './engine.js';
+import { checkProfile } from './ranges.js';
 import { mulberry32 } from './rng.js';
 
 /**
@@ -124,10 +126,37 @@ export function generateProjection(plan, initial, profile, options) {
     const start = parseISODate(options?.startDateISO);
     if (!start) return { ok: false, errors: [{ code: 'projection.startDateInvalid' }] };
     if (!isFiniteNumber(options.seed)) return { ok: false, errors: [{ code: 'projection.seedInvalid' }] };
+
+    // El perfil alimenta el cálculo de kcal de TODOS los días: si es inválido,
+    // la proyección saldría {ok:true} con NaN — se rechaza aquí (anti R2).
+    const profileCheck = checkProfile(profile);
+    if (profileCheck.errors.length > 0) {
+        return { ok: false, errors: profileCheck.errors };
+    }
+
+    // Validación PROFUNDA del plan: puede venir rehidratado de localStorage o
+    // de un backup corrupto. Días no enteros/negativos o deltas no finitos
+    // producirían RangeError, NaN o bucles sin fin aguas abajo.
     if (!plan || !Array.isArray(plan.phases) || plan.phases.length === 0) {
         return { ok: false, errors: [{ code: 'projection.planInvalid' }] };
     }
-    if (!initial || !isFiniteNumber(initial.fatKg) || !isFiniteNumber(initial.muscleKg) || !isFiniteNumber(initial.otherLeanKg)) {
+    for (const ph of plan.phases) {
+        if (!ph || typeof ph !== 'object'
+            || typeof ph.type !== 'string'
+            || !Number.isInteger(ph.days) || ph.days < 1
+            || !ph.expected
+            || !isFiniteNumber(ph.expected.fatDeltaKg)
+            || !isFiniteNumber(ph.expected.muscleDeltaKg)) {
+            return { ok: false, errors: [{ code: 'projection.planInvalid' }] };
+        }
+    }
+    const plannedDays = plan.phases.reduce((s, p) => s + p.days, 0);
+    if (plannedDays > PLAN_LIMITS.maxTotalDays) {
+        return { ok: false, errors: [{ code: 'projection.planInvalid' }] };
+    }
+    if (!initial || !isFiniteNumber(initial.fatKg) || initial.fatKg < 0
+        || !isFiniteNumber(initial.muscleKg) || initial.muscleKg <= 0
+        || !isFiniteNumber(initial.otherLeanKg) || initial.otherLeanKg < 0) {
         return { ok: false, errors: [{ code: 'projection.initialInvalid' }] };
     }
     const fluctuationOn = options.fluctuation === true;
@@ -297,6 +326,7 @@ export function generateProjection(plan, initial, profile, options) {
             const prev = daily[i - 1][category];
             const cur = daily[i][category];
             if (prev === cur) continue;
+            if (!Number.isFinite(prev) || !Number.isFinite(cur)) continue; // guarda anti-bucle
             const lo = Math.min(prev, cur);
             const hi = Math.max(prev, cur);
             for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) {
