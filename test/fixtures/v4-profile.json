@@ -1,0 +1,63 @@
+{
+  "_comment": "Fixture v4.0 realista, con las formas EXACTAS que escribe el legacy. Fuentes: legacy/js/onboarding.js:845-866 (userProfile), legacy/js/checkin.js:266-282 (checkins), legacy/js/app.js:479-490 (prefs y startDate), legacy/js/router.js:65 (activeView).",
+
+  "transformlab_userProfile": {
+    "initial": { "weight": 80, "fatPct": 20, "muscleKg": 30.7 },
+    "target": { "weight": 50.9, "fatPct": 15, "muscleKg": 33 },
+    "profile": {
+      "age": 35,
+      "sex": "male",
+      "height": 178,
+      "activityLevel": "moderate",
+      "trainingStatus": "intermediate"
+    },
+    "startDate": "2026-02-02"
+  },
+
+  "transformlab_checkins": [
+    {
+      "id": "checkin_1770000000000",
+      "week": 1,
+      "date": "2026-02-09",
+      "measurements": { "weight": 79.4, "fatPct": 19.6, "waist": 88 },
+      "selfReport": {
+        "energy": 7,
+        "sleepQuality": 8,
+        "adherence": 90,
+        "motivation": 6,
+        "notes": "Primera semana, buena adherencia."
+      }
+    },
+    {
+      "id": "checkin_1770600000000",
+      "week": 2,
+      "date": "2026-02-16",
+      "measurements": { "weight": 78.9, "fatPct": null, "waist": null },
+      "selfReport": {
+        "energy": 5,
+        "sleepQuality": 6,
+        "adherence": 70,
+        "motivation": 5,
+        "notes": ""
+      }
+    }
+  ],
+
+  "transformlab_prefs": {
+    "granularity": "weekly",
+    "visibleMetrics": ["weight", "muscleKg", "fatPct"]
+  },
+
+  "transformlab_startDate": "2026-02-02T00:00:00.000Z",
+  "transformlab_activeView": "dashboard",
+
+  "transformlab_generatedData": {
+    "_comment": "La proyección v4 NO se migra: es el dato defectuoso (peso objetivo 50.9 kg por el clamp). Se archiva y el plan se regenera con el motor v2.",
+    "daily": [{ "day": 1, "physical": { "weight": 80, "fatPct": 20 } }],
+    "weekly": [],
+    "monthly": [],
+    "phases": [{ "name": "Adaptación", "type": "adaptation", "days": 14 }],
+    "metadata": { "version": "3.2" },
+    "milestones": []
+  }
+}
