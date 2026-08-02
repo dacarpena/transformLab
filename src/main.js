@@ -1,49 +1,189 @@
 // @ts-check
 
 /**
- * Arranque de TransformLab v5 (CLAUDE.md §3): storage → i18n → [perfil → router].
- * En M0 el shell demuestra el pipeline completo con comportamiento mínimo real;
- * perfil y router llegan en M2/M3.
+ * Arranque de TransformLab v5 (CLAUDE.md §3): storage → i18n → perfil → router.
+ *
+ * El orden importa: sin perfil activo no se puede leer nada (el namespace del
+ * almacén depende de él), y sin idioma no se puede pintar ni un mensaje de
+ * error. Cada paso degrada de forma explícita en vez de dejar la pantalla en
+ * blanco.
  */
 
 import * as storage from './data/storage.js';
+import * as profiles from './data/profiles.js';
+import * as migrate from './data/migrate.js';
+import { validateCollection } from './data/schema.js';
 import { t, setLocale, getLocale } from './i18n/i18n.js';
 import { html, render } from './ui/dom.js';
+import * as router from './ui/router.js';
+import * as plans from './ui/plan-state.js';
+import * as onboarding from './ui/views/onboarding.js';
+import * as dashboard from './ui/views/dashboard.js';
+import * as settings from './ui/views/settings.js';
+import * as toast from './ui/components/toast.js';
+import { error as errorState } from './ui/components/state.js';
 
-function boot() {
-    // 1 · storage: idioma persistido (el selector de idioma llega en M3-6)
-    const savedLocale = storage.get('settings.locale');
-    if (savedLocale.ok && typeof savedLocale.value === 'string') {
-        setLocale(savedLocale.value);
+/** Pinta el armazón y devuelve sus anclajes. */
+function renderShell() {
+    const app = document.getElementById('app');
+    if (!app) throw new Error('falta #app');
+    render(app, html`
+        <a class="skip-link" href="#main">${t('app.skipToContent')}</a>
+        <div class="app">
+            <nav class="app__nav" aria-label="${t('nav.label')}" data-nav hidden></nav>
+            <main class="app__main" id="main" tabindex="-1" data-view></main>
+        </div>
+    `);
+    return {
+        viewRoot: /** @type {HTMLElement} */ (app.querySelector('[data-view]')),
+        navRoot: /** @type {HTMLElement} */ (app.querySelector('[data-nav]'))
+    };
+}
+
+/** Aplica el idioma guardado en el perfil activo, si lo hay. */
+function applyStoredLocale() {
+    const stored = storage.get('settings');
+    if (stored.ok && stored.value && typeof (/** @type {*} */ (stored.value).locale) === 'string') {
+        setLocale(/** @type {*} */ (stored.value).locale);
     }
     document.documentElement.lang = getLocale();
     document.title = t('app.title');
+}
 
-    // 2 · storage: contador de arranques — verificación viva de lectura+escritura
-    const savedBoots = storage.get('meta.boots');
-    const boots = savedBoots.ok && typeof savedBoots.value === 'number' ? savedBoots.value + 1 : 1;
-    const writeResult = storage.set('meta.boots', boots);
-    const storageState = writeResult.ok ? t('shell.storage.ok') : t('shell.storage.unavailable');
+/** ¿Hay un perfil de usuario ya completado en el perfil activo? */
+function hasCompletedProfile() {
+    const stored = storage.get('profile');
+    if (!stored.ok || stored.value === null) return false;
+    return validateCollection('profile', stored.value).ok;
+}
 
-    // 3 · shell
-    const app = document.getElementById('app');
-    if (!app) return;
-    render(app, html`
-        <main class="shell">
-            <header>
-                <h1>${t('app.title')}</h1>
-                <p class="tagline">${t('app.tagline')}</p>
-            </header>
-            <section class="card" aria-live="polite">
-                <p>${t('shell.status.ready')}</p>
-                <p class="muted">${t('shell.status.storage', { state: storageState })}</p>
-                <p class="muted">${t('shell.boots', { count: boots })}</p>
-            </section>
-            <footer class="shell-footer">
-                <p>${t('footer.privacy')}</p>
-            </footer>
-        </main>
-    `);
+/** Registra las vistas del producto y arranca el router. */
+async function startApp(roots) {
+    router.reset();
+    router.register({
+        id: 'today', labelKey: 'nav.today', icon: '◉',
+        mount: dashboard.mount, unmount: dashboard.unmount
+    });
+    router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', mount: dashboard.mountProgress });
+    router.register({ id: 'settings', labelKey: 'nav.settings', icon: '⚙', mount: settings.mount });
+    await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'today' });
+}
+
+/** Muestra el asistente como única vista, sin navegación. */
+async function startOnboarding(roots, seed) {
+    router.reset();
+    onboarding.resetDraft(seed);
+    router.register({ id: 'onboarding', labelKey: 'onboarding.title', icon: '', hidden: true, mount: onboarding.mount });
+    await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'onboarding' });
+}
+
+/**
+ * Carga el plan del perfil activo y decide qué mostrar.
+ * @param {{viewRoot: HTMLElement, navRoot: HTMLElement}} roots
+ */
+async function route(roots) {
+    applyStoredLocale();
+
+    if (!hasCompletedProfile()) {
+        await startOnboarding(roots);
+        return;
+    }
+    const settingsStored = storage.get('settings');
+    const fluctuation = settingsStored.ok && settingsStored.value
+        ? Boolean(/** @type {*} */ (settingsStored.value).fluctuationVisible)
+        : false;
+
+    const loaded = plans.load({ profileId: storage.getActiveProfile(), fluctuation });
+    if (!loaded.ok) {
+        if (loaded.reason === 'noProfile') {
+            await startOnboarding(roots);
+            return;
+        }
+        // El plan guardado ya no se puede construir (p. ej. tras cambiar el
+        // motor). Se ofrece rehacer el perfil, NUNCA borrar los datos: la
+        // salida a un error jamás es destructiva (ficha H-013).
+        render(roots.viewRoot, errorState({
+            titleKey: 'error.viewTitle',
+            bodyKey: 'error.viewBody',
+            actions: [
+                { labelKey: 'action.editProfile', action: 'edit-profile', primary: true },
+                { labelKey: 'action.reload', action: 'reload' }
+            ]
+        }));
+        roots.viewRoot.querySelector('[data-action="edit-profile"]')
+            ?.addEventListener('click', () => startOnboarding(roots));
+        return;
+    }
+    await startApp(roots);
+}
+
+async function boot() {
+    /** @type {{viewRoot: HTMLElement, navRoot: HTMLElement}} */
+    let roots;
+    try {
+        roots = renderShell();
+    } catch (err) {
+        console.error('[main] no se pudo pintar el armazón', err);
+        return;
+    }
+
+    // 1 · perfiles: el namespace del almacén depende del perfil activo, así
+    // que esto va antes de leer cualquier dato.
+    const index = profiles.readIndex();
+    if (!index.ok) {
+        render(roots.viewRoot, errorState({ titleKey: 'error.viewTitle', bodyKey: 'error.viewBody' }));
+        return;
+    }
+
+    // 2 · migración v4 → v5, una sola vez y con copia de seguridad previa
+    if (migrate.needsMigration()) {
+        const result = migrate.migrate({ nowISO: new Date().toISOString() });
+        if (!result.ok) {
+            console.warn('[main] migración no completada:', result.error);
+            toast.error('error.generic');
+        }
+    }
+
+    // 3 · perfil activo (o el primero, si el índice quedó sin activo)
+    profiles.activateStored();
+    if (profiles.getActive().ok && profiles.getActive().value === '') {
+        const list = profiles.list();
+        if (list.ok && list.value.length === 0) {
+            const created = profiles.create(t('app.title'), { createdAtISO: new Date().toISOString() });
+            if (!created.ok) {
+                render(roots.viewRoot, errorState({ titleKey: 'error.viewTitle', bodyKey: 'error.viewBody' }));
+                return;
+            }
+        } else if (list.ok) {
+            profiles.setActive(list.value[0].id);
+        }
+    }
+
+    // 4 · cableado entre vistas
+    onboarding.setOnComplete(() => route(roots));
+    settings.setOnProfilesChanged(() => route(roots));
+    settings.setOnEditProfile(() => {
+        const data = plans.get();
+        startOnboarding(roots, data ? {
+            name: data.profile.name,
+            sex: data.profile.user.sex,
+            age: data.profile.user.age,
+            heightCm: data.profile.user.heightCm,
+            activityLevel: data.profile.user.activityLevel,
+            trainingStatus: data.profile.user.trainingStatus,
+            weightKg: data.profile.initial.weightKg,
+            fatPct: data.profile.initial.fatPct,
+            muscleKg: data.profile.initial.muscleKg,
+            targetFatPct: data.profile.target.fatPct,
+            targetMuscleKg: data.profile.target.muscleKg,
+            startDateISO: data.profile.startDateISO,
+            intensity: data.profile.intensity
+        } : undefined);
+    });
+    dashboard.setOnEditProfile(() => settings.setOnEditProfile);
+
+    // 5 · a rodar
+    await route(roots);
 }
 
 boot();

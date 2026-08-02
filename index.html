@@ -15,6 +15,9 @@
     <noscript>
         <p>TransformLab necesita JavaScript. / TransformLab requires JavaScript.</p>
     </noscript>
+    <!-- Chart.js servido en local (vendor/), no desde un CDN: CSP 'self' y
+         funcionamiento offline. Si falla, la app avisa y sigue funcionando. -->
+    <script src="vendor/chart.umd.min.js" defer></script>
     <script type="module" src="src/main.js"></script>
 </body>
 </html>
