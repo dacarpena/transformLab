@@ -25,7 +25,8 @@ import {
     RECOMP,
     CUT_MUSCLE_LOSS_PER_KG_FAT,
     BULK_FAT_PER_KG_MUSCLE,
-    PHASE_DURATIONS
+    PHASE_DURATIONS,
+    METABOLIC_ADAPTATION
 } from './constants.js';
 import { checkComposition, checkTarget, checkProfile, isValidSex } from './ranges.js';
 
@@ -448,9 +449,76 @@ export function planPhases(initial, target, profile, options = {}) {
 }
 
 /**
+ * Un paso semanal del nivel de adaptación metabólica (B4, Trexler aprox.):
+ * el nivel persigue un objetivo proporcional a la severidad del déficit
+ * (déficit diario / (fracción de referencia × TDEE)), avanzando a
+ * `onsetPerWeek` y recuperándose a `recoveryPerWeek`. Compartido por el
+ * planificador y el generador para que ambos cuenten la misma historia.
+ * @param {number} level nivel actual [0, maxReduction]
+ * @param {number} dailyDeficitKcal déficit diario en curso (≥ 0)
+ * @param {number} baseTdeeKcal TDEE sin adaptar
+ * @returns {number} nuevo nivel
+ */
+export function adaptationStep(level, dailyDeficitKcal, baseTdeeKcal) {
+    const { maxReduction, onsetPerWeek, recoveryPerWeek, severityDeficitFraction } = METABOLIC_ADAPTATION;
+    const severity = dailyDeficitKcal > 0 && baseTdeeKcal > 0
+        ? Math.min(1, dailyDeficitKcal / (severityDeficitFraction * baseTdeeKcal))
+        : 0;
+    const target = maxReduction * severity;
+    if (level < target) return Math.min(target, level + onsetPerWeek);
+    return Math.max(target, level - recoveryPerWeek);
+}
+
+/**
+ * Días necesarios para entregar `totalEnergyKcal` (negativo) de déficit sin
+ * perforar el suelo de seguridad, simulando semana a semana la adaptación
+ * metabólica (B2 × B4): el TDEE se recalcula sobre el peso decreciente y la
+ * adaptación persigue la severidad del déficit realmente ejecutado. Semanas
+ * sin capacidad cuentan días sin entregar déficit (la adaptación se recupera
+ * y la capacidad vuelve). Devuelve Infinity solo si no converge.
+ * @param {UserProfile} profile
+ * @param {number} startWeightKg
+ * @param {number} totalEnergyKcal negativo
+ * @param {number} nominalDays días que pedía la tasa nominal
+ * @param {number} levelIn nivel de adaptación acumulado al entrar en la fase
+ * @returns {{ days: number, levelOut: number }}
+ */
+function simulateDeficitDays(profile, startWeightKg, totalEnergyKcal, nominalDays, levelIn) {
+    const floorSex = CALORIC_FLOOR_KCAL[profile.sex];
+    const nominalDaily = totalEnergyKcal / nominalDays; // negativo
+    let remaining = totalEnergyKcal;
+    let w = startWeightKg;
+    let level = levelIn;
+    let prevDailyDeficit = 0;
+    let days = 0;
+    let guard = 0;
+    while (remaining < -1e-9 && guard++ < 400) {
+        const weekBmr = bmr(profile, w);
+        const baseTdee = tdee(weekBmr, profile.activityLevel);
+        level = adaptationStep(level, prevDailyDeficit, baseTdee);
+        const adapted = Math.round(baseTdee * (1 - level));
+        const capacity = adapted - Math.max(weekBmr, floorSex); // kcal/día de déficit disponible
+        if (capacity <= 0) {
+            days += 7;
+            prevDailyDeficit = 0;
+            continue;
+        }
+        const allowedDaily = Math.max(nominalDaily, -capacity); // el más cercano a 0
+        const daysThisWeek = Math.min(7, Math.ceil(remaining / allowedDaily));
+        remaining -= allowedDaily * daysThisWeek;
+        w += (allowedDaily * daysThisWeek) / KCAL_PER_KG_FAT; // aprox.: el grueso del delta es grasa
+        days += daysThisWeek;
+        prevDailyDeficit = -allowedDaily;
+    }
+    if (remaining < -1e-9) return { days: Number.POSITIVE_INFINITY, levelOut: level };
+    return { days, levelOut: level };
+}
+
+/**
  * Asigna el objetivo calórico nominal a cada fase (a peso medio de fase, con
- * el déficit derivado de sus deltas — B3) y alarga las fases recortadas por el
- * suelo (B2). Devuelve el plan cerrado.
+ * el déficit derivado de sus deltas — B3) y alarga las fases de déficit que el
+ * suelo de seguridad recorta, teniendo en cuenta la adaptación metabólica
+ * acumulada (B2 × B4). Devuelve el plan cerrado.
  * @param {PlanBuilder} b
  * @param {number} finalWeightKg
  * @param {Issue[]} warnings
@@ -463,14 +531,31 @@ function finishPlan(b, finalWeightKg, warnings, profile, intensity) {
     /** @type {Phase[]} */ const phases = [];
     let runningWeight = b.initial.weightKg;
     let floored = false;
+    let adaptationLevel = 0;
 
     for (const p of b.phases) {
+        const totalEnergyKcal = p.fatDeltaKg * KCAL_PER_KG_FAT + p.muscleDeltaKg * KCAL_PER_KG_MUSCLE;
+        let days = p.days;
+
+        if (totalEnergyKcal < 0) {
+            const sim = simulateDeficitDays(profile, runningWeight, totalEnergyKcal, p.days, adaptationLevel);
+            if (!Number.isFinite(sim.days)) {
+                return { ok: false, errors: [{ code: 'plan.deficitInfeasible', params: { phase: p.type } }] };
+            }
+            if (sim.days > days) {
+                days = sim.days;
+                floored = true;
+            }
+            adaptationLevel = sim.levelOut;
+        } else {
+            // fuera de déficit la adaptación se recupera (B4)
+            adaptationLevel = Math.max(0, adaptationLevel - METABOLIC_ADAPTATION.recoveryPerWeek * (p.days / 7));
+        }
+
         const midWeight = runningWeight + (p.fatDeltaKg + p.muscleDeltaKg) / 2;
         const phaseBmr = bmr(profile, midWeight);
         const phaseTdee = tdee(phaseBmr, profile.activityLevel);
-
-        let days = p.days;
-        let kcal = caloricTarget({
+        const kcal = caloricTarget({
             tdeeKcal: phaseTdee,
             bmrKcal: phaseBmr,
             sex: profile.sex,
@@ -478,29 +563,11 @@ function finishPlan(b, finalWeightKg, warnings, profile, intensity) {
             dailyMuscleDeltaKg: p.muscleDeltaKg / days
         });
 
-        if (kcal.flooredBySafety) {
-            // B2: el suelo limita el déficit diario alcanzable → se alarga la
-            // fase hasta que el mismo cambio total quepa en ese déficit.
-            floored = true;
-            const totalEnergyKg = p.fatDeltaKg * KCAL_PER_KG_FAT + p.muscleDeltaKg * KCAL_PER_KG_MUSCLE;
-            const allowedDaily = kcal.targetKcal - phaseTdee; // negativo, magnitud del déficit permitido
-            if (allowedDaily < 0) {
-                days = Math.max(days, Math.ceil(totalEnergyKg / allowedDaily));
-                kcal = caloricTarget({
-                    tdeeKcal: phaseTdee,
-                    bmrKcal: phaseBmr,
-                    sex: profile.sex,
-                    dailyFatDeltaKg: p.fatDeltaKg / days,
-                    dailyMuscleDeltaKg: p.muscleDeltaKg / days
-                });
-            }
-        }
-
         phases.push({
             type: p.type,
             days,
             expected: { fatDeltaKg: p.fatDeltaKg, muscleDeltaKg: p.muscleDeltaKg },
-            nominalKcal: kcal
+            nominalKcal: { ...kcal, flooredBySafety: kcal.flooredBySafety || days > p.days }
         });
         runningWeight += p.fatDeltaKg + p.muscleDeltaKg;
     }

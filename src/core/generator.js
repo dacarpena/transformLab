@@ -16,12 +16,11 @@
 import {
     KCAL_PER_KG_FAT,
     KCAL_PER_KG_MUSCLE,
-    METABOLIC_ADAPTATION,
     FLUCTUATION_AMPLITUDE_PCT_BW,
     SCENARIO_PROGRESS_EXPONENTS,
     MILESTONE_CATEGORIES
 } from './constants.js';
-import { bmr, tdee, caloricTarget } from './engine.js';
+import { bmr, tdee, caloricTarget, adaptationStep } from './engine.js';
 import { mulberry32 } from './rng.js';
 
 /**
@@ -157,11 +156,6 @@ export function generateProjection(plan, initial, profile, options) {
     const totalDays = accDays;
     const otherLeanKg = initial.otherLeanKg;
 
-    // ---- kcal por semana: TDEE recalculado sobre peso proyectado + adaptación (B4) ----
-    /** @type {Map<number, { tdeeKcal: number, targetKcal: number, deficitKcal: number, flooredBySafety: boolean }>} */
-    const weekKcal = new Map();
-    let adaptationLevel = 0;
-
     /** Estado esperado (sin fluctuación) en un día dado. */
     const stateAt = (/** @type {number} */ dayIndex) => {
         if (dayIndex <= 0) {
@@ -176,33 +170,46 @@ export function generateProjection(plan, initial, profile, options) {
         };
     };
 
-    for (let week = 0; week * 7 <= totalDays; week++) {
-        const weekStartDay = week * 7;
-        const s = stateAt(weekStartDay);
-        const weightAtStart = s.fatKg + s.muscleKg + otherLeanKg;
-        const phase = s.phase;
-        const dailyFat = phase.fatDeltaKg / phase.days;
-        const dailyMuscle = phase.muscleDeltaKg / phase.days;
-        const dailyEnergy = dailyFat * KCAL_PER_KG_FAT + dailyMuscle * KCAL_PER_KG_MUSCLE;
+    // ---- kcal por día: TDEE recalculado sobre el peso proyectado en cada
+    // inicio de semana Y en cada frontera de fase (B4). El corte adicional en
+    // frontera evita que una semana que cruza dos fases arrastre la
+    // prescripción de la fase anterior (coherencia_energetica exacta por fase).
+    /** @type {Array<{ tdeeKcal: number, targetKcal: number, deficitKcal: number, flooredBySafety: boolean }>} */
+    const kcalByDay = new Array(totalDays + 1);
+    {
+        let adaptationLevel = 0;
+        let prevDailyDeficit = 0;
+        /** @type {{ tdeeKcal: number, targetKcal: number, deficitKcal: number, flooredBySafety: boolean } | null} */
+        let segment = null;
+        for (let day = 1; day <= totalDays; day++) {
+            const phase = stateAt(day).phase;
+            const isWeekStart = (day - 1) % 7 === 0;
+            const isPhaseStart = day === phase.startDayIndex + 1;
+            if (segment === null || isWeekStart || isPhaseStart) {
+                const prev = stateAt(day - 1);
+                const weightAtStart = prev.fatKg + prev.muscleKg + otherLeanKg;
+                const dailyFat = phase.fatDeltaKg / phase.days;
+                const dailyMuscle = phase.muscleDeltaKg / phase.days;
 
-        // adaptación metabólica (Trexler, aprox.): avanza en semanas de déficit,
-        // se recupera fuera de él
-        const inDeficit = dailyEnergy < -25;
-        if (week > 0) {
-            adaptationLevel = inDeficit
-                ? Math.min(METABOLIC_ADAPTATION.maxReduction, adaptationLevel + METABOLIC_ADAPTATION.onsetPerWeek)
-                : Math.max(0, adaptationLevel - METABOLIC_ADAPTATION.recoveryPerWeek);
+                const dayBmr = bmr(profile, weightAtStart);
+                const baseTdee = tdee(dayBmr, profile.activityLevel);
+                // adaptación metabólica (B4): mismo paso semanal que el planificador
+                if (isWeekStart && day > 1) {
+                    adaptationLevel = adaptationStep(adaptationLevel, prevDailyDeficit, baseTdee);
+                }
+                const adaptedTdee = Math.round(baseTdee * (1 - adaptationLevel));
+                segment = caloricTarget({
+                    tdeeKcal: adaptedTdee,
+                    bmrKcal: dayBmr,
+                    sex: profile.sex,
+                    dailyFatDeltaKg: dailyFat,
+                    dailyMuscleDeltaKg: dailyMuscle
+                });
+                prevDailyDeficit = Math.max(0, segment.deficitKcal);
+            }
+            kcalByDay[day] = segment;
         }
-        const weekBmr = bmr(profile, weightAtStart);
-        const baseTdee = tdee(weekBmr, profile.activityLevel);
-        const adaptedTdee = Math.round(baseTdee * (1 - adaptationLevel));
-        weekKcal.set(week, caloricTarget({
-            tdeeKcal: adaptedTdee,
-            bmrKcal: weekBmr,
-            sex: profile.sex,
-            dailyFatDeltaKg: dailyFat,
-            dailyMuscleDeltaKg: dailyMuscle
-        }));
+        kcalByDay[0] = kcalByDay[1] ?? { tdeeKcal: NaN, targetKcal: NaN, deficitKcal: NaN, flooredBySafety: false };
     }
 
     // ---- serie diaria (dos pasadas) ----
@@ -244,9 +251,7 @@ export function generateProjection(plan, initial, profile, options) {
         const pessimistKg = weightAtPosition(totalDays * Math.pow(t, expP));
         const optimistKg = weightAtPosition(totalDays * Math.pow(t, expO));
 
-        const kcal = weekKcal.get(Math.floor(Math.max(0, dayIndex - 1) / 7))
-            ?? weekKcal.get(0)
-            ?? { tdeeKcal: NaN, targetKcal: NaN, deficitKcal: NaN, flooredBySafety: false };
+        const kcal = kcalByDay[dayIndex];
 
         // ruido visual determinista; se genera SIEMPRE para que la serie de
         // composición no dependa del interruptor (mismo consumo del PRNG)

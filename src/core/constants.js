@@ -126,15 +126,21 @@ export const CALORIC_FLOOR_KCAL = Object.freeze({ male: 1500, female: 1200 });
 /**
  * Adaptación metabólica durante déficit sostenido (decisión B4).
  * Fuente: Trexler et al. 2014 (revisión): la termogénesis adaptativa reduce el
- * gasto ~5–15 % más de lo que predice la pérdida de peso, de forma progresiva.
- * Modelo aquí (aprox. documentada): reducción del TDEE del 2 %/semana en
- * déficit hasta un máximo del 10 %; recuperación del 5 %/semana fuera de déficit.
- * @type {Readonly<{onsetPerWeek: number, maxReduction: number, recoveryPerWeek: number}>}
+ * gasto ~5–15 % más de lo predicho, de forma progresiva y PROPORCIONAL a la
+ * severidad del déficit. Modelo aquí (aprox. documentada): el nivel de
+ * adaptación persigue un objetivo = maxReduction × severidad, donde la
+ * severidad es el déficit diario relativo a un déficit de referencia del 25 %
+ * del TDEE (déficits pequeños inducen adaptaciones pequeñas). Avanza a
+ * onsetPerWeek y se recupera a recoveryPerWeek. Evita el rincón degenerado de
+ * un modelo plano: un déficit de 100 kcal no puede provocar 130 kcal de
+ * adaptación.
+ * @type {Readonly<{onsetPerWeek: number, maxReduction: number, recoveryPerWeek: number, severityDeficitFraction: number}>}
  */
 export const METABOLIC_ADAPTATION = Object.freeze({
     onsetPerWeek: 0.02,
     maxReduction: 0.10,
-    recoveryPerWeek: 0.05
+    recoveryPerWeek: 0.05,
+    severityDeficitFraction: 0.25
 });
 
 /**
