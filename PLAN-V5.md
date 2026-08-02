@@ -1,6 +1,6 @@
 # TransformLab v5 — Plan de reconstrucción
 
-> Estado: **M0 sin iniciar** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md`
+> Estado: **M0 cerrada (2026-08-02) · M1 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
 
 Este documento es el estado vivo del proyecto: registro de decisiones, milestones con tareas (checkboxes), criterios de cierre verificables, backlog y bitácora. Claude Code lo lee al inicio de cada sesión y lo actualiza al cerrar cada tarea.
 
@@ -62,7 +62,7 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 - [x] M0-5 · Vendorizar Chart.js: descargar la versión UMD actual fijada a `vendor/chart.umd.min.js`, anotar versión y hash en la bitácora.
 - [x] M0-6 · Tooling: `package.json` (scripts serve/test/typecheck/e2e; devDeps `typescript`, `@playwright/test`), `tsconfig.json` (`allowJs`, `checkJs`, `noEmit`, include `src/core`, `src/data`), primer test trivial de `storage.js` con `node:test`.
 - [x] M0-7 · CI: `.github/workflows/ci.yml` — checkout, node 22, `npm ci`, `npm run typecheck`, `npm test` en cada push/PR.
-- [ ] M0-8 · Deploy: conectar el repo a Cloudflare Pages (build command vacío, output `/`). Verificar que la URL de staging sirve el shell v5. _(Pendiente solo la parte manual del panel — instrucciones en la bitácora.)_
+- [x] M0-8 · Deploy: conectar el repo a Cloudflare Pages (build command vacío, output `/`). Verificar que la URL de staging sirve el shell v5.
 
 ### Criterios de cierre
 
@@ -84,11 +84,7 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 - Criterios de cierre ejecutados: `git status -sb` → `## main...origin/main` (limpio) · `git check-ignore .DS_Store` → exit 0 · tests 20/20 + typecheck limpio (local y Actions) · `legacy/` completo y `grep -rn "legacy/" src/ index.html` → 0.
 - **Queda a medias:** M0-8 — pasos manuales del panel de Cloudflare Pages (abajo). **Siguiente paso:** verificar la URL de staging cuando el panel esté conectado y cerrar M0; después, prompt `prompts/M1-motor.md`.
 
-**M0-8 · Pasos del panel de Cloudflare Pages (manual, una vez):**
-1. dash.cloudflare.com → *Workers & Pages* → *Create* → *Pages* → *Connect to Git* → autorizar GitHub y elegir `dacarpena/transformLab`.
-2. Configuración de build: *Framework preset* = None · *Build command* = (vacío) · *Build output directory* = `/`.
-3. *Save and Deploy*. La URL de staging será `transformlab-XXX.pages.dev` (production branch: `main`; cada push despliega solo).
-4. Verificación: abrir la URL → debe verse el shell v5 («Esqueleto v5 operativo»), sin errores en consola. Con eso, marcar M0-8 y cerrar M0 en esta bitácora.
+**2026-08-02 · Cierre de M0.** El usuario conectó el panel; **staging operativo en `https://transformlab.pages.dev`**: sirve el shell v5, módulos ES cargan sin errores de consola y el almacenamiento funciona en el dominio real (verificado en navegador). Los 4 criterios de cierre restantes ya se habían ejecutado en la sesión 1 (status limpio, `.DS_Store` ignorado, 20/20 tests + typecheck en local y Actions, `legacy/` completo sin imports). **M0 CERRADA.** Siguiente: M1 · Motor científico v2 (`prompts/M1-motor.md`).
 
 ---
 
