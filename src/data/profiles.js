@@ -1,0 +1,233 @@
+// @ts-check
+
+/**
+ * Multiperfil (decisión C4b): índice global `tl.5.profiles`, perfil activo y
+ * ciclo de vida (crear / renombrar / borrar / seleccionar).
+ *
+ * Reglas:
+ * - NINGUNA clave de datos se escribe fuera del namespace `tl.5.<pid>.`; el
+ *   prefijo lo inyecta `storage.js` a partir del perfil activo.
+ * - Borrar un perfil es destructivo y exige **confirmación tipeada** del
+ *   nombre exacto: la firma lo obliga, no es una convención de la UI.
+ * - Toda operación devuelve resultado tipado; nada lanza.
+ */
+
+import * as storage from './storage.js';
+import { SCHEMA_VERSION, validateProfilesIndex, sanitizeText, COLLECTIONS, makeDefault } from './schema.js';
+
+/**
+ * @typedef {{ id: string, name: string, createdAtISO: string }} ProfileSummary
+ * @typedef {{ schemaVersion: number, activeProfileId: string, profiles: ProfileSummary[] }} ProfilesIndex
+ * @typedef {import('./schema.js').SchemaIssue} SchemaIssue
+ */
+
+/**
+ * @template T
+ * @typedef {{ ok: true, value: T } | { ok: false, error: string, issues?: SchemaIssue[] }} ProfilesResult
+ */
+
+/** Clave global del índice, relativa al prefijo `tl.5.` */
+const INDEX_KEY = 'profiles';
+
+/** Máximo de perfiles: el multiperfil es para una familia, no para un SaaS. */
+export const MAX_PROFILES = 10;
+
+/** Índice vacío válido. @returns {ProfilesIndex} */
+function emptyIndex() {
+    return { schemaVersion: SCHEMA_VERSION, activeProfileId: '', profiles: [] };
+}
+
+/**
+ * Lee el índice de perfiles. Si no existe, devuelve uno vacío válido.
+ * Si está corrupto, lo dice: NUNCA lo sobrescribe por su cuenta (perder los
+ * perfiles del usuario en silencio sería peor que el error).
+ * @returns {ProfilesResult<ProfilesIndex>}
+ */
+export function readIndex() {
+    const raw = storage.getGlobal(INDEX_KEY);
+    if (!raw.ok) return { ok: false, error: raw.error };
+    if (raw.value === null) return { ok: true, value: emptyIndex() };
+
+    const parsed = validateProfilesIndex(raw.value);
+    if (!parsed.ok) return { ok: false, error: 'profiles.indexCorrupt', issues: parsed.errors };
+    return { ok: true, value: /** @type {ProfilesIndex} */ (parsed.value) };
+}
+
+/**
+ * Escribe el índice tras validarlo (nada corrupto sale de aquí).
+ * @param {ProfilesIndex} index
+ * @returns {ProfilesResult<ProfilesIndex>}
+ */
+function writeIndex(index) {
+    const parsed = validateProfilesIndex(index);
+    if (!parsed.ok) return { ok: false, error: 'profiles.indexInvalid', issues: parsed.errors };
+    const written = storage.setGlobal(INDEX_KEY, parsed.value);
+    if (!written.ok) return { ok: false, error: written.error };
+    return { ok: true, value: /** @type {ProfilesIndex} */ (parsed.value) };
+}
+
+/**
+ * Genera un id de perfil libre. Determinista respecto al índice: no usa
+ * aleatoriedad ni reloj (prohibido en el core y evitable aquí).
+ * @param {ProfilesIndex} index
+ * @returns {string}
+ */
+function nextId(index) {
+    const used = new Set(index.profiles.map((p) => p.id));
+    for (let n = 1; n <= MAX_PROFILES * 10; n++) {
+        const candidate = `p${n}`;
+        if (!used.has(candidate)) return candidate;
+    }
+    return `p${Date.now()}`;
+}
+
+/**
+ * Lista de perfiles (copia).
+ * @returns {ProfilesResult<ProfileSummary[]>}
+ */
+export function list() {
+    const index = readIndex();
+    if (!index.ok) return index;
+    return { ok: true, value: index.value.profiles.map((p) => ({ ...p })) };
+}
+
+/**
+ * Id del perfil activo, o cadena vacía si aún no hay ninguno.
+ * @returns {ProfilesResult<string>}
+ */
+export function getActive() {
+    const index = readIndex();
+    if (!index.ok) return index;
+    return { ok: true, value: index.value.activeProfileId };
+}
+
+/**
+ * Selecciona el perfil activo y lo aplica al namespace de `storage.js`.
+ * @param {string} profileId
+ * @returns {ProfilesResult<string>}
+ */
+export function setActive(profileId) {
+    const index = readIndex();
+    if (!index.ok) return index;
+    if (!index.value.profiles.some((p) => p.id === profileId)) {
+        return { ok: false, error: 'profiles.notFound' };
+    }
+    const written = writeIndex({ ...index.value, activeProfileId: profileId });
+    if (!written.ok) return written;
+    const applied = storage.setActiveProfile(profileId);
+    if (!applied.ok) return { ok: false, error: applied.error };
+    return { ok: true, value: profileId };
+}
+
+/**
+ * Sincroniza el namespace de `storage.js` con el perfil activo del índice.
+ * Lo llama el arranque (`main.js`) antes de leer ningún dato.
+ * @returns {ProfilesResult<string>}
+ */
+export function activateStored() {
+    const index = readIndex();
+    if (!index.ok) return index;
+    const id = index.value.activeProfileId;
+    if (id === '') return { ok: true, value: '' };
+    const applied = storage.setActiveProfile(id);
+    if (!applied.ok) return { ok: false, error: applied.error };
+    return { ok: true, value: id };
+}
+
+/**
+ * Crea un perfil, lo deja activo e inicializa sus colecciones con valores
+ * por defecto válidos (así ninguna vista se encuentra un `null` inesperado).
+ * @param {string} name
+ * @param {{ createdAtISO: string, id?: string }} meta el instante lo inyecta el
+ *   llamante: el módulo de datos no lee el reloj, para que sea testeable.
+ * @returns {ProfilesResult<ProfileSummary>}
+ */
+export function create(name, meta) {
+    const index = readIndex();
+    if (!index.ok) return index;
+    if (index.value.profiles.length >= MAX_PROFILES) {
+        return { ok: false, error: 'profiles.limitReached' };
+    }
+    const cleanName = sanitizeText(name, 60);
+    if (cleanName === '') return { ok: false, error: 'profiles.nameEmpty' };
+    if (index.value.profiles.some((p) => p.name === cleanName)) {
+        return { ok: false, error: 'profiles.nameTaken' };
+    }
+
+    const id = meta.id ?? nextId(index.value);
+    /** @type {ProfileSummary} */
+    const summary = { id, name: cleanName, createdAtISO: meta.createdAtISO };
+    const nextIndex = {
+        ...index.value,
+        activeProfileId: id,
+        profiles: [...index.value.profiles, summary]
+    };
+    const written = writeIndex(nextIndex);
+    if (!written.ok) return written;
+
+    // el namespace debe apuntar al perfil nuevo ANTES de sembrar sus datos
+    const applied = storage.setActiveProfile(id);
+    if (!applied.ok) return { ok: false, error: applied.error };
+    for (const collection of Object.keys(COLLECTIONS)) {
+        if (collection === 'profile') continue; // lo escribe el onboarding
+        storage.set(collection, makeDefault(collection));
+    }
+    return { ok: true, value: { ...summary } };
+}
+
+/**
+ * Renombra un perfil.
+ * @param {string} profileId
+ * @param {string} newName
+ * @returns {ProfilesResult<ProfileSummary>}
+ */
+export function rename(profileId, newName) {
+    const index = readIndex();
+    if (!index.ok) return index;
+    const target = index.value.profiles.find((p) => p.id === profileId);
+    if (!target) return { ok: false, error: 'profiles.notFound' };
+
+    const cleanName = sanitizeText(newName, 60);
+    if (cleanName === '') return { ok: false, error: 'profiles.nameEmpty' };
+    if (index.value.profiles.some((p) => p.name === cleanName && p.id !== profileId)) {
+        return { ok: false, error: 'profiles.nameTaken' };
+    }
+    const profiles = index.value.profiles.map((p) => (p.id === profileId ? { ...p, name: cleanName } : p));
+    const written = writeIndex({ ...index.value, profiles });
+    if (!written.ok) return written;
+    return { ok: true, value: { ...target, name: cleanName } };
+}
+
+/**
+ * Borra un perfil y TODOS sus datos. Destructivo e irreversible: exige que
+ * `confirmationName` coincida exactamente con el nombre del perfil (C4).
+ * La comprobación vive aquí, no en la UI, para que no pueda saltarse.
+ * @param {string} profileId
+ * @param {string} confirmationName nombre exacto tecleado por el usuario
+ * @returns {ProfilesResult<{ deletedKeys: number, activeProfileId: string }>}
+ */
+export function remove(profileId, confirmationName) {
+    const index = readIndex();
+    if (!index.ok) return index;
+    const target = index.value.profiles.find((p) => p.id === profileId);
+    if (!target) return { ok: false, error: 'profiles.notFound' };
+    if (sanitizeText(confirmationName, 60) !== target.name) {
+        return { ok: false, error: 'profiles.confirmationMismatch' };
+    }
+
+    const remaining = index.value.profiles.filter((p) => p.id !== profileId);
+    const nextActive = index.value.activeProfileId === profileId
+        ? (remaining[0]?.id ?? '')
+        : index.value.activeProfileId;
+
+    // primero el índice: si el borrado de datos falla a medias, el perfil ya
+    // no aparece y no queda un registro apuntando a datos incompletos
+    const written = writeIndex({ ...index.value, activeProfileId: nextActive, profiles: remaining });
+    if (!written.ok) return written;
+
+    const cleared = storage.clearProfile(profileId);
+    if (!cleared.ok) return { ok: false, error: cleared.error };
+
+    if (nextActive !== '') storage.setActiveProfile(nextActive);
+    return { ok: true, value: { deletedKeys: cleared.value, activeProfileId: nextActive } };
+}
