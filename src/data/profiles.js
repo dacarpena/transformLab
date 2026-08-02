@@ -32,6 +32,13 @@ const INDEX_KEY = 'profiles';
 /** Máximo de perfiles: el multiperfil es para una familia, no para un SaaS. */
 export const MAX_PROFILES = 10;
 
+/**
+ * Namespace de aparcamiento cuando no hay ningún perfil activo. Los ids reales
+ * son `pN`, así que nada colisiona con él, y las escrituras accidentales caen
+ * en un cajón identificable en vez de contaminar el perfil de alguien.
+ */
+export const NO_PROFILE = 'none';
+
 /** Índice vacío válido. @returns {ProfilesIndex} */
 function emptyIndex() {
     return { schemaVersion: SCHEMA_VERSION, activeProfileId: '', profiles: [] };
@@ -143,6 +150,12 @@ export function activateStored() {
  * @returns {ProfilesResult<ProfileSummary>}
  */
 export function create(name, meta) {
+    // `meta` es obligatorio pero se comprueba en vez de desreferenciarlo: el
+    // contrato del módulo es que NADA lanza, ni siquiera ante una llamada mal
+    // formada desde la UI (create('Ana') sin el segundo argumento).
+    if (meta === null || typeof meta !== 'object') {
+        return { ok: false, error: 'profiles.metaInvalid' };
+    }
     const index = readIndex();
     if (!index.ok) return index;
     if (index.value.profiles.length >= MAX_PROFILES) {
@@ -154,23 +167,38 @@ export function create(name, meta) {
         return { ok: false, error: 'profiles.nameTaken' };
     }
 
-    const id = meta.id ?? nextId(index.value);
+    const id = typeof meta.id === 'string' && meta.id !== '' ? meta.id : nextId(index.value);
     /** @type {ProfileSummary} */
     const summary = { id, name: cleanName, createdAtISO: meta.createdAtISO };
-    const nextIndex = {
+
+    // El namespace se apunta al perfil nuevo y se siembra ANTES de inscribirlo
+    // en el índice: si la siembra falla (cuota), no queda un perfil fantasma
+    // registrado y sin datos. Las claves sueltas de un id no inscrito son
+    // inocuas y las sobrescribe el siguiente intento.
+    const previousNamespace = storage.getActiveProfile();
+    const applied = storage.setActiveProfile(id);
+    if (!applied.ok) return { ok: false, error: applied.error };
+
+    for (const collection of Object.keys(COLLECTIONS)) {
+        if (collection === 'profile') continue; // lo escribe el onboarding
+        const seeded = storage.set(collection, makeDefault(collection));
+        if (!seeded.ok) {
+            // deshacer lo sembrado y devolver el namespace donde estaba
+            storage.clearProfile(id);
+            storage.setActiveProfile(previousNamespace);
+            return { ok: false, error: seeded.error };
+        }
+    }
+
+    const written = writeIndex({
         ...index.value,
         activeProfileId: id,
         profiles: [...index.value.profiles, summary]
-    };
-    const written = writeIndex(nextIndex);
-    if (!written.ok) return written;
-
-    // el namespace debe apuntar al perfil nuevo ANTES de sembrar sus datos
-    const applied = storage.setActiveProfile(id);
-    if (!applied.ok) return { ok: false, error: applied.error };
-    for (const collection of Object.keys(COLLECTIONS)) {
-        if (collection === 'profile') continue; // lo escribe el onboarding
-        storage.set(collection, makeDefault(collection));
+    });
+    if (!written.ok) {
+        storage.clearProfile(id);
+        storage.setActiveProfile(previousNamespace);
+        return written;
     }
     return { ok: true, value: { ...summary } };
 }
@@ -228,6 +256,12 @@ export function remove(profileId, confirmationName) {
     const cleared = storage.clearProfile(profileId);
     if (!cleared.ok) return { ok: false, error: cleared.error };
 
-    if (nextActive !== '') storage.setActiveProfile(nextActive);
+    // El namespace se resincroniza SIEMPRE, también al borrar el último perfil.
+    // Si se dejaba apuntando al id recién borrado, cualquier escritura posterior
+    // resucitaba claves en su namespace; y como nextId() reutiliza el pN libre
+    // más bajo, el siguiente perfil creado heredaba los datos personales del
+    // borrado (create no siembra 'profile', así que el registro del anterior
+    // sobrevivía intacto dentro del perfil nuevo).
+    storage.setActiveProfile(nextActive === '' ? NO_PROFILE : nextActive);
     return { ok: true, value: { deletedKeys: cleared.value, activeProfileId: nextActive } };
 }

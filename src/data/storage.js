@@ -97,7 +97,12 @@ export function get(key) {
  */
 export function set(key, value) {
     try {
-        backend().setItem(fullKey(key), JSON.stringify(value));
+        const serialized = JSON.stringify(value);
+        // `undefined`, funciones y símbolos hacen que JSON.stringify devuelva
+        // undefined; escribirlo dejaba la cadena literal "undefined" en la
+        // clave, ilegible para siempre y con acuse de recibo positivo.
+        if (serialized === undefined) return { ok: false, error: 'storage.notSerializable' };
+        backend().setItem(fullKey(key), serialized);
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };
@@ -228,7 +233,9 @@ export function getGlobal(key) {
  */
 export function setGlobal(key, value) {
     try {
-        backend().setItem(`${ROOT_PREFIX}${key}`, JSON.stringify(value));
+        const serialized = JSON.stringify(value);
+        if (serialized === undefined) return { ok: false, error: 'storage.notSerializable' };
+        backend().setItem(`${ROOT_PREFIX}${key}`, serialized);
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };

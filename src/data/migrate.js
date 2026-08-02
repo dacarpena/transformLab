@@ -18,7 +18,7 @@
  */
 
 import * as storage from './storage.js';
-import { SCHEMA_VERSION, sanitizeText, MEASURE_KEYS } from './schema.js';
+import { SCHEMA_VERSION, sanitizeText, MEASURE_KEYS, validateCollection } from './schema.js';
 import * as profiles from './profiles.js';
 
 /** Prefijo de las claves de la versión 4. */
@@ -34,8 +34,14 @@ export const V4_KEYS = Object.freeze([
     'transformlab_generatedData'
 ]);
 
-/** Dónde queda la copia de seguridad automática. */
-const BACKUP_KEY = 'tl.legacy.backup';
+/**
+ * Dónde queda la copia de seguridad automática. Vive bajo un prefijo PROPIO,
+ * separado del de archivado: si compartieran espacio, una clave v4 llamada
+ * `transformlab_backup` (el legacy tiene claves fuera de V4_KEYS) archivaría
+ * encima de la copia de seguridad justo antes de borrar los originales, y
+ * borraría la única red bajo el usuario en el peor momento posible.
+ */
+const BACKUP_KEY = 'tl.legacyBackup.v4';
 
 /** Prefijo de archivado de las claves originales. */
 const ARCHIVE_PREFIX = 'tl.legacy.';
@@ -70,16 +76,20 @@ function finiteOrNull(v) {
 }
 
 /**
- * Convierte la escala v4 de adherencia (0–100) a la escala v5 (1–10).
- * El resto de subjetivas ya venían en 1–10.
+ * Convierte la adherencia v4 (porcentaje 0–100) a la escala v5 (1–10).
+ *
+ * Sin heurística de «igual ya venía en 1–10»: en v4 el control es un deslizador
+ * de 0 a 100 con paso 5 (`legacy/js/checkin.js:203`) que se consume como
+ * porcentaje (`:73`, `adherence / 100`). Interpretar un 10 como «10 sobre 10»
+ * convertía la peor semana del usuario en la mejor.
  * @param {unknown} v
  * @returns {number | null}
  */
-function adherenceToScale10(v) {
+function adherencePctToScale10(v) {
     const n = finiteOrNull(v);
     if (n === null) return null;
-    if (n <= 10) return Math.min(10, Math.max(1, Math.round(n))); // ya estaba en 1-10
-    return Math.min(10, Math.max(1, Math.round(n / 10)));
+    const pct = Math.min(100, Math.max(0, n));
+    return Math.min(10, Math.max(1, Math.round(pct / 10)));
 }
 
 /** @param {unknown} v @returns {number | null} */
@@ -166,7 +176,11 @@ function buildProfileRecord(v4Profile, nowISO, warnings) {
  * @returns {{ items: object[], skipped: number }}
  */
 function buildCheckins(v4Checkins, nowISO) {
-    if (!Array.isArray(v4Checkins)) return { items: [], skipped: 0 };
+    // Un valor que no es array (objeto, número, null…) significa que había algo
+    // ahí y no se entiende: se señala como descartado, no se ignora en silencio.
+    if (!Array.isArray(v4Checkins)) {
+        return { items: [], skipped: v4Checkins === null || v4Checkins === undefined ? 0 : 1 };
+    }
     /** @type {object[]} */ const items = [];
     let skipped = 0;
 
@@ -186,7 +200,7 @@ function buildCheckins(v4Checkins, nowISO) {
         /** @type {Record<string, number>} */ const subjective = {};
         const energy = scale10(s.energy);
         const sleep = scale10(s.sleepQuality);
-        const adherence = adherenceToScale10(s.adherence);
+        const adherence = adherencePctToScale10(s.adherence);
         const motivation = scale10(s.motivation);
         if (energy !== null) subjective.energy = energy;
         if (sleep !== null) subjective.sleep = sleep;
@@ -289,7 +303,16 @@ export function migrate(context) {
         return { ok: false, error };
     };
 
-    const savedProfile = storage.set('profile', profileRecord.value);
+    // El migrador NO escribe nada que el propio esquema v5 rechazaría. Sin esta
+    // comprobación, unos datos v4 fuera de rango (edad 200, peso 0, un nivel de
+    // actividad inventado) se copiaban tal cual, se reportaba éxito y acto
+    // seguido se archivaban los originales: el usuario quedaba con un perfil
+    // que la app no puede leer y sin señal de que algo fue mal.
+    const profileValid = validateCollection('profile', profileRecord.value);
+    if (!profileValid.ok) {
+        return rollback('migrate.profileOutOfSchema');
+    }
+    const savedProfile = storage.set('profile', profileValid.value);
     if (!savedProfile.ok) return rollback(savedProfile.error);
 
     // check-ins (pueden no existir)
@@ -304,9 +327,18 @@ export function migrate(context) {
         }
         const built = buildCheckins(parsedCheckins, context.nowISO);
         if (built.skipped > 0) warnings.push('migrate.checkinsSkipped');
-        const savedCheckins = storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: built.items });
+
+        // los check-ins que no cuadren con el esquema se descartan uno a uno,
+        // con aviso: un solo registro raro no debe tumbar toda la migración
+        /** @type {object[]} */ const validItems = [];
+        for (const item of built.items) {
+            const check = validateCollection('checkins', { schemaVersion: SCHEMA_VERSION, items: [item] });
+            if (check.ok) validItems.push(item);
+            else warnings.push('migrate.checkinsSkipped');
+        }
+        const savedCheckins = storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: validItems });
         if (!savedCheckins.ok) return rollback(savedCheckins.error);
-        checkinsMigrated = built.items.length;
+        checkinsMigrated = validItems.length;
     }
 
     // ajustes: el idioma se queda en el defecto; de v4 solo sobrevive lo que

@@ -97,6 +97,14 @@ function isRecord(v) {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/** Instante ISO completo, con el MISMO criterio que `schema.js`. */
+const FALLBACK_INSTANT = '1970-01-01T00:00:00.000Z';
+
+/** @param {unknown} v @returns {boolean} */
+function isIsoInstant(v) {
+    return typeof v === 'string' && /\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v));
+}
+
 /**
  * Analiza un fichero de import SIN escribir nada. Devuelve el contenido ya
  * validado y saneado más un resumen para que el usuario decida.
@@ -138,9 +146,13 @@ export function inspect(text) {
         const id = typeof rawProfile.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(rawProfile.id)
             ? rawProfile.id
             : `imported${i + 1}`;
-        const createdAtISO = typeof rawProfile.createdAtISO === 'string' && !Number.isNaN(Date.parse(rawProfile.createdAtISO))
-            ? rawProfile.createdAtISO
-            : exportedAtISO;
+        // El criterio DEBE ser el mismo que el del índice de perfiles
+        // (schema.js: instante ISO con 'T'). Si aquí se acepta '2026-01-01' y
+        // allí no, inspect() enseña un backup como importable y apply() lo
+        // rechaza a mitad, con los perfiles anteriores ya escritos.
+        const createdAtISO = isIsoInstant(rawProfile.createdAtISO)
+            ? /** @type {string} */ (rawProfile.createdAtISO)
+            : (isIsoInstant(exportedAtISO) ? exportedAtISO : FALLBACK_INSTANT);
 
         const rawCollections = isRecord(rawProfile.collections) ? rawProfile.collections : {};
         /** @type {Record<string, unknown>} */ const collections = {};
@@ -180,9 +192,11 @@ export function inspect(text) {
 /**
  * Escribe un import ya inspeccionado. Los perfiles entrantes se añaden como
  * perfiles NUEVOS: un import nunca pisa los datos existentes en silencio.
+ * Si falla a mitad, el error incluye `imported` con lo que YA se escribió: el
+ * llamante puede decirle al usuario exactamente qué entró y qué no.
  * @param {BackupFile} backup salida de `inspect()`, no un objeto arbitrario
  * @param {{ nowISO: string }} context
- * @returns {BackupResult<{ importedProfiles: Array<{ id: string, name: string }> }>}
+ * @returns {{ ok: true, value: { importedProfiles: Array<{ id: string, name: string }> } } | { ok: false, error: string, imported?: Array<{ id: string, name: string }> }}
  */
 export function apply(backup, context) {
     if (!isRecord(backup) || !Array.isArray(backup.profiles) || backup.profiles.length === 0) {
@@ -192,6 +206,10 @@ export function apply(backup, context) {
     /** @type {Array<{ id: string, name: string }>} */ const imported = [];
 
     for (const incoming of backup.profiles) {
+        if (!isRecord(incoming) || !isRecord(incoming.collections)) {
+            restoreActive(previousActive);
+            return { ok: false, error: 'backup.nothingToApply', imported };
+        }
         // nombre libre: si ya existe, se sufija para no colisionar ni pisar
         let name = sanitizeText(incoming.name, 60) || 'Perfil importado';
         const existing = profiles.list();
@@ -203,28 +221,45 @@ export function apply(backup, context) {
 
         const created = profiles.create(name, { createdAtISO: incoming.createdAtISO || context.nowISO });
         if (!created.ok) {
-            storage.setActiveProfile(previousActive);
-            return { ok: false, error: created.error };
+            restoreActive(previousActive);
+            return { ok: false, error: created.error, imported };
         }
 
-        // `profiles.create` ya dejó activo el perfil nuevo y sembró defaults
+        // `profiles.create` ya dejó activo el perfil nuevo y sembró defaults.
+        // Solo se escriben las colecciones que el backup TRAE: rellenar las
+        // ausentes con makeDefault() fabricaba un `profile` con 70 kg, 20 % de
+        // grasa e inicio en 1970 que nadie introdujo, presentado como dato del
+        // usuario. Lo que no viene se queda como lo dejó create().
         for (const collectionName of Object.keys(COLLECTIONS)) {
-            const value = Object.hasOwn(incoming.collections, collectionName)
-                ? incoming.collections[collectionName]
-                : makeDefault(collectionName);
+            if (!Object.hasOwn(incoming.collections, collectionName)) continue;
+            const value = incoming.collections[collectionName];
             if (value === null || value === undefined) continue;
             // revalidación defensiva: `apply` no confía ni en su propio input
             const checked = validateCollection(collectionName, value);
             if (!checked.ok) continue;
             const written = storage.set(collectionName, checked.value);
             if (!written.ok) {
-                storage.setActiveProfile(previousActive);
-                return { ok: false, error: written.error };
+                restoreActive(previousActive);
+                return { ok: false, error: written.error, imported };
             }
         }
         imported.push({ id: created.value.id, name });
     }
 
-    storage.setActiveProfile(previousActive);
+    restoreActive(previousActive);
     return { ok: true, value: { importedProfiles: imported } };
+}
+
+/**
+ * Devuelve el perfil activo a donde estaba, EN EL ÍNDICE y en memoria.
+ * `profiles.create` marca activo el perfil nuevo también en el índice
+ * persistido; restaurar solo el namespace en memoria dejaba ambos
+ * desincronizados y, al siguiente arranque, el usuario aparecía dentro del
+ * perfil recién importado en lugar del suyo.
+ * @param {string} profileId
+ */
+function restoreActive(profileId) {
+    if (profileId === '') return;
+    const restored = profiles.setActive(profileId);
+    if (!restored.ok) storage.setActiveProfile(profileId);
 }
