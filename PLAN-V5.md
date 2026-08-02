@@ -1,6 +1,6 @@
 # TransformLab v5 — Plan de reconstrucción
 
-> Estado: **M1 cerrada (2026-08-02) · M2 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
+> Estado: **M2 cerrada (2026-08-02) · M3 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
 
 Este documento es el estado vivo del proyecto: registro de decisiones, milestones con tareas (checkboxes), criterios de cierre verificables, backlog y bitácora. Claude Code lo lee al inicio de cada sesión y lo actualiza al cerrar cada tarea.
 
@@ -130,12 +130,12 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Tareas
 
-- [ ] M2-1 · `schema.js`: definir el esquema v5 con JSDoc typedefs — perfil (con `muscleSource`), plan generado (con escenarios), check-ins (peso, %grasa, medidas configurables, energía/sueño/adherencia/motivación 1–10, notas), rutina/registro de entrenamiento, plantillas de comida, hitos, logros, metadatos de fotos, ajustes. `schemaVersion: 5` en todo objeto raíz. Validadores de forma.
-- [ ] M2-2 · `profiles.js`: índice `tl.5.profiles`, perfil activo, crear/renombrar/borrar (borrar exige confirmación tipeada), namespace `tl.5.<pid>.*` aplicado por `storage.js`.
-- [ ] M2-3 · `migrate.js`: detectar claves v4 (`transformlab_*`), volcar un export automático de seguridad, transformar a esquema v5 como primer perfil (marcando `muscleSource: 'estimated'` — el dato v4 venía del ratio 0,48), archivar las claves viejas con prefijo `tl.legacy.`. Test con fixture real copiado de un perfil v4.
-- [ ] M2-4 · `backup.js`: export JSON de un perfil o de todos; import con validación de esquema, saneado de todos los campos de texto y resumen previo («este fichero contiene: perfil X, 12 check-ins…») antes de confirmar. Test de ida y vuelta byte-equivalente en datos estructurados.
-- [ ] M2-5 · `photos-db.js`: IndexedDB `tl-photos`, store por perfil, API `add/get/list/remove` con blobs; presupuesto y recuento expuestos. Sin UI todavía.
-- [ ] M2-6 · Presupuesto de cuota en `storage.js`: medir bytes usados por perfil, umbral de aviso (~60 % de 5 MB) que la UI consumirá en M3.
+- [x] M2-1 · `schema.js`: definir el esquema v5 con JSDoc typedefs — perfil (con `muscleSource`), plan generado (con escenarios), check-ins (peso, %grasa, medidas configurables, energía/sueño/adherencia/motivación 1–10, notas), rutina/registro de entrenamiento, plantillas de comida, hitos, logros, metadatos de fotos, ajustes. `schemaVersion: 5` en todo objeto raíz. Validadores de forma.
+- [x] M2-2 · `profiles.js`: índice `tl.5.profiles`, perfil activo, crear/renombrar/borrar (borrar exige confirmación tipeada), namespace `tl.5.<pid>.*` aplicado por `storage.js`.
+- [x] M2-3 · `migrate.js`: detectar claves v4 (`transformlab_*`), volcar un export automático de seguridad, transformar a esquema v5 como primer perfil (marcando `muscleSource: 'estimated'` — el dato v4 venía del ratio 0,48), archivar las claves viejas con prefijo `tl.legacy.`. Test con fixture real copiado de un perfil v4.
+- [x] M2-4 · `backup.js`: export JSON de un perfil o de todos; import con validación de esquema, saneado de todos los campos de texto y resumen previo («este fichero contiene: perfil X, 12 check-ins…») antes de confirmar. Test de ida y vuelta byte-equivalente en datos estructurados.
+- [x] M2-5 · `photos-db.js`: IndexedDB `tl-photos`, store por perfil, API `add/get/list/remove` con blobs; presupuesto y recuento expuestos. Sin UI todavía.
+- [x] M2-6 · Presupuesto de cuota en `storage.js`: medir bytes usados por perfil, umbral de aviso (~60 % de 5 MB) que la UI consumirá en M3.
 
 ### Criterios de cierre
 
@@ -145,7 +145,17 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Bitácora M2
 
-_(vacía)_
+**2026-08-02 · Sesión 1 — M2 completa (M2-1 → M2-6) en 8 commits.**
+
+- Esquema v5 propuesto y confirmado antes de programar. Tres decisiones dentro de la propuesta: (1) **la proyección NO se persiste** — el generador es determinista (B8) y se regenera al arrancar, lo que ahorra ~300 KB de cuota y mata de raíz la clase de bug de caché del legacy; (2) las métricas subjetivas viven solo en check-ins como datos reales (A2); (3) unidades en el nombre de campo (`weightKg`, `deficitKcal`), heredadas de los typedefs del core.
+- Decisión de diseño clave en `schema.js`: los validadores devuelven una **copia solo con claves conocidas**. Eso neutraliza de raíz la contaminación de prototipo y el contrabando de campos por el import, sin necesidad de listas negras.
+- Formas v4 extraídas del legacy para el fixture: `legacy/js/onboarding.js:845-866` (userProfile), `legacy/js/checkin.js:266-282` (check-ins), `legacy/js/app.js:479-490` (prefs), `legacy/js/router.js:65` (activeView).
+- Doble de IndexedDB escrito a mano (`test/helpers/indexed-db-mock.js`) en lugar de añadir `fake-indexeddb`: CLAUDE.md §5 restringe dependencias y la superficie usada es pequeña. El doble de localStorage gana `maxChars`, que replica el comportamiento real del navegador (solo fallan las escrituras que hacen crecer el almacén).
+- **Fallo encontrado a mano** antes del ataque: probando el migrador en 11 puntos de fallo, un corte por cuota dejaba un perfil huérfano y **el reintento moría con `nameTaken` para siempre** — datos v4 intactos pero inalcanzables. Cerrado con desambiguación de nombre + rollback + copiar todo el archivado antes de borrar nada.
+- **Verificación adversarial**: 61.661 casos en 4 estrategias, 35 hallazgos reportados. Los 4 verificadores del workflow murieron con error 401, así que verifiqué a mano las 13 críticas/altas ejecutando sus reproducciones: **12 confirmadas y cerradas** en `c690f1d`. Las dos críticas: fuga de datos personales entre perfiles al borrar el último (el siguiente perfil heredaba el registro del anterior), y el migrador escribiendo datos que el propio esquema rechaza, reportando éxito y archivando los originales. Entre las altas: la adherencia v4 es un porcentaje y la heurística convertía la peor semana del usuario en la mejor; una clave `transformlab_backup` podía pisar la copia de seguridad; `storage.set(undefined)` dejaba claves ilegibles con acuse positivo; `apply()` fabricaba un perfil corporal de 70 kg que nadie introdujo.
+- Criterios de cierre ejecutados: 188/188 tests · migración de fixture v4 válida, ida y vuelta de backup, validadores rechazando fixtures corruptos sin excepción · cuota llena degrada con error tipado en `set`, `create` y `setGlobal`, sin crash · typecheck limpio. **M2 CERRADA.**
+- Los 22 hallazgos de gravedad media/baja del ataque quedan anotados en BACKLOG para revisarlos al abrir M3 (varios son de la superficie de UI que aún no existe).
+- Siguiente paso: `prompts/M3-shell-dashboard.md` — shell, onboarding con preview en vivo y dashboard HOY-first.
 
 ---
 
@@ -260,6 +270,7 @@ _(vacía)_
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
 - i18n a más idiomas · modo claro · sincronización entre dispositivos · exportación PDF del plan · integración con básculas/wearables · comparativas entre perfiles
+- **Hallazgos media/baja del ataque a M2 (2026-08-02), pendientes de revisar en M3:** `sanitizeText` parte pares sustitutos al recortar y no elimina los controles C1 de Unicode; un perfil cuyo nombre son solo caracteres invisibles no se puede borrar; `readIndex` normaliza sin marcarlo; los validadores no se protegen de getters que lanzan; `photos-db` no valida que el id no contenga `:` ni que `blob.size` sea finito y positivo; los campos de kilos del plan no tienen cota superior; `migrate` no valida `nowISO`; `transformlab_startDate` nunca se lee.
 
 ## Bitácora general
 
