@@ -257,12 +257,40 @@ export function migrate(context) {
     const profileRecord = buildProfileRecord(parsedProfile, context.nowISO, warnings);
     if (!profileRecord.ok) return profileRecord;
 
-    const created = profiles.create(context.profileName ?? 'Perfil migrado', { createdAtISO: context.nowISO });
+    // El nombre se desambigua si ya existe. Es la defensa que garantiza que un
+    // intento fallido NUNCA bloquee el siguiente: sin ella, un fallo por cuota
+    // dejaba un perfil huérfano y el reintento moría con `profiles.nameTaken`,
+    // con los datos v4 intactos pero ya inalcanzables para siempre.
+    const baseName = context.profileName ?? 'Perfil migrado';
+    let profileName = baseName;
+    const existing = profiles.list();
+    if (existing.ok) {
+        let suffix = 2;
+        while (existing.value.some((p) => p.name === profileName) && suffix < 100) {
+            profileName = `${baseName} (${suffix})`;
+            suffix++;
+        }
+    }
+
+    const created = profiles.create(profileName, { createdAtISO: context.nowISO });
     if (!created.ok) return { ok: false, error: created.error };
     const profileId = created.value.id;
 
+    /**
+     * Deshace el perfil recién creado. Es de MEJOR ESFUERZO: si el almacén está
+     * lleno, el propio rollback puede no poder escribir el índice. Por eso la
+     * garantía de que el reintento funcione no descansa aquí, sino en la
+     * desambiguación del nombre de arriba.
+     * @param {string} error
+     * @returns {{ ok: false, error: string }}
+     */
+    const rollback = (error) => {
+        profiles.remove(profileId, profileName);
+        return { ok: false, error };
+    };
+
     const savedProfile = storage.set('profile', profileRecord.value);
-    if (!savedProfile.ok) return { ok: false, error: savedProfile.error };
+    if (!savedProfile.ok) return rollback(savedProfile.error);
 
     // check-ins (pueden no existir)
     let checkinsMigrated = 0;
@@ -277,7 +305,7 @@ export function migrate(context) {
         const built = buildCheckins(parsedCheckins, context.nowISO);
         if (built.skipped > 0) warnings.push('migrate.checkinsSkipped');
         const savedCheckins = storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: built.items });
-        if (!savedCheckins.ok) return { ok: false, error: savedCheckins.error };
+        if (!savedCheckins.ok) return rollback(savedCheckins.error);
         checkinsMigrated = built.items.length;
     }
 
@@ -286,16 +314,20 @@ export function migrate(context) {
     warnings.push('migrate.planRegenerationRequired');
 
     // ---- 3 · archivado (renombrar, NUNCA borrar) ----
+    // Se escriben TODAS las copias antes de borrar ningún original: si la
+    // escritura falla a mitad, los datos v4 siguen todos en su sitio.
     /** @type {string[]} */ const archivedKeys = [];
     for (const key of v4KeysPresent.value) {
         const value = snapshot[key];
         if (value === undefined) continue;
         const archiveKey = `${ARCHIVE_PREFIX}${key.slice(V4_PREFIX.length)}`;
         const written = storage.setRaw(archiveKey, value);
-        if (!written.ok) return { ok: false, error: written.error };
-        const removed = storage.removeRaw(key);
-        if (!removed.ok) return { ok: false, error: removed.error };
+        if (!written.ok) return rollback(written.error);
         archivedKeys.push(archiveKey);
+    }
+    for (const key of v4KeysPresent.value) {
+        if (snapshot[key] === undefined) continue;
+        storage.removeRaw(key); // el original ya está copiado; su borrado no puede perder nada
     }
 
     return {

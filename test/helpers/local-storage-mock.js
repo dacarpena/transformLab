@@ -4,12 +4,34 @@
  * Doble de localStorage para node:test, compatible con la interfaz Storage
  * que consume src/data/storage.js. Permite simular cuota llena.
  */
+/** @returns {Error} el error que lanza el localStorage real al llenarse */
+function quotaError() {
+    const err = new Error('exceeded the quota');
+    err.name = 'QuotaExceededError';
+    return err;
+}
+
 export class LocalStorageMock {
     constructor() {
         /** @type {Map<string, string>} */
         this.store = new Map();
-        /** Si es true, setItem lanza QuotaExceededError (simulación de cuota llena). */
+        /** Si es true, setItem lanza SIEMPRE (cuota llena en su forma más dura). */
         this.quotaFull = false;
+        /**
+         * Cuota realista en caracteres: `setItem` solo falla si la escritura
+         * HACE CRECER el total por encima del tope, igual que el localStorage
+         * real. Sobrescribir con un valor menor o borrar siempre funciona, que
+         * es lo que permite a un rollback operar con el almacén lleno.
+         * @type {number}
+         */
+        this.maxChars = Infinity;
+    }
+
+    /** Tamaño total actual, en caracteres (clave + valor). */
+    get usedChars() {
+        let total = 0;
+        for (const [k, v] of this.store) total += k.length + v.length;
+        return total;
     }
 
     get length() {
@@ -28,12 +50,14 @@ export class LocalStorageMock {
 
     /** @param {string} key @param {string} value */
     setItem(key, value) {
-        if (this.quotaFull) {
-            const err = new Error('exceeded the quota');
-            err.name = 'QuotaExceededError';
-            throw err;
+        const next = String(value);
+        if (this.quotaFull) throw quotaError();
+        if (this.maxChars !== Infinity) {
+            const previous = this.store.get(key);
+            const delta = (key.length + next.length) - (previous === undefined ? 0 : key.length + previous.length);
+            if (delta > 0 && this.usedChars + delta > this.maxChars) throw quotaError();
         }
-        this.store.set(key, String(value));
+        this.store.set(key, next);
     }
 
     /** @param {string} key */

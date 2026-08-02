@@ -209,6 +209,70 @@ test('el sexo desconocido cae a male con aviso explícito, jamás en silencio', 
     assert.ok(r.value.warnings.includes('migrate.sexDefaulted'));
 });
 
+test('si falla DESPUÉS de crear el perfil, el rollback lo deshace (sin huérfanos)', () => {
+    seedV4();
+    // cuota realista: solo fallan las escrituras que HACEN CRECER el almacén,
+    // como en el navegador. El rollback encoge el índice, así que sí puede
+    // completarse — que es justo lo que se quiere comprobar.
+    mock.maxChars = mock.usedChars + 3000;
+    const r = migrate.migrate({ nowISO: NOW });
+    assert.equal(r.ok, false, 'la cuota debería haber cortado la migración');
+
+    mock.maxChars = Infinity;
+    const l = profiles.list();
+    assert.ok(l.ok);
+    assert.equal(l.value.length, 0, `quedaron perfiles huérfanos: ${JSON.stringify(l.value)}`);
+});
+
+test('un intento fallido NUNCA bloquea el siguiente: el reintento migra de verdad', () => {
+    seedV4();
+    // primer intento: el almacén se llena
+    let writes = 0;
+    const realSet = mock.setItem.bind(mock);
+    mock.setItem = (/** @type {string} */ k, /** @type {string} */ v) => {
+        if (++writes > 10) throw Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
+        return realSet(k, v);
+    };
+    assert.equal(migrate.migrate({ nowISO: NOW }).ok, false);
+
+    // los datos v4 siguen intactos y aún hace falta migrar
+    assert.equal(migrate.needsMigration(), true);
+    assert.ok(mock.getItem('transformlab_userProfile'));
+
+    // el usuario libera espacio y reintenta: debe funcionar
+    mock.setItem = realSet;
+    const second = migrate.migrate({ nowISO: NOW });
+    assert.ok(second.ok, `el reintento quedó bloqueado: ${JSON.stringify(!second.ok && second.error)}`);
+    assert.equal(second.value.migrated, true);
+    assert.equal(second.value.checkinsMigrated, 2);
+    assert.equal(migrate.needsMigration(), false);
+});
+
+test('el archivado copia TODO antes de borrar nada: un fallo no pierde claves v4', () => {
+    seedV4();
+    const originales = migrate.V4_KEYS.filter((k) => mock.getItem(k) !== null);
+    let writes = 0;
+    const realSet = mock.setItem.bind(mock);
+    mock.setItem = (/** @type {string} */ k, /** @type {string} */ v) => {
+        // deja pasar backup + perfil + checkins, y corta durante el archivado
+        if (++writes > 14) throw Object.assign(new Error('quota'), { name: 'QuotaExceededError' });
+        return realSet(k, v);
+    };
+    migrate.migrate({ nowISO: NOW });
+    mock.setItem = realSet;
+
+    // ni una sola clave v4 se ha perdido: o sigue en su sitio, o está archivada
+    for (const key of originales) {
+        const archived = `tl.legacy.${key.slice('transformlab_'.length)}`;
+        assert.ok(mock.getItem(key) !== null || mock.getItem(archived) !== null, `${key} se perdió`);
+    }
+    // y la copia de seguridad completa está disponible pase lo que pase
+    const b = migrate.readSafetyBackup();
+    assert.ok(b.ok && b.value !== null);
+    const parsed = JSON.parse(/** @type {string} */ (b.value));
+    for (const key of originales) assert.ok(Object.hasOwn(parsed.keys, key), `${key} falta en el backup`);
+});
+
 test('migrar dos veces no duplica perfiles (las claves v4 ya no están)', () => {
     seedV4();
     assert.ok(migrate.migrate({ nowISO: NOW }).ok);
