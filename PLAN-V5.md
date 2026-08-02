@@ -55,14 +55,14 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Tareas
 
-- [ ] M0-1 · Reconciliar el repo: `git checkout -- .DS_Store` → `git fetch --all --prune` → `git pull --ff-only` (el local no tiene commits propios; queda en `d0afa49`, v4.0). Retirar el worktree obsoleto: `git worktree remove .claude/worktrees/silly-yonath` si existe.
-- [ ] M0-2 · Higiene: `.gitignore` (`.DS_Store`, `.claude/`, `node_modules/`, `test-results/`, `*.log`), `git rm --cached .DS_Store`, `LICENSE` (elegir: MIT recomendada para producto público), `.editorconfig`.
-- [ ] M0-3 · Congelar el legacy: mover `index.html`, `js/`, `css/`, `styles_new.css`, `test-calculation.js`, `aesthetic_milestones_complete.json`, `robots.txt` a `legacy/`. `docs/` se queda en la raíz. Commit propio: `chore: freeze v4.0 as legacy reference`.
-- [ ] M0-4 · Esqueleto v5: árbol de `CLAUDE.md` §3 con ficheros mínimos funcionales — `index.html` (shell vacío + `<script type="module" src="src/main.js">`), `css/tokens.css` (paleta oscura inicial, tipografía, espaciados), `css/app.css`, `src/main.js`, `src/ui/dom.js` (`escapeHtml`, `html``, `on()` delegación), `src/i18n/` (t(), es, en con ~10 claves de arranque), `src/data/storage.js` (get/set/remove con try/catch, namespace, aviso de cuota).
-- [ ] M0-5 · Vendorizar Chart.js: descargar la versión UMD actual fijada a `vendor/chart.umd.min.js`, anotar versión y hash en la bitácora.
-- [ ] M0-6 · Tooling: `package.json` (scripts serve/test/typecheck/e2e; devDeps `typescript`, `@playwright/test`), `tsconfig.json` (`allowJs`, `checkJs`, `noEmit`, include `src/core`, `src/data`), primer test trivial de `storage.js` con `node:test`.
-- [ ] M0-7 · CI: `.github/workflows/ci.yml` — checkout, node 22, `npm ci`, `npm run typecheck`, `npm test` en cada push/PR.
-- [ ] M0-8 · Deploy: conectar el repo a Cloudflare Pages (build command vacío, output `/`). Verificar que la URL de staging sirve el shell v5.
+- [x] M0-1 · Reconciliar el repo: `git checkout -- .DS_Store` → `git fetch --all --prune` → `git pull --ff-only` (el local no tiene commits propios; queda en `d0afa49`, v4.0). Retirar el worktree obsoleto: `git worktree remove .claude/worktrees/silly-yonath` si existe.
+- [x] M0-2 · Higiene: `.gitignore` (`.DS_Store`, `.claude/`, `node_modules/`, `test-results/`, `*.log`), `git rm --cached .DS_Store`, `LICENSE` (elegir: MIT recomendada para producto público), `.editorconfig`.
+- [x] M0-3 · Congelar el legacy: mover `index.html`, `js/`, `css/`, `styles_new.css`, `test-calculation.js`, `aesthetic_milestones_complete.json`, `robots.txt` a `legacy/`. `docs/` se queda en la raíz. Commit propio: `chore: freeze v4.0 as legacy reference`.
+- [x] M0-4 · Esqueleto v5: árbol de `CLAUDE.md` §3 con ficheros mínimos funcionales — `index.html` (shell vacío + `<script type="module" src="src/main.js">`), `css/tokens.css` (paleta oscura inicial, tipografía, espaciados), `css/app.css`, `src/main.js`, `src/ui/dom.js` (`escapeHtml`, `html``, `on()` delegación), `src/i18n/` (t(), es, en con ~10 claves de arranque), `src/data/storage.js` (get/set/remove con try/catch, namespace, aviso de cuota).
+- [x] M0-5 · Vendorizar Chart.js: descargar la versión UMD actual fijada a `vendor/chart.umd.min.js`, anotar versión y hash en la bitácora.
+- [x] M0-6 · Tooling: `package.json` (scripts serve/test/typecheck/e2e; devDeps `typescript`, `@playwright/test`), `tsconfig.json` (`allowJs`, `checkJs`, `noEmit`, include `src/core`, `src/data`), primer test trivial de `storage.js` con `node:test`.
+- [x] M0-7 · CI: `.github/workflows/ci.yml` — checkout, node 22, `npm ci`, `npm run typecheck`, `npm test` en cada push/PR.
+- [ ] M0-8 · Deploy: conectar el repo a Cloudflare Pages (build command vacío, output `/`). Verificar que la URL de staging sirve el shell v5. _(Pendiente solo la parte manual del panel — instrucciones en la bitácora.)_
 
 ### Criterios de cierre
 
@@ -73,7 +73,22 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Bitácora M0
 
-_(vacía)_
+**2026-08-02 · Sesión 1 (M0-1 → M0-7 cerradas; M0-8 a falta del panel).**
+
+- Pre-M0: la carpeta se renombró `procesoFisico` → `transformLab`; el worktree `.claude/worktrees/silly-yonath` quedó roto (registrado en la ruta vieja). Se reparó con `git worktree repair` y se retiró (`--force`: rama ya fusionada y pusheada). Rama local `claude/silly-yonath` eliminada tras el pull. Corregidas 5 referencias a la ruta vieja en `README.md` y `docs/HISTORIAL-Y-RAMAS.md`.
+- M0-1: `pull --ff-only` limpio a `d0afa49` (v4.0, 13 módulos). Kit v5 + docs de auditoría commiteados (`6103e7d`, 22 ficheros, 7.954 líneas).
+- M0-5: Chart.js **4.5.1** UMD → `vendor/chart.umd.min.js` · sha256 `48444a82d4edcb5bec0f1965faacdde18d9c17db3063d042abada2f705c9f54a`.
+- M0-6: script `test` ajustado a `node --test` sin argumento (Node ≥23 ya no acepta un directorio como entrada; el descubrimiento automático cubre `test/`). 20 tests en verde (storage: roundtrip, namespace por perfil, JSON corrupto, cuota llena simulada, sin backend; i18n: paridad es/en, interpolación segura, fallback). `storage.js` usa perfil activo `p1` por defecto hasta que `profiles.js` (M2) gestione la selección real.
+- M0-7: CI en verde en el primer run (`30749952807`, 12 s) tras push `d0afa49..ebce1b6`.
+- Shell verificado en navegador: módulos ES cargan sin errores de consola, i18n renderiza, contador de arranques persiste entre recargas.
+- Criterios de cierre ejecutados: `git status -sb` → `## main...origin/main` (limpio) · `git check-ignore .DS_Store` → exit 0 · tests 20/20 + typecheck limpio (local y Actions) · `legacy/` completo y `grep -rn "legacy/" src/ index.html` → 0.
+- **Queda a medias:** M0-8 — pasos manuales del panel de Cloudflare Pages (abajo). **Siguiente paso:** verificar la URL de staging cuando el panel esté conectado y cerrar M0; después, prompt `prompts/M1-motor.md`.
+
+**M0-8 · Pasos del panel de Cloudflare Pages (manual, una vez):**
+1. dash.cloudflare.com → *Workers & Pages* → *Create* → *Pages* → *Connect to Git* → autorizar GitHub y elegir `dacarpena/transformLab`.
+2. Configuración de build: *Framework preset* = None · *Build command* = (vacío) · *Build output directory* = `/`.
+3. *Save and Deploy*. La URL de staging será `transformlab-XXX.pages.dev` (production branch: `main`; cada push despliega solo).
+4. Verificación: abrir la URL → debe verse el shell v5 («Esqueleto v5 operativo»), sin errores en consola. Con eso, marcar M0-8 y cerrar M0 en esta bitácora.
 
 ---
 
