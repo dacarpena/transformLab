@@ -162,7 +162,7 @@ async function boot() {
     // 4 · cableado entre vistas
     onboarding.setOnComplete(() => route(roots));
     settings.setOnProfilesChanged(() => route(roots));
-    settings.setOnEditProfile(() => {
+    const editProfile = () => {
         const data = plans.get();
         startOnboarding(roots, data ? {
             name: data.profile.name,
@@ -179,8 +179,9 @@ async function boot() {
             startDateISO: data.profile.startDateISO,
             intensity: data.profile.intensity
         } : undefined);
-    });
-    dashboard.setOnEditProfile(() => settings.setOnEditProfile);
+    };
+    settings.setOnEditProfile(editProfile);
+    dashboard.setOnEditProfile(editProfile);
 
     // 5 · a rodar
     await route(roots);

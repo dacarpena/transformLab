@@ -15,6 +15,7 @@ import * as storage from '../../data/storage.js';
 import * as profiles from '../../data/profiles.js';
 import * as backup from '../../data/backup.js';
 import * as plans from '../plan-state.js';
+import * as router from '../router.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 
@@ -196,13 +197,20 @@ export function mount(container) {
 
     on(container, 'change', '[data-locale]', (_event, target) => {
         const locale = /** @type {HTMLSelectElement} */ (target).value;
-        setLocale(locale);
+        if (!setLocale(locale)) return;
         document.documentElement.lang = locale;
-        const settings = storage.get('settings');
-        const base = settings.ok && settings.value ? /** @type {object} */ (settings.value) : {};
-        storage.set('settings', { ...base, schemaVersion: 5, locale });
+        document.title = t('app.title');
+
+        const stored = storage.get('settings');
+        const base = stored.ok && stored.value ? /** @type {object} */ (stored.value) : {};
+        const saved = storage.set('settings', { ...base, schemaVersion: 5, locale });
+        if (!saved.ok) toast.fromErrorCode(saved.error.split(':')[0]);
+
+        // Cambiar de idioma repinta la vista y la navegación; NO vuelve a
+        // enrutar la aplicación entera. Un re-enrutado completo remontaba el
+        // asistente y descartaba este mismo cambio.
         draw(container);
-        if (onProfilesChanged) onProfilesChanged();
+        router.refreshNav();
     });
 
     on(container, 'click', '[data-edit-profile]', () => {

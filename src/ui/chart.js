@@ -33,10 +33,16 @@ function getChartLib() {
     return /** @type {*} */ (globalThis).Chart ?? null;
 }
 
-/** Lee un token de color del documento. */
+/**
+ * Lee un token de color del documento (D8: los colores viven en tokens.css,
+ * también los que consume el canvas). Si el token no resuelve, se cae al de
+ * texto secundario en vez de a un hex inventado.
+ */
 function cssVar(name) {
-    if (typeof getComputedStyle !== 'function') return '#888888';
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888888';
+    if (typeof getComputedStyle !== 'function') return '';
+    const styles = getComputedStyle(document.documentElement);
+    return styles.getPropertyValue(name).trim()
+        || styles.getPropertyValue('--color-text-secondary').trim();
 }
 
 /**

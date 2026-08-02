@@ -17,3 +17,6 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # El E2E entra en CI a partir de M3, cuando ya hay interfaz que probar.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e

@@ -42,6 +42,9 @@ const listeners = [];
 /** Clave de persistencia de la vista activa. */
 const VIEW_KEY = 'ui.activeView';
 
+/** Los listeners del armazón se cablean una sola vez. */
+let chromeWired = false;
+
 /**
  * Registra una vista. El orden de registro es el orden de la navegación.
  * @param {ViewDefinition} view
@@ -118,14 +121,22 @@ export async function navigate(id, options = {}) {
         }
     }
     activeView = next;
-    viewContainer.replaceChildren();
+
+    // Cada vista recibe un elemento PROPIO y recién creado. Al navegar se
+    // descarta entero, y con él mueren todos sus listeners delegados. Sin
+    // esto, `on(container, …)` los iba acumulando sobre el mismo contenedor
+    // y una vista visitada dos veces respondía dos veces a cada clic.
+    const host = document.createElement('div');
+    host.className = 'view';
+    host.dataset.viewId = id;
+    viewContainer.replaceChildren(host);
     viewContainer.setAttribute('aria-busy', 'true');
 
     try {
-        await next.mount(viewContainer);
+        await next.mount(host);
     } catch (err) {
         console.error('[router] fallo al montar', id, err);
-        render(viewContainer, html`
+        render(host, html`
             <div class="state state--error" role="alert">
                 <h2>${t('error.viewTitle')}</h2>
                 <p>${t('error.viewBody')}</p>
@@ -151,14 +162,18 @@ export async function start(options) {
     viewContainer = options.viewRoot;
     navContainer = options.navRoot;
 
-    on(navContainer, 'click', '.nav-item', (_event, target) => {
-        const id = target.getAttribute('data-view');
-        if (id) navigate(id);
-    });
-
-    on(viewContainer, 'click', '[data-action="reload"]', () => {
-        globalThis.location?.reload();
-    });
+    // Los listeners del armazón se cablean UNA sola vez, aunque `start()` se
+    // llame de nuevo al cambiar de perfil: si no, se apilarían.
+    if (!chromeWired) {
+        chromeWired = true;
+        on(navContainer, 'click', '.nav-item', (_event, target) => {
+            const id = target.getAttribute('data-view');
+            if (id) navigate(id);
+        });
+        on(viewContainer, 'click', '[data-action="reload"]', () => {
+            globalThis.location?.reload();
+        });
+    }
 
     let initial = options.fallbackView ?? [...views.keys()][0];
     const saved = storage.get(VIEW_KEY);
