@@ -1,0 +1,198 @@
+// @ts-check
+
+/**
+ * Fuente ÚNICA de rangos y límites del producto (decisión B9): el motor y el
+ * onboarding beben de aquí, de modo que no pueden volver a divergir (cierra
+ * MOT-12: rangos incoherentes entre asistente y motor).
+ *
+ * Contrato:
+ * - `error`  = imposible o inviable: bloquea.
+ * - `warning`= improbable o arriesgado: se AVISA al usuario, nunca se corrige
+ *   en silencio (cierra la familia del clamp C-1..C-3 y B9).
+ * - Los mensajes son códigos (`Issue.code`) + parámetros: el core no contiene
+ *   literales visibles; la UI los traduce vía i18n.
+ * - Un `sex` no reconocido es SIEMPRE error (cierra MOT-06: sexo desconocido
+ *   desactivaba la validación de grasa).
+ */
+
+import {
+    ESSENTIAL_FAT_PCT,
+    MIN_SAFE_FAT_PCT,
+    MAX_FAT_PCT,
+    ABSOLUTE_MAX_FAT_PCT,
+    ACTIVITY_MULTIPLIERS,
+    MUSCLE_GAIN_RATES_PCT_BW_MONTH
+} from './constants.js';
+
+/**
+ * @typedef {{ code: string, params?: Record<string, string | number> }} Issue
+ * @typedef {{ errors: Issue[], warnings: Issue[] }} CheckResult
+ */
+
+/** Límites duros y blandos, en un solo objeto consultable (UI incluida). */
+export const LIMITS = Object.freeze({
+    age: Object.freeze({ min: 14, max: 90, warnBelow: 18, warnAbove: 75 }),
+    heightCm: Object.freeze({ min: 120, max: 230 }),
+    weightKg: Object.freeze({ min: 30, max: 300 }),
+    /** Cuota de músculo sobre masa magra (ambas rutas de muscleSource). */
+    muscleShareOfLean: Object.freeze({ min: 0.2, max: 0.8, warnBelow: 0.35, warnAbove: 0.65 }),
+    fatPct: Object.freeze({
+        essential: ESSENTIAL_FAT_PCT,
+        minSafe: MIN_SAFE_FAT_PCT,
+        max: MAX_FAT_PCT,
+        absoluteMax: ABSOLUTE_MAX_FAT_PCT
+    })
+});
+
+/**
+ * @param {unknown} v
+ * @returns {v is number}
+ */
+function isFiniteNumber(v) {
+    return typeof v === 'number' && Number.isFinite(v);
+}
+
+/**
+ * @param {unknown} sex
+ * @returns {sex is 'male' | 'female'}
+ */
+export function isValidSex(sex) {
+    return sex === 'male' || sex === 'female';
+}
+
+/**
+ * Valida el perfil (sexo, edad, altura, actividad, estado de entrenamiento).
+ * @param {{ sex?: unknown, age?: unknown, heightCm?: unknown, activityLevel?: unknown, trainingStatus?: unknown }} profile
+ * @returns {CheckResult}
+ */
+export function checkProfile(profile) {
+    /** @type {Issue[]} */ const errors = [];
+    /** @type {Issue[]} */ const warnings = [];
+
+    if (!isValidSex(profile.sex)) {
+        errors.push({ code: 'profile.sexUnknown' });
+    }
+    if (!isFiniteNumber(profile.age)) {
+        errors.push({ code: 'profile.ageMissing' });
+    } else if (profile.age < LIMITS.age.min || profile.age > LIMITS.age.max) {
+        errors.push({ code: 'profile.ageOutOfRange', params: { min: LIMITS.age.min, max: LIMITS.age.max } });
+    } else if (profile.age < LIMITS.age.warnBelow) {
+        warnings.push({ code: 'profile.ageYoung', params: { age: profile.age } });
+    } else if (profile.age > LIMITS.age.warnAbove) {
+        warnings.push({ code: 'profile.ageSenior', params: { age: profile.age } });
+    }
+    if (!isFiniteNumber(profile.heightCm)) {
+        errors.push({ code: 'profile.heightMissing' });
+    } else if (profile.heightCm < LIMITS.heightCm.min || profile.heightCm > LIMITS.heightCm.max) {
+        errors.push({ code: 'profile.heightOutOfRange', params: { min: LIMITS.heightCm.min, max: LIMITS.heightCm.max } });
+    }
+    if (typeof profile.activityLevel !== 'string' || !(profile.activityLevel in ACTIVITY_MULTIPLIERS)) {
+        errors.push({ code: 'profile.activityUnknown' });
+    }
+    if (typeof profile.trainingStatus !== 'string' || !(profile.trainingStatus in MUSCLE_GAIN_RATES_PCT_BW_MONTH)) {
+        errors.push({ code: 'profile.trainingStatusUnknown' });
+    }
+    return { errors, warnings };
+}
+
+/**
+ * Valida una composición MEDIDA (peso, %grasa y músculo si lo hay).
+ * `context: 'measurement'` — una medición fuera del rango "sano" es AVISO
+ * (no puedes cambiar tu realidad); solo lo inviable es error. Cierra MOT-11.
+ * @param {{ weightKg?: unknown, fatPct?: unknown, muscleKg?: unknown }} input
+ * @param {'male' | 'female'} sex
+ * @returns {CheckResult}
+ */
+export function checkComposition(input, sex) {
+    /** @type {Issue[]} */ const errors = [];
+    /** @type {Issue[]} */ const warnings = [];
+
+    if (!isValidSex(sex)) {
+        return { errors: [{ code: 'profile.sexUnknown' }], warnings };
+    }
+    const { weightKg, fatPct, muscleKg } = input;
+
+    if (!isFiniteNumber(weightKg)) {
+        errors.push({ code: 'composition.weightMissing' });
+    } else if (weightKg < LIMITS.weightKg.min || weightKg > LIMITS.weightKg.max) {
+        errors.push({ code: 'composition.weightOutOfRange', params: { min: LIMITS.weightKg.min, max: LIMITS.weightKg.max } });
+    }
+
+    if (!isFiniteNumber(fatPct)) {
+        errors.push({ code: 'composition.fatMissing' });
+    } else if (fatPct < ESSENTIAL_FAT_PCT[sex]) {
+        errors.push({ code: 'composition.fatBelowEssential', params: { min: ESSENTIAL_FAT_PCT[sex] } });
+    } else if (fatPct > ABSOLUTE_MAX_FAT_PCT) {
+        errors.push({ code: 'composition.fatAboveAbsoluteMax', params: { max: ABSOLUTE_MAX_FAT_PCT } });
+    } else if (fatPct < MIN_SAFE_FAT_PCT[sex]) {
+        warnings.push({ code: 'composition.fatBelowSafe', params: { min: MIN_SAFE_FAT_PCT[sex] } });
+    } else if (fatPct > MAX_FAT_PCT[sex]) {
+        warnings.push({ code: 'composition.fatAboveModelMax', params: { max: MAX_FAT_PCT[sex] } });
+    }
+
+    if (muscleKg !== undefined && muscleKg !== null) {
+        if (!isFiniteNumber(muscleKg) || muscleKg <= 0) {
+            errors.push({ code: 'composition.muscleInvalid' });
+        } else if (isFiniteNumber(weightKg) && isFiniteNumber(fatPct)) {
+            const leanKg = weightKg * (1 - fatPct / 100);
+            const share = muscleKg / leanKg;
+            if (muscleKg >= leanKg) {
+                errors.push({ code: 'composition.muscleExceedsLean', params: { leanKg: round1(leanKg) } });
+            } else if (share < LIMITS.muscleShareOfLean.min || share > LIMITS.muscleShareOfLean.max) {
+                errors.push({ code: 'composition.muscleShareImplausible', params: { sharePct: Math.round(share * 100) } });
+            } else if (share < LIMITS.muscleShareOfLean.warnBelow || share > LIMITS.muscleShareOfLean.warnAbove) {
+                // AVISO relativo a la masa magra, jamás corrección (B9, anti C-1)
+                warnings.push({ code: 'composition.muscleShareUnusual', params: { sharePct: Math.round(share * 100) } });
+            }
+        }
+    }
+    return { errors, warnings };
+}
+
+/**
+ * Valida un OBJETIVO contra la composición inicial.
+ * `context: 'target'` — un objetivo insostenible es error o aviso serio según
+ * el umbral (distinción medición/objetivo que el legacy no hacía).
+ * @param {{ weightKg: number, fatPct: number, muscleKg: number, leanKg: number }} initial composición inicial ya validada
+ * @param {{ fatPct?: unknown, muscleKg?: unknown }} target
+ * @param {'male' | 'female'} sex
+ * @returns {CheckResult}
+ */
+export function checkTarget(initial, target, sex) {
+    /** @type {Issue[]} */ const errors = [];
+    /** @type {Issue[]} */ const warnings = [];
+
+    if (!isValidSex(sex)) {
+        return { errors: [{ code: 'profile.sexUnknown' }], warnings };
+    }
+    const { fatPct, muscleKg } = target;
+
+    if (!isFiniteNumber(fatPct)) {
+        errors.push({ code: 'target.fatMissing' });
+    } else if (fatPct < MIN_SAFE_FAT_PCT[sex]) {
+        // objetivo sostenido bajo el mínimo seguro: bloquea (no es una medición)
+        errors.push({ code: 'target.fatBelowSafe', params: { min: MIN_SAFE_FAT_PCT[sex] } });
+    } else if (fatPct > MAX_FAT_PCT[sex]) {
+        warnings.push({ code: 'target.fatAboveModelMax', params: { max: MAX_FAT_PCT[sex] } });
+    }
+
+    if (!isFiniteNumber(muscleKg) || muscleKg <= 0) {
+        errors.push({ code: 'target.muscleMissing' });
+    } else {
+        const deltaKg = muscleKg - initial.muscleKg;
+        const deltaPct = (deltaKg / initial.muscleKg) * 100;
+        if (deltaPct > 40) {
+            errors.push({ code: 'target.muscleGainImplausible', params: { deltaKg: round1(deltaKg) } });
+        } else if (deltaPct > 20) {
+            warnings.push({ code: 'target.muscleGainAmbitious', params: { deltaKg: round1(deltaKg) } });
+        } else if (deltaKg < 0) {
+            warnings.push({ code: 'target.muscleLoss', params: { deltaKg: round1(Math.abs(deltaKg)) } });
+        }
+    }
+    return { errors, warnings };
+}
+
+/** @param {number} n @returns {number} */
+function round1(n) {
+    return Math.round(n * 10) / 10;
+}
