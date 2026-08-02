@@ -1,6 +1,6 @@
 # TransformLab v5 — Plan de reconstrucción
 
-> Estado: **M2 cerrada (2026-08-02) · M3 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
+> Estado: **M3 cerrada (2026-08-02) · M4 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
 
 Este documento es el estado vivo del proyecto: registro de decisiones, milestones con tareas (checkboxes), criterios de cierre verificables, backlog y bitácora. Claude Code lo lee al inicio de cada sesión y lo actualiza al cerrar cada tarea.
 
@@ -165,14 +165,14 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Tareas
 
-- [ ] M3-1 · `router.js` + shell: vistas registradas, tabs inferiores en móvil / sidebar en escritorio (D5), vista activa persistida, evento de cambio de vista. Estados de carga accesibles.
-- [ ] M3-2 · Sistema visual: `tokens.css` definitivo (paleta oscura única D7, contraste AA verificado en los pares reales), componentes base (tarjeta, botón, modal con focus-trap, toast, empty-state). `color-scheme: dark`.
-- [ ] M3-3 · Onboarding rediseñado (D6): pasos con validación inline desde `ranges.js` (avisos ≠ errores), **preview del plan actualizándose en vivo** en cada paso, bioimpedancia claramente opcional con explicación de `muscleSource`, fecha de inicio validada, selector de idioma. Cubre C-4, EST-*, H-093/094/099 por diseño.
-- [ ] M3-4 · Dashboard HOY-first (D1/D2): cabecera con día real del plan, fase actual, estado «según plan» (sin check-ins aún, muestra proyectado y invita al primer check-in), tarjetas de composición con deltas correctos (sin `--`, `NaN` ni `↓ kg` — H-009/010/027 por diseño).
-- [ ] M3-5 · Gráfica (D3): Chart.js vendorizado — línea de proyección + **banda de escenarios** (B5), **bandas de fase de fondo**, **línea vertical HOY**, hitos clicables con ficha modal, zoom/brush de rango, exportar PNG. Interruptor «fluctuación realista» (B8). Alternativa textual accesible del punto activo (F7).
-- [ ] M3-6 · Ajustes: perfil (editar re-genera con aviso), idioma, multiperfil (cambiar/crear/borrar), export/import (M2-4 con UI), aviso de privacidad C6, zona de peligro separada.
-- [ ] M3-7 · Estados vacíos y de error de todas las vistas de esta milestone (D9), incluido fallo de carga de Chart.js con recarga — nunca borrado de datos.
-- [ ] M3-8 · E2E smoke (Playwright): onboarding completo con el perfil canónico de `docs/VERIFICACION-MANUAL.md` §3 → dashboard renderiza → cambiar de vista → recargar conserva estado.
+- [x] M3-1 · `router.js` + shell: vistas registradas, tabs inferiores en móvil / sidebar en escritorio (D5), vista activa persistida, evento de cambio de vista. Estados de carga accesibles.
+- [x] M3-2 · Sistema visual: `tokens.css` definitivo (paleta oscura única D7, contraste AA verificado en los pares reales), componentes base (tarjeta, botón, modal con focus-trap, toast, empty-state). `color-scheme: dark`.
+- [x] M3-3 · Onboarding rediseñado (D6): pasos con validación inline desde `ranges.js` (avisos ≠ errores), **preview del plan actualizándose en vivo** en cada paso, bioimpedancia claramente opcional con explicación de `muscleSource`, fecha de inicio validada, selector de idioma. Cubre C-4, EST-*, H-093/094/099 por diseño.
+- [x] M3-4 · Dashboard HOY-first (D1/D2): cabecera con día real del plan, fase actual, estado «según plan» (sin check-ins aún, muestra proyectado y invita al primer check-in), tarjetas de composición con deltas correctos (sin `--`, `NaN` ni `↓ kg` — H-009/010/027 por diseño).
+- [x] M3-5 · Gráfica (D3): Chart.js vendorizado — línea de proyección + **banda de escenarios** (B5), **bandas de fase de fondo**, **línea vertical HOY**, hitos clicables con ficha modal, zoom/brush de rango, exportar PNG. Interruptor «fluctuación realista» (B8). Alternativa textual accesible del punto activo (F7).
+- [x] M3-6 · Ajustes: perfil (editar re-genera con aviso), idioma, multiperfil (cambiar/crear/borrar), export/import (M2-4 con UI), aviso de privacidad C6, zona de peligro separada.
+- [x] M3-7 · Estados vacíos y de error de todas las vistas de esta milestone (D9), incluido fallo de carga de Chart.js con recarga — nunca borrado de datos.
+- [x] M3-8 · E2E smoke (Playwright): onboarding completo con el perfil canónico de `docs/VERIFICACION-MANUAL.md` §3 → dashboard renderiza → cambiar de vista → recargar conserva estado.
 
 ### Criterios de cierre
 
@@ -183,7 +183,17 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Bitácora M3
 
-_(vacía)_
+**2026-08-02 · Sesión 1 — M3 completa (M3-1 → M3-8) en 3 commits.**
+
+- Checkpoint cumplido antes de programar: paleta propuesta con ratios **medidos** y boceto del dashboard, ambos confirmados. Medir encontró dos fallos en la propia propuesta: el hover del botón primario invertía el contraste, y un único token de borde no podía servir a la vez a tarjetas (decorativo) y a campos de formulario (3:1 por WCAG 1.4.11) — ahora son dos tokens. `test/tokens-contrast.test.js` lee el `tokens.css` real y verifica los 8 grupos de pares: la degradación de H-047 (3,78:1) ya no puede repetirse sin romper la CI.
+- El hook de diseño señaló cinco puntos y los cinco se corrigieron: cuatro franjas de color laterales (tic reconocible de UI generada) sustituidas por etiqueta e icono, y la barra de progreso pasa a animar `transform` en vez de `width`, que forzaba layout en cada frame.
+- Onboarding: el formulario NUNCA se reconstruye al teclear — solo se refrescan preview y mensajes, así el foco y el cursor se conservan (hay E2E que lo comprueba). C-4 del legacy es imposible por construcción: no hay mínimo absoluto en kg para el músculo objetivo.
+- Dashboard HOY-first con el día REAL (no el punto medio de H-035) y las cifras etiquetadas explícitamente como PROYECCIÓN. `plan-state.js` regenera la proyección al arrancar en vez de leerla del almacén: al ser el generador determinista, no puede haber datos cacheados que sobrevivan a un cambio del motor.
+- Gráfica con banda de escenarios, bandas de fase, línea HOY, hitos clicables y export PNG. El canvas es opaco para un lector de pantalla, así que la serie se recorre con el teclado y cada punto se anuncia por `aria-live`. Si Chart.js falla: mensaje y recarga, jamás borrado (H-013).
+- **El E2E encontró dos fallos estructurales que los tests unitarios no podían ver:** los listeners delegados se acumulaban porque el router reutilizaba el mismo contenedor entre vistas (una vista visitada dos veces respondía dos veces a cada clic) — ahora cada vista recibe un elemento propio que muere con ella; y cambiar de idioma re-enrutaba la aplicación entera, lo que remontaba el asistente y descartaba el propio cambio.
+- Criterios de cierre ejecutados: **13/13 E2E** (teclado, focus-trap, Escape con devolución de foco, 320 px sin desborde, idioma persistido, cero errores de consola) · **196/196 unitarios** con paridad es/en · typecheck limpio · sin `overflow-x: hidden` de parche · cero `onclick`, cero `innerHTML` fuera de `dom.js`, cero `localStorage` fuera de `storage.js`, cero hex fuera de `tokens.css`. El E2E entra en CI. **M3 CERRADA.**
+- Verificado en navegador con el perfil canónico: objetivo **68,9 kg** donde el legacy daba **45,5 kg**.
+- Siguiente paso: `prompts/M4-seguimiento.md` — check-ins, desviación y recalibración. Su checkpoint pide proponer los umbrales de recalibración y el typedef final del check-in antes de programar.
 
 ---
 
