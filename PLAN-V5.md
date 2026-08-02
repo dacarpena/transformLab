@@ -1,6 +1,6 @@
 # TransformLab v5 — Plan de reconstrucción
 
-> Estado: **M0 cerrada (2026-08-02) · M1 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
+> Estado: **M1 cerrada (2026-08-02) · M2 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
 
 Este documento es el estado vivo del proyecto: registro de decisiones, milestones con tareas (checkboxes), criterios de cierre verificables, backlog y bitácora. Claude Code lo lee al inicio de cada sesión y lo actualiza al cerrar cada tarea.
 
@@ -94,15 +94,15 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Tareas
 
-- [ ] M1-1 · `constants.js`: portar de `legacy/js/calculations.js` los valores verificados (multiplicadores de actividad, tasas de pérdida de grasa 0,5/0,75/1 % PC/sem, grasa esencial/mínima/máxima) con su fuente en JSDoc. Convertir tasas musculares a **relativas al peso** con fuente y factor por sexo documentado (B6). Añadir equivalencia energética (~7 700 kcal/kg) y factor de adaptación metabólica (B3, B4) con referencias.
-- [ ] M1-2 · `rng.js`: PRNG determinista (mulberry32) sembrado desde `profileId + startDate`. Test: misma semilla → misma secuencia.
-- [ ] M1-3 · `ranges.js`: fuente única de rangos (edad, peso, altura, %grasa por sexo, músculo relativo a masa magra 35–65 %). API que distingue `error` (imposible) de `warning` (improbable: se avisa, no se corrige). Cubre MOT-06, MOT-11, MOT-12, GEN-13.
-- [ ] M1-4 · `engine.js` — composición: modelo con `muscleSource`. Ruta `estimated`: proporcional, sin clamp absoluto. Ruta `measured`: tejido magro no muscular conservado, validado en relativo con aviso. Test `identidad` con los 4 perfiles de `docs/AUDITORIA.md` §1.2 (80/20♂, 60/28♀, 95/30♂, 70/12♂) → peso actual ±1 kg. Cubre C-1..C-5.
-- [ ] M1-5 · `engine.js` — energía: BMR (Mifflin-St Jeor, redondeado en origen), TDEE **semanal** sobre peso proyectado + adaptación (B4), objetivo calórico con suelo max(BMR, 1200♀/1500♂) y ajuste de duración cuando el suelo recorta (B2). La recomposición recibe su déficit ligero real (B7; mata la rama muerta MOT-04).
-- [ ] M1-6 · `engine.js` — fases: planificador donde las expectativas por fase **suman exactamente** el objetivo (fuera restas mágicas de 2 kg/0,5 kg — MOT-08), duración de definición integrando la tasa sobre peso decreciente (MOT-16), duración de recomposición derivada (MOT-18), ramas explícitas para «ya estás en el objetivo» y «perder músculo» (MOT-10), guarda ante entradas no finitas (C-5/H-005).
-- [ ] M1-7 · `generator.js`: serie diaria por interpolación + fluctuación determinista opcional (B8) que conserva masa; el último día aterriza en el objetivo; agregados semanales/mensuales coherentes (semana parcial marcada, meses de calendario, fase correcta en fronteras — GEN-07/11/12/15). Fechas en **UTC puro** de punta a punta (GEN-02/10). El generador NO muta el perfil (GEN-06): trabaja sobre copia y devuelve avisos.
-- [ ] M1-8 · `generator.js` — escenarios: tres trayectorias (pesimista/esperado/optimista) desde los rangos de las tasas (B5), las tres cierran el plan. Hitos derivados del **cruce real de la serie** (GEN-03/04), con categorías declaradas en un solo sitio.
-- [ ] M1-9 · Suite completa de invariantes: `identidad`, `conservacion`, `limites`, `determinismo`, `cierre_de_plan`, `coherencia_energetica`, `escenarios` + tests de `ranges` y casos degenerados. `// @ts-check` + JSDoc en todo `src/core/`.
+- [x] M1-1 · `constants.js`: portar de `legacy/js/calculations.js` los valores verificados (multiplicadores de actividad, tasas de pérdida de grasa 0,5/0,75/1 % PC/sem, grasa esencial/mínima/máxima) con su fuente en JSDoc. Convertir tasas musculares a **relativas al peso** con fuente y factor por sexo documentado (B6). Añadir equivalencia energética (~7 700 kcal/kg) y factor de adaptación metabólica (B3, B4) con referencias.
+- [x] M1-2 · `rng.js`: PRNG determinista (mulberry32) sembrado desde `profileId + startDate`. Test: misma semilla → misma secuencia.
+- [x] M1-3 · `ranges.js`: fuente única de rangos (edad, peso, altura, %grasa por sexo, músculo relativo a masa magra 35–65 %). API que distingue `error` (imposible) de `warning` (improbable: se avisa, no se corrige). Cubre MOT-06, MOT-11, MOT-12, GEN-13.
+- [x] M1-4 · `engine.js` — composición: modelo con `muscleSource`. Ruta `estimated`: proporcional, sin clamp absoluto. Ruta `measured`: tejido magro no muscular conservado, validado en relativo con aviso. Test `identidad` con los 4 perfiles de `docs/AUDITORIA.md` §1.2 (80/20♂, 60/28♀, 95/30♂, 70/12♂) → peso actual ±1 kg. Cubre C-1..C-5.
+- [x] M1-5 · `engine.js` — energía: BMR (Mifflin-St Jeor, redondeado en origen), TDEE **semanal** sobre peso proyectado + adaptación (B4), objetivo calórico con suelo max(BMR, 1200♀/1500♂) y ajuste de duración cuando el suelo recorta (B2). La recomposición recibe su déficit ligero real (B7; mata la rama muerta MOT-04).
+- [x] M1-6 · `engine.js` — fases: planificador donde las expectativas por fase **suman exactamente** el objetivo (fuera restas mágicas de 2 kg/0,5 kg — MOT-08), duración de definición integrando la tasa sobre peso decreciente (MOT-16), duración de recomposición derivada (MOT-18), ramas explícitas para «ya estás en el objetivo» y «perder músculo» (MOT-10), guarda ante entradas no finitas (C-5/H-005).
+- [x] M1-7 · `generator.js`: serie diaria por interpolación + fluctuación determinista opcional (B8) que conserva masa; el último día aterriza en el objetivo; agregados semanales/mensuales coherentes (semana parcial marcada, meses de calendario, fase correcta en fronteras — GEN-07/11/12/15). Fechas en **UTC puro** de punta a punta (GEN-02/10). El generador NO muta el perfil (GEN-06): trabaja sobre copia y devuelve avisos.
+- [x] M1-8 · `generator.js` — escenarios: tres trayectorias (pesimista/esperado/optimista) desde los rangos de las tasas (B5), las tres cierran el plan. Hitos derivados del **cruce real de la serie** (GEN-03/04), con categorías declaradas en un solo sitio.
+- [x] M1-9 · Suite completa de invariantes: `identidad`, `conservacion`, `limites`, `determinismo`, `cierre_de_plan`, `coherencia_energetica`, `escenarios` + tests de `ranges` y casos degenerados. `// @ts-check` + JSDoc en todo `src/core/`.
 
 ### Criterios de cierre
 
@@ -113,7 +113,14 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Bitácora M1
 
-_(vacía)_
+**2026-08-02 · Sesión 1 — M1 completa (M1-1 → M1-9) en 6 commits.**
+
+- API pública y typedefs propuestos y confirmados por el usuario antes de programar (checkpoint del prompt M1). Decisiones de diseño: Issues como códigos i18n-ready (core sin literales), banda de escenarios dentro de cada `DailyPoint`, unidades en el nombre de campo.
+- Método test-first cumplido: `identidad` se escribió en rojo (44.º test fallando por módulo ausente) antes de `engine.js`.
+- Dos correcciones de diseño surgidas de los propios tests: (1) **premisa física unificada** — ambas rutas de `muscleSource` conservan el tejido magro no muscular; la identidad es exacta y plan↔serie cuadran al miligramo; (2) **banda de escenarios como retraso/adelanto sobre la trayectoria esperada** (la banda por-fase rompía el orden global); (3) **adaptación metabólica proporcional a la severidad del déficit** (el modelo plano −10 % declaraba inviable a la mujer pequeña sedentaria) — compartida por planificador y generador vía `adaptationStep`.
+- **Verificación adversarial** (workflow de 8 agentes): 71.412 casos de ataque en 4 estrategias (fuzz de dominio, fronteras, tipos hostiles, propiedades cruzadas); 30 roturas confirmadas y TODAS cerradas en `b895966`. La crítica: el planificador de ramas únicas fallaba con `closureFailed` en el caso central (perder >10 kg de grasa manteniendo músculo) — sustituido por bucle de convergencia sobre lo restante. Añadidos: validación de `intensity`, validación profunda de perfil/plan en el generador (anti NaN-con-ok:true, anti RangeError, anti bucle de heap), `Object.hasOwn` en todos los lookups de enums (anti claves de prototipo), objetivo de grasa >60 % como error, tope de peso objetivo [30,300] y de duración (1095 días), verificación de trayectoria por fases, guardas null/undefined en 10 funciones, suelo calórico jamás omitido en silencio, `muscleSource` validado.
+- Criterios de cierre ejecutados: 99/99 tests (7 invariantes con nombre no triviales sobre matriz de 8 casos + regresión adversarial + mini-fuzz sembrado de 200) · typecheck limpio · test de identidad: los 4 perfiles con desvío **0,00 kg** (legacy: −29,1 / −17,4 / −35,1 / −25,0) · cero referencias DOM/window/localStorage en `src/core/` (test automático). **M1 CERRADA.**
+- Siguiente paso: `prompts/M2-datos.md` — capa de datos (schema v5, multiperfil, migrador v4→v5, backup, photos-db).
 
 ---
 
