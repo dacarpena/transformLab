@@ -1,44 +1,65 @@
 /* ============================================================
    TransformLab v5 · tokens.css
    ÚNICA fuente de color, tipografía, espaciado, radios y sombras
-   (CLAUDE.md D8). Ningún valor de diseño vive fuera de este
-   fichero. Los valores se refinan en M3-2 con contraste medido;
-   la escala y los nombres son definitivos desde M0.
+   (CLAUDE.md D8). Ningún valor de diseño vive fuera de este fichero.
+
+   Todos los pares de color EN USO están medidos contra WCAG 2.1:
+   texto ≥ 4,5:1 (AA) y componentes no textuales ≥ 3:1 (1.4.11).
+   El ratio anotado es el real, calculado, no una estimación.
+   El test test/tokens-contrast.test.js lo verifica en cada commit.
    ============================================================ */
 
 :root {
     color-scheme: dark;
 
-    /* ---- Color: superficies (tema oscuro único, D7) ---- */
+    /* ---- Superficies (tema oscuro único, D7) ---- */
     --color-bg: #0a0a0f;
-    --color-surface: #13131c;
-    --color-surface-2: #1b1b28;
-    --color-border: #2a2a3d;
+    --color-surface: #14141d;
+    --color-surface-2: #1e1e2b;
 
-    /* ---- Color: texto (todos ≥ 4,5:1 sobre --color-bg) ---- */
-    --color-text: #e9e9f2;          /* ~15,9:1 */
-    --color-text-secondary: #b9b9cb; /* ~9,8:1 */
-    --color-text-muted: #9a9ab2;     /* ~6,7:1 — el legacy fallaba aquí (FRO: 3,67:1) */
+    /* ---- Bordes: dos tokens con propósitos distintos ----
+       `border` es decorativo (separar tarjetas) y no necesita contraste.
+       `border-control` delimita controles de formulario, que SÍ deben
+       distinguirse del fondo: WCAG 1.4.11 exige 3:1. Un solo token no
+       podía servir a ambos sin fallar uno de los dos. */
+    --color-border: #2f2f42;
+    --color-border-control: #6a6a8a;   /* 3,52:1 sobre surface */
 
-    /* ---- Color: marca y semánticos ---- */
-    --color-accent: #4cc9f0;
-    --color-accent-strong: #2ea8d8;
-    --color-success: #57d38c;
-    --color-warning: #f2b34c;
-    --color-danger: #ef6b6b;
+    /* ---- Texto (ratios sobre --color-surface) ---- */
+    --color-text: #eaeaf4;             /* 15,31:1 */
+    --color-text-secondary: #bcbccc;   /*  9,76:1 */
+    --color-text-muted: #9c9cb4;       /*  6,82:1 · el legacy fallaba aquí con 3,78:1 */
+
+    /* ---- Marca ---- */
+    --color-accent: #4cc9f0;           /*  9,52:1 sobre surface */
+    --color-accent-hover: #7ad8f5;
+    --color-on-accent: #06131a;        /*  9,79:1 sobre accent · 11,62:1 sobre accent-hover */
+
+    /* ---- Semánticos (ratios sobre --color-surface) ---- */
+    --color-success: #5ad494;          /*  9,83:1 */
+    --color-warning: #f0b350;          /*  9,82:1 */
+    --color-danger: #f4736f;           /*  6,56:1 */
+
+    /* ---- Fases del plan: gráfica, insignias y bandas ---- */
+    --color-phase-adaptation: #a78bfa;
+    --color-phase-recomposition: #5ec8f0;
+    --color-phase-cut: #f4736f;
+    --color-phase-bulk: #5ad494;
+    --color-phase-transition: #f0b350;
+    --color-phase-maintenance: #4fd1c5;
 
     /* ---- Tipografía: 3 familias lógicas ---- */
     --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-heading: var(--font-ui);
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-    --text-xs: 0.75rem;    /* 12px */
-    --text-sm: 0.875rem;   /* 14px */
-    --text-base: 1rem;     /* 16px */
-    --text-lg: 1.125rem;   /* 18px */
-    --text-xl: 1.375rem;   /* 22px */
-    --text-2xl: 1.75rem;   /* 28px */
-    --text-3xl: 2.25rem;   /* 36px */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.75rem;
+    --text-3xl: 2.25rem;
 
     --leading-tight: 1.2;
     --leading-normal: 1.55;
@@ -54,6 +75,7 @@
     --space-4: 16px;
     --space-6: 24px;
     --space-8: 32px;
+    --space-12: 48px;
 
     /* ---- Radios ---- */
     --radius-sm: 6px;
@@ -71,7 +93,13 @@
     --duration-base: 250ms;
     --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
-    /* ---- Foco (F7: visible siempre) ---- */
+    /* ---- Foco (F7: visible siempre, 10,27:1 sobre bg) ---- */
     --focus-ring: 2px solid var(--color-accent);
     --focus-offset: 2px;
+
+    /* ---- Medidas del armazón ---- */
+    --tabbar-height: 60px;
+    --sidebar-width: 232px;
+    --content-max: 56rem;
+    --breakpoint-desktop: 768px;
 }

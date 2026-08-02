@@ -26,7 +26,7 @@ export function escapeHtml(value) {
 }
 
 /** Marcador de HTML ya confiable (salida de `html`` ` o de `raw()`). */
-class RawHtml {
+export class RawHtml {
     /** @param {string} htmlText */
     constructor(htmlText) {
         /** @type {string} */

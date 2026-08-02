@@ -21,22 +21,22 @@ test('ningún diccionario tiene valores vacíos', () => {
 
 test('t() traduce en el idioma activo y cambia con setLocale', () => {
     setLocale('es');
-    assert.equal(t('shell.storage.ok'), 'disponible');
+    assert.equal(t('nav.today'), 'Hoy');
     setLocale('en');
-    assert.equal(t('shell.storage.ok'), 'available');
+    assert.equal(t('nav.today'), 'Today');
     setLocale('es');
 });
 
 test('t() interpola parámetros y deja intactos los placeholders sin dato', () => {
     setLocale('es');
-    assert.equal(t('shell.boots', { count: 3 }), 'Arranques en este navegador: 3');
-    assert.equal(t('shell.boots'), 'Arranques en este navegador: {count}');
+    assert.equal(t('today.progress', { percent: 26 }), '26 % completado');
+    assert.equal(t('today.progress'), '{percent} % completado');
 });
 
 test('la interpolación no ejecuta ni expande HTML: el valor va como texto', () => {
     setLocale('es');
-    const out = t('shell.boots', { count: '<img src=x onerror=alert(1)>' });
-    assert.equal(out, 'Arranques en este navegador: <img src=x onerror=alert(1)>');
+    const out = t('today.progress', { percent: '<img src=x onerror=alert(1)>' });
+    assert.equal(out, '<img src=x onerror=alert(1)> % completado');
     // El escapado ocurre en la capa de render (dom.js), no aquí: t() nunca genera HTML.
 });
 
