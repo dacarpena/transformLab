@@ -1,0 +1,23 @@
+{
+  "name": "transformlab",
+  "version": "5.0.0-dev",
+  "description": "Seguimiento de transformación corporal con proyección recalibrable. Todo en el navegador.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "Daniel Carpena Carmona",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dacarpena/transformLab.git"
+  },
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "typescript": "^5.7.0"
+  }
+}
