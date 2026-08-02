@@ -17,14 +17,18 @@ import * as plans from '../plan-state.js';
 import * as chart from '../chart.js';
 import * as modal from '../components/modal.js';
 import * as storage from '../../data/storage.js';
+import * as checkins from '../../data/checkins.js';
+import { evaluateSeries } from '../../core/tracking.js';
 import * as toast from '../components/toast.js';
-import { empty, error as errorState } from '../components/state.js';
+import { error as errorState } from '../components/state.js';
 
 /** @type {'weight'|'fatPct'|'muscle'} */
 let metric = 'weight';
 let rangeTo = 0;
 /** @type {(() => void) | null} */
 let onEditProfile = null;
+/** @type {(() => void) | null} */
+let onGoToCheckin = null;
 
 /** @param {number} value @param {number} digits */
 function num(value, digits = 1) {
@@ -36,7 +40,9 @@ function num(value, digits = 1) {
  * @param {import('../plan-state.js').PlanBundle} data
  * @param {{ dayIndex: number, state: 'before'|'during'|'after' }} today
  */
-function renderToday(data, today) {
+function renderToday(data, today, evaluations) {
+    const hasCheckins = evaluations.length > 0;
+    const latest = hasCheckins ? evaluations[evaluations.length - 1] : null;
     const point = data.projection.daily[today.dayIndex];
     const total = data.plan.totalDays;
     const percent = total > 0 ? Math.round((today.dayIndex / total) * 100) : 0;
@@ -82,12 +88,24 @@ function renderToday(data, today) {
                 </div>
             </div>
 
+            ${latest ? html`
+                <div class="card__header">
+                    <span class="signal signal--${latest.signal}">${t(`deviation.${latest.signal}`)}</span>
+                    <span class="muted numeric">${t('deviation.detail', {
+                        actual: num(latest.actualKg),
+                        expected: num(latest.expectedKg),
+                        delta: `${latest.deltaKg >= 0 ? '+' : ''}${num(latest.deltaKg)}`,
+                        tolerance: num(latest.toleranceKg)
+                    })}</span>
+                </div>
+            ` : ''}
+
             <div class="projection-note">
                 <span class="projection-note__tag">${t('today.projectionTag')}</span>
-                <p>${t('today.projectionNote')}</p>
+                <p>${latest ? t(`deviation.explain${latest.signal.charAt(0).toUpperCase()}${latest.signal.slice(1)}`) : t('today.projectionNote')}</p>
                 <div class="btn-row">
-                    <button type="button" class="btn btn--sm" data-first-checkin disabled>
-                        ${t('today.firstCheckin')}
+                    <button type="button" class="btn btn--sm" data-go-checkin>
+                        ${t(hasCheckins ? 'checkin.pendingAction' : 'today.firstCheckin')}
                     </button>
                 </div>
             </div>
@@ -201,6 +219,7 @@ function redraw(container) {
     if (!host || !canvas || !readout) return;
 
     const today = plans.todayIndex(data, plans.todayISO());
+    const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
     const ok = chart.draw({
         canvas,
         readout,
@@ -208,6 +227,12 @@ function redraw(container) {
         metric,
         todayIndex: today.dayIndex,
         range: { from: 0, to: rangeTo },
+        checkins: evaluations.map((e) => ({
+            dayIndex: e.dayIndex,
+            actualKg: e.actualKg,
+            fatPct: checkins.findByDate(e.dateISO)?.fatPct ?? null,
+            signal: e.signal
+        })),
         onMilestone: (m) => {
             modal.open({
                 titleKey: 'chart.milestoneModalTitle',
@@ -234,9 +259,10 @@ export function mount(container) {
     }
     const today = plans.todayIndex(data, plans.todayISO());
     if (rangeTo === 0 || rangeTo > data.plan.totalDays) rangeTo = data.plan.totalDays;
+    const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
 
     render(container, html`
-        ${renderToday(data, today)}
+        ${renderToday(data, today, evaluations)}
         ${renderPlan(data)}
         ${renderChartSection(data)}
     `);
@@ -294,6 +320,15 @@ export function mount(container) {
     on(container, 'click', '[data-edit-profile]', () => {
         if (onEditProfile) onEditProfile();
     });
+
+    on(container, 'click', '[data-go-checkin]', () => {
+        if (onGoToCheckin) onGoToCheckin();
+    });
+}
+
+/** @param {() => void} fn */
+export function setOnGoToCheckin(fn) {
+    onGoToCheckin = fn;
 }
 
 /** Limpia la gráfica al salir de la vista: sin esto, fuga de memoria. */
@@ -306,16 +341,3 @@ export function setOnEditProfile(fn) {
     onEditProfile = fn;
 }
 
-/** Vista de progreso: estado vacío honesto hasta que M4 traiga los check-ins. */
-export function mountProgress(container) {
-    render(container, html`
-        <section class="card" aria-labelledby="progress-title">
-            <h1 id="progress-title" class="card__title">${t('progress.title')}</h1>
-            ${empty({
-                icon: '📈',
-                titleKey: 'progress.emptyTitle',
-                bodyKey: 'progress.emptyBody'
-            })}
-        </section>
-    `);
-}

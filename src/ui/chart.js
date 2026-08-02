@@ -129,7 +129,7 @@ export function destroy() {
 
 /**
  * Dibuja la gráfica.
- * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void }} options
+ * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}> }} options
  * @returns {boolean} false si Chart.js no está disponible
  */
 export function draw(options) {
@@ -188,6 +188,34 @@ export function draw(options) {
         tension: 0.15,
         order: 1
     });
+
+    // Check-ins reales superpuestos a la proyección (M4-4). Van con estilo
+    // propio y en primer plano: lo medido no puede confundirse con lo previsto.
+    const realPoints = (options.checkins ?? []).filter(
+        (c) => c.dayIndex >= range.from && c.dayIndex <= range.to
+            && (metric !== 'fatPct' || c.fatPct !== null)
+    );
+    if (realPoints.length > 0 && metric !== 'muscle') {
+        datasets.push({
+            label: t('checkin.title'),
+            data: realPoints.map((c) => ({
+                x: c.dayIndex,
+                y: metric === 'fatPct' ? c.fatPct : c.actualKg
+            })),
+            showLine: true,
+            borderColor: cssVar('--color-text'),
+            borderWidth: 1,
+            borderDash: [3, 3],
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointStyle: 'rectRot',
+            pointBackgroundColor: realPoints.map((c) =>
+                cssVar(c.signal === 'within' ? '--color-success' : '--color-warning')),
+            pointBorderColor: cssVar('--color-bg'),
+            pointBorderWidth: 2,
+            order: 0
+        });
+    }
 
     // Hitos visibles dentro del rango, como puntos sobre la línea
     const visibleMilestones = projection.milestones.filter(

@@ -18,6 +18,7 @@ import {
     recalibrationOffer,
     streakOf,
     adherenceCalendar,
+    inferFatPct,
     CHECKIN_NOISE_FLOOR_PCT_BW,
     RECALIBRATION
 } from '../src/core/tracking.js';
@@ -353,4 +354,47 @@ test('calendario de adherencia: una entrada por check-in con su nivel', () => {
     assert.equal(calendar.length, 3);
     assert.deepEqual(calendar.map((c) => c.adherence), [9, 4, null]);
     assert.deepEqual(calendar.map((c) => c.dateISO), [dayDate(7), dayDate(14), dayDate(21)]);
+});
+
+// ============================================================
+// Inferencia de composición al recalibrar
+// ============================================================
+
+test('si el usuario midió su %grasa, esa medición manda sobre cualquier inferencia', () => {
+    const point = { muscleKg: 29.9, otherLeanKg: 30.6, fatPct: 16.5 };
+    assert.equal(inferFatPct(point, 75, 18.2), 18.2);
+});
+
+test('sin medición, la desviación del peso se atribuye a la GRASA, no al músculo', () => {
+    // Usuario estancado: pesa lo mismo que al empezar (75 kg) aunque el plan
+    // preveía 73. Suponer el %grasa proyectado diría que perdió grasa que no
+    // ha perdido — y desplazaría su peso objetivo sin que él cambiara la meta.
+    const point = { muscleKg: 29.9, otherLeanKg: 30.6, fatPct: 16.5 };
+    const inferred = inferFatPct(point, 75, null);
+    // magra prevista 60,5 → grasa = 75 − 60,5 = 14,5 → 19,3 %
+    assert.ok(Math.abs(inferred - 19.33) < 0.1, `inferido ${inferred}, esperaba ~19,3 %`);
+    assert.ok(inferred > point.fatPct, 'quien no pierde peso no puede haber perdido esa grasa');
+});
+
+test('quien va POR DEBAJO del plan recibe un %grasa inferido menor', () => {
+    const point = { muscleKg: 29.9, otherLeanKg: 30.6, fatPct: 16.5 };
+    const ahead = inferFatPct(point, 71, null);
+    assert.ok(ahead < point.fatPct, `${ahead} debería ser menor que ${point.fatPct}`);
+    assert.ok(ahead > 0);
+});
+
+test('la inferencia nunca devuelve grasa negativa: cae al proyectado', () => {
+    const point = { muscleKg: 29.9, otherLeanKg: 30.6, fatPct: 16.5 };
+    // peso real por debajo de la propia masa magra prevista: imposible
+    assert.equal(inferFatPct(point, 55, null), 16.5);
+});
+
+test('inferFatPct degrada con entradas basura sin lanzar', () => {
+    for (const [p, w] of /** @type {Array<[any, any]>} */ ([
+        [null, 75], [undefined, 75], [{ muscleKg: 1, otherLeanKg: 1, fatPct: 10 }, 0],
+        [{ muscleKg: 1, otherLeanKg: 1, fatPct: 10 }, NaN], [{}, 75]
+    ])) {
+        const value = inferFatPct(p, w, null);
+        assert.ok(Number.isNaN(value) || Number.isFinite(value), `${JSON.stringify([p, w])} → ${value}`);
+    }
 });

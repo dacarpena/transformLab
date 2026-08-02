@@ -19,7 +19,10 @@ import * as router from './ui/router.js';
 import * as plans from './ui/plan-state.js';
 import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
+import * as progress from './ui/views/progress.js';
+import * as checkinView from './ui/views/checkin.js';
 import * as settings from './ui/views/settings.js';
+import * as recalibrate from './ui/recalibrate.js';
 import * as toast from './ui/components/toast.js';
 import { error as errorState } from './ui/components/state.js';
 
@@ -64,9 +67,15 @@ async function startApp(roots) {
         id: 'today', labelKey: 'nav.today', icon: '◉',
         mount: dashboard.mount, unmount: dashboard.unmount
     });
-    router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', mount: dashboard.mountProgress });
+    router.register({ id: 'checkin', labelKey: 'checkin.nav', icon: '＋', mount: checkinView.mount });
+    router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', mount: progress.mount });
     router.register({ id: 'settings', labelKey: 'nav.settings', icon: '⚙', mount: settings.mount });
     await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'today' });
+
+    // Tras montar, se comprueba si procede OFRECER una recalibración (E1a).
+    // Nunca se aplica sola: solo se abre el diálogo y el usuario decide.
+    const verdict = recalibrate.check();
+    if (verdict.offer) recalibrate.offer(verdict, () => route(roots));
 }
 
 /** Muestra el asistente como única vista, sin navegación. */
@@ -161,6 +170,11 @@ async function boot() {
 
     // 4 · cableado entre vistas
     onboarding.setOnComplete(() => route(roots));
+    // Guardar un check-in recarga el plan en memoria y vuelve a evaluar la
+    // desviación, que es lo que puede disparar la oferta de recalibración.
+    checkinView.setOnSaved(() => route(roots));
+    progress.setOnGoToCheckin(() => router.navigate('checkin'));
+    dashboard.setOnGoToCheckin(() => router.navigate('checkin'));
     settings.setOnProfilesChanged(() => route(roots));
     const editProfile = () => {
         const data = plans.get();

@@ -303,6 +303,39 @@ export function streakOf(checkins, todayISO, startDateISO) {
 }
 
 /**
+ * Infiere la composición real de la que parte un plan recalibrado, cuando el
+ * usuario solo se ha pesado (el caso normal: casi nadie mide su %grasa).
+ *
+ * El músculo cambia despacio y lo dirige el entrenamiento, así que se conserva
+ * el proyectado; **la desviación del peso se atribuye a la GRASA**, que es lo
+ * que varía con el balance energético.
+ *
+ * La alternativa ingenua —tomar el %grasa proyectado— supone que el usuario
+ * perdió la grasa prevista pese a no haber movido la báscula, y además
+ * desplaza el peso objetivo sin que él haya cambiado su meta.
+ *
+ * @param {{ muscleKg: number, otherLeanKg: number, fatPct: number }} projectedPoint
+ * @param {number} actualWeightKg
+ * @param {number | null} [measuredFatPct] si el usuario SÍ lo midió, manda
+ * @returns {number} %grasa de partida para el plan nuevo
+ */
+export function inferFatPct(projectedPoint, actualWeightKg, measuredFatPct = null) {
+    if (isFiniteNumber(measuredFatPct) && measuredFatPct > 0) return measuredFatPct;
+    if (!projectedPoint || typeof projectedPoint !== 'object') return NaN;
+    if (!isFiniteNumber(actualWeightKg) || actualWeightKg <= 0) return NaN;
+    if (!isFiniteNumber(projectedPoint.muscleKg) || !isFiniteNumber(projectedPoint.otherLeanKg)) return NaN;
+
+    const projectedLeanKg = projectedPoint.muscleKg + projectedPoint.otherLeanKg;
+    const inferredFatKg = actualWeightKg - projectedLeanKg;
+    // si el peso real ya está por debajo de la magra prevista, la inferencia
+    // no tiene sentido físico: se cae al proyectado en vez de dar algo negativo
+    if (inferredFatKg <= 0) {
+        return isFiniteNumber(projectedPoint.fatPct) ? projectedPoint.fatPct : NaN;
+    }
+    return (inferredFatKg / actualWeightKg) * 100;
+}
+
+/**
  * Serie para el calendario de adherencia (E9b): una entrada por check-in.
  * @param {CheckinRecord[]} checkins
  * @returns {Array<{ dateISO: string, adherence: number | null }>}
