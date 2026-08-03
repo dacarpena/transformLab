@@ -258,3 +258,44 @@ test('apply() NO fabrica un perfil corporal que nadie introdujo', () => {
     assert.ok(fabricated.ok);
     assert.equal(fabricated.value, null, `se inventó un perfil: ${JSON.stringify(fabricated.value)}`);
 });
+
+// ============================================================
+// M4 · Regresión del endurecimiento del ciclo de seguimiento
+// ============================================================
+
+test('M4: editar un check-in MIGRADO lo reemplaza, no lo duplica', async () => {
+    const checkins = await import('../src/data/checkins.js');
+    seedV4();
+    assert.ok(migrate.migrate({ nowISO: NOW }).ok);
+
+    const before = checkins.list();
+    assert.equal(before.length, 2);
+    // el id debe derivarse de la fecha, como el resto del producto
+    assert.ok(before.every((c) => c.id === `ci_${c.dateISO}`), JSON.stringify(before.map((c) => c.id)));
+
+    // el usuario corrige el peso de un check-in migrado
+    const saved = checkins.save({ ...before[0], weightKg: 80.1 }, { nowISO: NOW });
+    assert.ok(saved.ok, JSON.stringify(!saved.ok && saved.error));
+
+    const after = checkins.list();
+    assert.equal(after.length, 2, `se duplicó la fecha: ${JSON.stringify(after.map((c) => c.dateISO))}`);
+    assert.equal(after.find((c) => c.dateISO === before[0].dateISO)?.weightKg, 80.1);
+});
+
+test('M4: checkins.save sin contexto devuelve error, no lanza', async () => {
+    const checkins = await import('../src/data/checkins.js');
+    for (const context of [undefined, null, {}, 'x']) {
+        const r = checkins.save({ dateISO: '2026-08-10', weightKg: 75 }, /** @type {*} */ (context));
+        assert.equal(r.ok, false, `contexto ${String(context)} aceptado`);
+    }
+});
+
+test('M4: un valor fuera del rango del esquema se rechaza con el campo y el límite', async () => {
+    const checkins = await import('../src/data/checkins.js');
+    const r = checkins.save({ dateISO: '2026-08-10', weightKg: 745 }, { nowISO: NOW });
+    assert.equal(r.ok, false);
+    assert.ok(!r.ok && Array.isArray(r.issues) && r.issues.length > 0, 'sin issues no se puede explicar el fallo');
+    assert.ok(!r.ok && r.issues?.[0].path.includes('weightKg'));
+    // y la colección sigue siendo válida
+    assert.ok(checkins.readAll().ok);
+});

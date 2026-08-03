@@ -45,6 +45,10 @@ export const es = {
     'error.code.profiles.confirmationMismatch': 'El nombre escrito no coincide.',
     'error.code.profiles.indexCorrupt': 'La lista de perfiles está dañada.',
 
+    'error.code.checkins.corrupt': 'Tu historial de check-ins está dañado. Exporta una copia antes de tocar nada.',
+
+    'error.code.checkins.contextInvalid': 'No se ha podido guardar el check-in.',
+
     // Confirmaciones
     'confirm.typeToConfirm': 'Escribe «{text}» para confirmar',
 
@@ -275,6 +279,7 @@ export const es = {
     'checkin.pendingAction': 'Registrarlo ahora',
     'checkin.outOfPlan': 'Esa fecha queda fuera de tu plan.',
     'checkin.weightRequired': 'El peso es obligatorio.',
+    'checkin.outOfRange': 'Ese valor está fuera del rango admitido ({field}).',
     'checkin.history': 'Historial',
     'checkin.entry': '{date} · {weight} kg',
 
@@ -286,6 +291,7 @@ export const es = {
     'deviation.explainWithin': 'Tu peso encaja con la proyección, dentro del margen normal de una báscula.',
     'deviation.explainAbove': 'Vas por encima de lo previsto para hoy.',
     'deviation.explainBelow': 'Vas por debajo de lo previsto para hoy.',
+    'deviation.latest': 'Último check-in',
     'deviation.accumulated': 'Desviación acumulada',
     'deviation.toleranceNote': 'El margen tiene en cuenta la variación diaria de agua y glucógeno, así que un día raro no cuenta como desviarse.',
 

@@ -233,6 +233,15 @@ export function mount(container) {
 
         const saved = checkins.save(input, { nowISO: new Date().toISOString() });
         if (!saved.ok) {
+            // el esquema sabe QUÉ campo y QUÉ límite se han violado: esa
+            // información se le enseña al usuario en vez de un «algo falló»
+            const issue = saved.issues?.[0];
+            if (issue && messages) {
+                render(messages, html`<p class="field__error">${t(`ranges.${issue.code}`) !== `ranges.${issue.code}`
+                    ? t(`ranges.${issue.code}`, issue.params)
+                    : t('checkin.outOfRange', { field: issue.path, ...(issue.params ?? {}) })}</p>`);
+                return;
+            }
             toast.fromErrorCode(saved.error.split(':')[0]);
             return;
         }

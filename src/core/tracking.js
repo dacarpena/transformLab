@@ -64,7 +64,6 @@ export const CHECKIN_NOISE_FLOOR_PCT_BW = toleranceFloorPct;
 /**
  * Umbrales de la oferta de recalibración (decisión E1a: se ofrece, nunca se
  * impone). Decisión de producto, justificada en la bitácora de M4.
- * @type {Readonly<{minCheckins: number, persistenceCount: number, magnitudeCount: number, magnitudeFactor: number, lowAdherenceMax: number}>}
  */
 export const RECALIBRATION = Object.freeze({
     /** Sin un mínimo de historial no hay tendencia que juzgar. */
@@ -75,8 +74,34 @@ export const RECALIBRATION = Object.freeze({
     magnitudeCount: 2,
     magnitudeFactor: 2,
     /** Adherencia ≤ 4/10 se señala como contexto; nunca bloquea. */
-    lowAdherenceMax: 4
+    lowAdherenceMax: 4,
+    /**
+     * Días REALES que debe abarcar la racha. Contar check-ins y no tiempo
+     * permitía que tres pesajes en tres días consecutivos —que son la MISMA
+     * retención de agua contada tres veces, no tres pruebas independientes—
+     * dispararan la oferta.
+     */
+    minSpanDays: 14,
+    /**
+     * Crecimiento mínimo del desvío a lo largo de la racha, como fracción de
+     * la tolerancia, para aceptarla como deriva REAL.
+     *
+     * Es el discriminador central. La retención de agua desplaza el peso un
+     * escalón y ahí se queda: sus residuos son planos (+1,0, +1,0, +1,0) y
+     * acaban revirtiendo. Un estancamiento real ENSANCHA la brecha cada
+     * semana, porque el plan sigue esperando progreso (+0,6, +1,2, +1,8).
+     * Mirar solo el nivel confunde ambos; mirar la PENDIENTE los separa.
+     */
+    minGrowthFactor: 0.4
 });
+
+/**
+ * Techo de la tolerancia, como múltiplo del cambio semanal que el plan
+ * espera. Sin techo, la semianchura de la banda crece con la duración del
+ * plan y llegaba a 18 kg en planes largos, volviendo invisible medio año de
+ * deriva real justo a los usuarios con más peso que perder.
+ */
+const TOLERANCE_CEILING_WEEKS = 4;
 
 const MS_PER_DAY = 86400000;
 
@@ -92,12 +117,27 @@ function isFiniteNumber(v) {
  * @returns {number | null}
  */
 function dayDiff(fromISO, toISO) {
-    if (typeof fromISO !== 'string' || typeof toISO !== 'string') return null;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromISO) || !/^\d{4}-\d{2}-\d{2}$/.test(toISO)) return null;
-    const from = Date.parse(`${fromISO}T00:00:00Z`);
-    const to = Date.parse(`${toISO}T00:00:00Z`);
-    if (Number.isNaN(from) || Number.isNaN(to)) return null;
+    const from = parseCivilDate(fromISO);
+    const to = parseCivilDate(toISO);
+    if (from === null || to === null) return null;
     return Math.round((to - from) / MS_PER_DAY);
+}
+
+/**
+ * Fecha civil a instante UTC, rechazando días que NO existen en el calendario.
+ * `Date.parse` acepta '2026-02-30' y lo desplaza al 2 de marzo, lo que
+ * atribuía el check-in a otro día del plan —otro peso esperado, otra fase—
+ * en silencio. `schema.js` ya validaba así; el core no.
+ * @param {unknown} iso
+ * @returns {number | null}
+ */
+function parseCivilDate(iso) {
+    if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+    const [y, m, d] = iso.split('-').map(Number);
+    const stamp = Date.UTC(y, m - 1, d);
+    const date = new Date(stamp);
+    if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null;
+    return stamp;
 }
 
 /**
@@ -109,17 +149,49 @@ function dayDiff(fromISO, toISO) {
  */
 export function toleranceAt(projection, dayIndex) {
     const daily = projection?.daily;
-    if (!Array.isArray(daily) || daily.length === 0) return 1;
+    if (!Array.isArray(daily) || daily.length === 0) return DEFAULT_TOLERANCE_KG;
 
     const index = isFiniteNumber(dayIndex)
         ? Math.min(daily.length - 1, Math.max(0, Math.round(dayIndex)))
         : 0;
     const point = daily[index];
-    if (!point) return 1;
+    if (!point || typeof point !== 'object') return DEFAULT_TOLERANCE_KG;
+    if (!isFiniteNumber(point.weightKg) || point.weightKg <= 0) return DEFAULT_TOLERANCE_KG;
 
-    const halfBand = Math.abs(point.band.optimistKg - point.band.pessimistKg) / 2;
     const floor = point.weightKg * CHECKIN_NOISE_FLOOR_PCT_BW;
-    return Math.max(halfBand, floor);
+
+    // La banda puede faltar o venir corrupta en datos rehidratados: entonces
+    // manda el suelo de ruido, no una excepción.
+    const band = point.band;
+    const halfBand = band && isFiniteNumber(band.optimistKg) && isFiniteNumber(band.pessimistKg)
+        ? Math.abs(band.optimistKg - band.pessimistKg) / 2
+        : 0;
+
+    // Techo: la tolerancia no puede superar lo que el plan espera cambiar en
+    // unas pocas semanas, o una deriva real quedaría dentro del margen.
+    const weeklyRate = expectedWeeklyChangeKg(daily, index);
+    const ceiling = Math.max(floor * 2, weeklyRate * TOLERANCE_CEILING_WEEKS);
+
+    const tolerance = Math.min(Math.max(halfBand, floor), Math.max(ceiling, floor));
+    return isFiniteNumber(tolerance) && tolerance > 0 ? tolerance : DEFAULT_TOLERANCE_KG;
+}
+
+/** Tolerancia de reserva cuando la proyección no permite calcular nada. */
+const DEFAULT_TOLERANCE_KG = 1;
+
+/**
+ * Cambio de peso que el plan espera en la semana alrededor de `index`.
+ * @param {Array<*>} daily
+ * @param {number} index
+ * @returns {number} kg/semana (≥ 0)
+ */
+function expectedWeeklyChangeKg(daily, index) {
+    const from = Math.max(0, index - 7);
+    const to = Math.min(daily.length - 1, index + 7);
+    const a = daily[from]?.weightKg;
+    const b = daily[to]?.weightKg;
+    if (!isFiniteNumber(a) || !isFiniteNumber(b) || to === from) return 0;
+    return (Math.abs(b - a) / (to - from)) * 7;
 }
 
 /**
@@ -143,9 +215,19 @@ export function evaluateCheckin(projection, checkin, startDateISO) {
     // acercarlo al extremo más próximo y fingir que encaja
     if (dayIndex < 0 || dayIndex >= daily.length) return { ok: false, error: 'tracking.outOfPlan' };
 
-    const expectedKg = daily[dayIndex].weightKg;
+    // el punto extraído también se valida: sin esto, una proyección con un
+    // punto corrupto devolvía {ok:true} con NaN y señal 'within' — la app
+    // afirmaría «vas según el plan» sin haber podido compararlo con nada
+    const point = daily[dayIndex];
+    if (!point || typeof point !== 'object' || !isFiniteNumber(point.weightKg)) {
+        return { ok: false, error: 'tracking.projectionInvalid' };
+    }
+    const expectedKg = point.weightKg;
     const deltaKg = checkin.weightKg - expectedKg;
     const toleranceKg = toleranceAt(projection, dayIndex);
+    if (!isFiniteNumber(toleranceKg) || toleranceKg <= 0) {
+        return { ok: false, error: 'tracking.projectionInvalid' };
+    }
 
     /** @type {DeviationSignal} */
     let signal = 'within';
@@ -197,6 +279,8 @@ export function evaluateSeries(projection, checkins, startDateISO) {
  * @property {DeviationSignal | null} side lado del que se está desviando
  * @property {boolean} lowAdherence contexto, nunca bloqueo
  * @property {number} streakOutside cuántos consecutivos llevan fuera
+ * @property {string} fingerprint huella de los datos evaluados, para recordar
+ *   un rechazo sin confundir «datos nuevos» con «los mismos datos otra vez»
  */
 
 /**
@@ -209,16 +293,18 @@ export function evaluateSeries(projection, checkins, startDateISO) {
  *       veces la tolerancia.
  *
  * @param {Evaluation[]} series salida de `evaluateSeries`
- * @param {{ declinedAtCheckinId?: string }} [options] si el usuario ya dijo
- *   que no, no se le vuelve a preguntar hasta que haya datos NUEVOS
+ * @param {{ declinedFingerprint?: string } | null} [options] si el usuario ya
+ *   dijo que no, no se le vuelve a preguntar con los MISMOS datos
  * @returns {RecalibrationVerdict}
  */
-export function recalibrationOffer(series, options = {}) {
+export function recalibrationOffer(series, options) {
     /** @type {RecalibrationVerdict} */
-    const none = { offer: false, reason: null, side: null, lowAdherence: false, streakOutside: 0 };
+    const none = { offer: false, reason: null, side: null, lowAdherence: false, streakOutside: 0, fingerprint: '' };
+    const opts = options && typeof options === 'object' ? options : {};
     if (!Array.isArray(series)) return none;
 
-    const clean = series.filter((e) => e && typeof e === 'object' && typeof e.signal === 'string');
+    const clean = series.filter((e) => e && typeof e === 'object' && typeof e.signal === 'string'
+        && isFiniteNumber(e.deltaKg) && isFiniteNumber(e.toleranceKg));
     if (clean.length < RECALIBRATION.minCheckins) return none;
 
     // Racha final fuera de banda, toda del mismo lado
@@ -232,21 +318,39 @@ export function recalibrationOffer(series, options = {}) {
     if (tail.length === 0) return none;
 
     const side = tail[0].signal;
+    const partial = { ...none, side, streakOutside: tail.length, fingerprint: fingerprintOf(clean) };
+
+    // La racha debe abarcar tiempo REAL. Tres pesajes en tres días son la
+    // misma retención de agua contada tres veces, no tres pruebas.
+    const spanDays = tail[tail.length - 1].dayIndex - tail[0].dayIndex;
+    if (spanDays < RECALIBRATION.minSpanDays) return partial;
+
+    // ¿La brecha CRECE? El agua desplaza el peso un escalón y ahí se queda
+    // (residuos planos); un estancamiento real ensancha la brecha cada semana
+    // porque el plan sigue esperando progreso. La pendiente los separa.
+    const firstGap = Math.abs(tail[0].deltaKg);
+    const lastGap = Math.abs(tail[tail.length - 1].deltaKg);
+    const growth = lastGap - firstGap;
+    const growing = growth >= tail[tail.length - 1].toleranceKg * RECALIBRATION.minGrowthFactor;
+
     const bigTail = tail.filter((e) => Math.abs(e.deltaKg) >= e.toleranceKg * RECALIBRATION.magnitudeFactor);
 
     /** @type {'persistence' | 'magnitude' | null} */ let reason = null;
-    if (tail.length >= RECALIBRATION.persistenceCount) reason = 'persistence';
+    if (tail.length >= RECALIBRATION.persistenceCount && growing) reason = 'persistence';
     // la magnitud exige que los grandes sean los ÚLTIMOS, no cualesquiera
     if (bigTail.length >= RECALIBRATION.magnitudeCount
         && bigTail[bigTail.length - 1] === tail[tail.length - 1]) {
         reason = 'magnitude';
     }
-    if (reason === null) return { ...none, side, streakOutside: tail.length };
+    if (reason === null) return partial;
 
-    // Ya se preguntó por este mismo último check-in: no se insiste.
-    const lastId = clean[clean.length - 1].checkinId;
-    if (options.declinedAtCheckinId && options.declinedAtCheckinId === lastId) {
-        return { ...none, side, streakOutside: tail.length };
+    // Ya se preguntó por ESTOS datos: no se insiste. La memoria es una huella
+    // del CONTENIDO, no el id del último check-in. Con el id bastaba con
+    // editar el check-in de hoy —que conserva su id, derivado de la fecha—
+    // para heredar el silencio con datos completamente nuevos; y bastaba con
+    // borrarlo para que la oferta reapareciera con MENOS información.
+    if (opts.declinedFingerprint && opts.declinedFingerprint === partial.fingerprint) {
+        return partial;
     }
 
     // La adherencia baja es CONTEXTO: un plan no está mal por no haberse
@@ -255,7 +359,20 @@ export function recalibrationOffer(series, options = {}) {
     const lowAdherence = withAdherence.length > 0
         && withAdherence.every((e) => /** @type {number} */ (e.adherence) <= RECALIBRATION.lowAdherenceMax);
 
-    return { offer: true, reason, side, lowAdherence, streakOutside: tail.length };
+    return { offer: true, reason, side, lowAdherence, streakOutside: tail.length, fingerprint: partial.fingerprint };
+}
+
+/**
+ * Huella del contenido evaluado: identifica los DATOS, no el último id.
+ * Editar, borrar o añadir un check-in la cambia; volver a abrir la app con
+ * exactamente los mismos datos, no.
+ * @param {Evaluation[]} series
+ * @returns {string}
+ */
+function fingerprintOf(series) {
+    return series
+        .map((e) => `${e.dateISO}:${e.actualKg.toFixed(2)}`)
+        .join('|');
 }
 
 /**
@@ -270,12 +387,20 @@ export function recalibrationOffer(series, options = {}) {
 export function streakOf(checkins, todayISO, startDateISO) {
     if (!Array.isArray(checkins)) return { current: 0, longest: 0, weeks: [] };
 
+    // Las semanas se acotan al presente: una fecha futura mal tecleada no
+    // puede romper la racha vigente (quedaba como semana aislada por delante)
+    // ni inflarla rellenando el calendario hacia adelante.
+    const todayDayRaw = dayDiff(startDateISO, todayISO);
+    const maxWeek = todayDayRaw === null ? Infinity : Math.floor(Math.max(0, todayDayRaw) / 7);
+
     /** @type {Set<number>} */ const weeks = new Set();
     for (const item of checkins) {
         if (!item || typeof item !== 'object') continue;
         const day = dayDiff(startDateISO, item.dateISO);
         if (day === null || day < 0) continue;
-        weeks.add(Math.floor(day / 7));
+        const week = Math.floor(day / 7);
+        if (week > maxWeek) continue;
+        weeks.add(week);
     }
     const sorted = [...weeks].sort((a, b) => a - b);
     if (sorted.length === 0) return { current: 0, longest: 0, weeks: [] };
@@ -289,8 +414,7 @@ export function streakOf(checkins, todayISO, startDateISO) {
 
     // La racha vigente solo cuenta si llega hasta la semana actual o la
     // anterior: con dos semanas sin registrar, la racha está rota.
-    const todayDay = dayDiff(startDateISO, todayISO);
-    const todayWeek = todayDay === null ? sorted[sorted.length - 1] : Math.floor(Math.max(0, todayDay) / 7);
+    const todayWeek = maxWeek === Infinity ? sorted[sorted.length - 1] : maxWeek;
     let current = 0;
     if (sorted[sorted.length - 1] >= todayWeek - 1) {
         current = 1;
@@ -320,7 +444,11 @@ export function streakOf(checkins, todayISO, startDateISO) {
  * @returns {number} %grasa de partida para el plan nuevo
  */
 export function inferFatPct(projectedPoint, actualWeightKg, measuredFatPct = null) {
-    if (isFiniteNumber(measuredFatPct) && measuredFatPct > 0) return measuredFatPct;
+    // una medición del usuario manda, pero acotada al rango físico: el 0 es
+    // legítimo (el esquema lo admite) y no debe confundirse con «sin dato»
+    if (isFiniteNumber(measuredFatPct) && measuredFatPct >= 0) {
+        return Math.min(100, measuredFatPct);
+    }
     if (!projectedPoint || typeof projectedPoint !== 'object') return NaN;
     if (!isFiniteNumber(actualWeightKg) || actualWeightKg <= 0) return NaN;
     if (!isFiniteNumber(projectedPoint.muscleKg) || !isFiniteNumber(projectedPoint.otherLeanKg)) return NaN;

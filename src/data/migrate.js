@@ -184,7 +184,7 @@ function buildCheckins(v4Checkins, nowISO) {
     /** @type {object[]} */ const items = [];
     let skipped = 0;
 
-    for (const [i, raw] of v4Checkins.entries()) {
+    for (const raw of v4Checkins) {
         if (!isRecord(raw)) { skipped++; continue; }
         const m = isRecord(raw.measurements) ? raw.measurements : {};
         const s = isRecord(raw.selfReport) ? raw.selfReport : {};
@@ -208,7 +208,10 @@ function buildCheckins(v4Checkins, nowISO) {
         if (motivation !== null) subjective.motivation = motivation;
 
         items.push({
-            id: typeof raw.id === 'string' && raw.id !== '' ? sanitizeText(raw.id, 60) : `migrated_${i}`,
+            // El id se deriva de la FECHA, igual que en checkins.js: si se
+            // conservara el id del legacy, editar un check-in migrado crearía
+            // un duplicado del mismo día en vez de reemplazarlo.
+            id: `ci_${dateISO}`,
             dateISO,
             weightKg,
             fatPct: finiteOrNull(m.fatPct),

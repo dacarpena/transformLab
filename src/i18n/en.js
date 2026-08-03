@@ -45,6 +45,10 @@ export const en = {
     'error.code.profiles.confirmationMismatch': 'The name you typed does not match.',
     'error.code.profiles.indexCorrupt': 'The profile list is damaged.',
 
+    'error.code.checkins.corrupt': 'Your check-in history is damaged. Export a backup before changing anything.',
+
+    'error.code.checkins.contextInvalid': 'The check-in could not be saved.',
+
     // Confirmations
     'confirm.typeToConfirm': 'Type “{text}” to confirm',
 
@@ -275,6 +279,7 @@ export const en = {
     'checkin.pendingAction': 'Log it now',
     'checkin.outOfPlan': 'That date falls outside your plan.',
     'checkin.weightRequired': 'Weight is required.',
+    'checkin.outOfRange': 'That value is outside the accepted range ({field}).',
     'checkin.history': 'History',
     'checkin.entry': '{date} · {weight} kg',
 
@@ -286,6 +291,7 @@ export const en = {
     'deviation.explainWithin': 'Your weight matches the projection, within the normal swing of a scale.',
     'deviation.explainAbove': 'You are above what was projected for today.',
     'deviation.explainBelow': 'You are below what was projected for today.',
+    'deviation.latest': 'Latest check-in',
     'deviation.accumulated': 'Accumulated deviation',
     'deviation.toleranceNote': 'The margin accounts for the daily water and glycogen swing, so one odd day does not count as drifting.',
 

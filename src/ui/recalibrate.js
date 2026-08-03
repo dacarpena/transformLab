@@ -21,7 +21,7 @@ import * as modal from './components/modal.js';
 import * as toast from './components/toast.js';
 
 /** Clave donde se recuerda el rechazo, para no insistir. */
-const DECLINED_KEY = 'ui.recalDeclinedAt';
+const DECLINED_KEY = 'ui.recalDeclinedFingerprint';
 
 /**
  * ¿Procede ofrecer una recalibración ahora mismo?
@@ -36,7 +36,7 @@ export function check() {
     const evaluations = evaluateSeries(data.projection, items, data.startDateISO);
     const declined = storage.get(DECLINED_KEY);
     const verdict = recalibrationOffer(evaluations, {
-        declinedAtCheckinId: declined.ok && typeof declined.value === 'string' ? declined.value : undefined
+        declinedFingerprint: declined.ok && typeof declined.value === 'string' ? declined.value : undefined
     });
     return { ...verdict, evaluations };
 }
@@ -113,12 +113,19 @@ function applyRecalibration(latest) {
     const checkedPlan = validateCollection('plan', nextPlanRecord);
     if (!checkedPlan.ok) return { ok: false, error: 'recal.failed' };
 
-    const savedPlan = storage.set('plan', checkedPlan.value);
-    if (!savedPlan.ok) return { ok: false, error: savedPlan.error };
-
-    // 2 · el perfil, solo si el plan se guardó
+    // Se escribe el PERFIL primero: es de donde la app reconstruye el plan al
+    // arrancar. Si la segunda escritura fallara (cuota llena), el usuario
+    // vería su plan nuevo coherente, no un historial fantasma de una
+    // recalibración que no ocurrió.
     const savedProfile = storage.set('profile', nextProfile);
     if (!savedProfile.ok) return { ok: false, error: savedProfile.error };
+
+    const savedPlan = storage.set('plan', checkedPlan.value);
+    if (!savedPlan.ok) {
+        // el perfil ya refleja la recalibración; el registro del plan se
+        // regenerará solo en el próximo arranque
+        console.warn('[recalibrate] historial de planes no guardado:', savedPlan.error);
+    }
 
     storage.remove(DECLINED_KEY);
     plans.clear();
@@ -165,12 +172,12 @@ export function offer(verdict, onDone) {
         `,
         // cerrar con Escape o con la X equivale a rechazar: nada cambia
         onClose: () => {
-            storage.set(DECLINED_KEY, latest.checkinId);
+            storage.set(DECLINED_KEY, verdict.fingerprint);
         }
     });
 
     dialog.querySelector('[data-decline]')?.addEventListener('click', () => {
-        storage.set(DECLINED_KEY, latest.checkinId);
+        storage.set(DECLINED_KEY, verdict.fingerprint);
         modal.close();
         toast.show('recal.declined');
     });

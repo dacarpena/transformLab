@@ -81,6 +81,9 @@ function cleanMap(input, allowed) {
  * @returns {CheckinResult<any>}
  */
 export function save(input, context) {
+    if (!context || typeof context !== 'object' || typeof context.nowISO !== 'string') {
+        return { ok: false, error: 'checkins.contextInvalid' };
+    }
     const all = readAll();
     if (!all.ok) return all;
 

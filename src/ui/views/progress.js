@@ -67,7 +67,7 @@ function renderDeviation(evaluations) {
             <div class="metrics">
                 <div class="metric">
                     <span class="metric__value">${signed(last.deltaKg)} <span class="muted">${t('today.unit.kg')}</span></span>
-                    <span class="metric__label">${t('deviation.above') === '' ? '' : t('checkin.title')}</span>
+                    <span class="metric__label">${t('deviation.latest')}</span>
                 </div>
                 <div class="metric">
                     <span class="metric__value">${signed(accumulated)} <span class="muted">${t('today.unit.kg')}</span></span>

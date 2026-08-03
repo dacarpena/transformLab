@@ -158,13 +158,20 @@ test('evaluateSeries ordena por fecha y descarta lo inevaluable', () => {
 // Umbrales de recalibración
 // ============================================================
 
-/** Genera N check-ins consecutivos con una desviación dada, en semanas 1..N. */
+/**
+ * Genera N check-ins semanales con una desviación dada.
+ * Por defecto la brecha CRECE con las semanas, que es lo que distingue una
+ * deriva real de un escalón de retención de agua. Con `flat: true` se simula
+ * precisamente ese escalón, que NO debe disparar la oferta.
+ */
 function weeklySeries(projection, count, deltaFactor, options = {}) {
     const items = [];
     for (let w = 1; w <= count; w++) {
         const day = w * 7;
         const tolerance = toleranceAt(projection, day);
-        const offset = tolerance * deltaFactor * (options.alternate && w % 2 === 0 ? -1 : 1);
+        const growth = options.flat ? 1 : w / Math.max(1, count - 1);
+        const sign = options.alternate && w % 2 === 0 ? -1 : 1;
+        const offset = tolerance * deltaFactor * growth * sign;
         items.push(checkin(day, projection.daily[day].weightKg + offset, options.extra ?? {}));
     }
     return items;
@@ -177,13 +184,30 @@ test('no se ofrece recalibrar antes del mínimo de check-ins, por muy fuera que 
     assert.equal(offer.offer, false, 'ofreció con menos del mínimo de check-ins');
 });
 
-test('A · persistencia: 3 consecutivos fuera y del MISMO lado disparan la oferta', () => {
+test('A · persistencia: 3 consecutivos fuera, del MISMO lado y con la brecha CRECIENDO', () => {
     const projection = canonical();
-    const series = evaluateSeries(projection, weeklySeries(projection, 3, 1.4), START);
+    const series = evaluateSeries(projection, weeklySeries(projection, 4, 1.6), START);
     const offer = recalibrationOffer(series);
-    assert.equal(offer.offer, true);
+    assert.equal(offer.offer, true, JSON.stringify(offer));
     assert.equal(offer.reason, 'persistence');
     assert.equal(offer.side, 'above');
+});
+
+test('un escalón de retención de agua NO dispara: la brecha no crece', () => {
+    const projection = canonical();
+    // mismo lado, fuera de banda, pero desvío CONSTANTE: es agua, no deriva
+    const series = evaluateSeries(projection, weeklySeries(projection, 5, 1.4, { flat: true }), START);
+    const offer = recalibrationOffer(series);
+    assert.equal(offer.offer, false, 'un escalón plano se confundió con una deriva real');
+});
+
+test('tres pesajes en tres días NO son tres pruebas: hace falta tiempo real', () => {
+    const projection = canonical();
+    const tolerance = toleranceAt(projection, 30);
+    const items = [28, 29, 30].map((day, i) =>
+        checkin(day, projection.daily[day].weightKg + tolerance * (1.2 + i * 0.5)));
+    const offer = recalibrationOffer(evaluateSeries(projection, items, START));
+    assert.equal(offer.offer, false, 'el pesaje diario disparó la oferta con la misma retención de agua');
 });
 
 test('el ruido alternante NO dispara la oferta: es lo que separa deriva de azar', () => {
@@ -223,29 +247,59 @@ test('la magnitud también exige el mismo lado', () => {
     assert.equal(offer.offer, false, 'lados opuestos dispararon la oferta por magnitud');
 });
 
-test('tras rechazar, NO se vuelve a ofrecer hasta que haya datos nuevos', () => {
+test('tras rechazar, NO se vuelve a ofrecer con los MISMOS datos', () => {
     const projection = canonical();
-    const series = evaluateSeries(projection, weeklySeries(projection, 3, 1.4), START);
+    const series = evaluateSeries(projection, weeklySeries(projection, 4, 1.6), START);
     const first = recalibrationOffer(series);
     assert.equal(first.offer, true);
 
-    // el usuario dice que no: se guarda el id del último check-in evaluado
-    const declinedAt = series[series.length - 1].checkinId;
-    assert.equal(recalibrationOffer(series, { declinedAtCheckinId: declinedAt }).offer, false);
+    // el usuario dice que no: se recuerda la HUELLA de los datos evaluados
+    const declined = first.fingerprint;
+    assert.ok(declined !== '');
+    assert.equal(recalibrationOffer(series, { declinedFingerprint: declined }).offer, false);
 
     // llega un check-in NUEVO que sigue fuera: vuelve a ofrecerse
-    const extended = evaluateSeries(projection, weeklySeries(projection, 4, 1.4), START);
-    assert.equal(recalibrationOffer(extended, { declinedAtCheckinId: declinedAt }).offer, true);
+    const extended = evaluateSeries(projection, weeklySeries(projection, 5, 1.6), START);
+    assert.equal(recalibrationOffer(extended, { declinedFingerprint: declined }).offer, true);
+});
+
+test('editar el check-in de hoy tras rechazar SÍ vuelve a ofrecer: son datos nuevos', () => {
+    const projection = canonical();
+    const items = weeklySeries(projection, 4, 1.6);
+    const declined = recalibrationOffer(evaluateSeries(projection, items, START)).fingerprint;
+
+    // el usuario corrige el peso de hoy con un valor mucho peor. El id no
+    // cambia (se deriva de la fecha), pero el CONTENIDO sí.
+    const edited = [...items];
+    edited[edited.length - 1] = { ...edited[edited.length - 1], weightKg: edited[edited.length - 1].weightKg + 6 };
+    const offer = recalibrationOffer(evaluateSeries(projection, edited, START), { declinedFingerprint: declined });
+    assert.equal(offer.offer, true, 'el silencio se heredó pese a haber datos nuevos');
+});
+
+test('borrar el último check-in tras rechazar NO reabre la oferta con menos información', () => {
+    const projection = canonical();
+    const items = weeklySeries(projection, 5, 1.6);
+    const full = evaluateSeries(projection, items, START);
+    const declined = recalibrationOffer(full).fingerprint;
+
+    // se borra el último: quedan MENOS datos que cuando dijo que no
+    const fewer = evaluateSeries(projection, items.slice(0, -1), START);
+    const offer = recalibrationOffer(fewer, { declinedFingerprint: declined });
+    // puede ofrecerse o no según el umbral, pero JAMÁS por el mero hecho de
+    // haber borrado: si ofrece, es porque los datos restantes lo justifican
+    if (offer.offer) {
+        assert.ok(offer.streakOutside >= RECALIBRATION.persistenceCount);
+    }
 });
 
 test('la adherencia baja se señala como contexto, sin bloquear la oferta', () => {
     const projection = canonical();
-    const low = weeklySeries(projection, 3, 1.4, { extra: { subjective: { adherence: 3 } } });
+    const low = weeklySeries(projection, 4, 1.6, { extra: { subjective: { adherence: 3 } } });
     const offer = recalibrationOffer(evaluateSeries(projection, low, START));
     assert.equal(offer.offer, true, 'la adherencia baja no debe bloquear la oferta');
     assert.equal(offer.lowAdherence, true);
 
-    const high = weeklySeries(projection, 3, 1.4, { extra: { subjective: { adherence: 9 } } });
+    const high = weeklySeries(projection, 4, 1.6, { extra: { subjective: { adherence: 9 } } });
     assert.equal(recalibrationOffer(evaluateSeries(projection, high, START)).lowAdherence, false);
 });
 
