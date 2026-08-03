@@ -194,7 +194,7 @@ function renderPreview() {
         <ul class="phase-legend">
             ${plan.phases.map((p) => html`
                 <li class="phase-legend__item">
-                    <span class="phase-legend__dot" style="background: var(--color-phase-${p.type})"></span>
+                    <span class="phase-legend__dot is-phase-${p.type}"></span>
                     ${t('today.plan.phaseDays', { name: t(`phase.${p.type}`), days: p.days })}
                 </li>
             `)}

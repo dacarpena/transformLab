@@ -29,6 +29,7 @@ import * as photos from './ui/views/photos.js';
 import * as achievements from './ui/views/achievements.js';
 import * as settings from './ui/views/settings.js';
 import * as recalibrate from './ui/recalibrate.js';
+import * as pwa from './ui/pwa.js';
 import * as toast from './ui/components/toast.js';
 import { error as errorState } from './ui/components/state.js';
 
@@ -214,6 +215,10 @@ async function boot() {
 
     // 5 · a rodar
     await route(roots);
+
+    // 6 · offline, al final y sin bloquear: si el registro falla, la
+    // aplicación ya está en pie y el usuario no pierde nada.
+    pwa.register();
 }
 
 boot();

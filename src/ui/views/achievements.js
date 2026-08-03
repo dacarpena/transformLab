@@ -200,7 +200,7 @@ function draw(container) {
                              role="progressbar" aria-valuenow="${Math.round(a.progress * 100)}"
                              aria-valuemin="0" aria-valuemax="100"
                              aria-label="${t(`achievements.${a.id}`)}">
-                            <div class="progress__fill" style="--progress: ${a.progress}"></div>
+                            <div class="progress__fill" data-css-progress="${a.progress}"></div>
                         </div>
                     </li>
                 `)}

@@ -80,6 +80,34 @@ export function html(strings, ...values) {
 }
 
 /**
+ * Aplica los valores numéricos declarados como `data-css-<nombre>` a la
+ * propiedad personalizada `--<nombre>` del elemento.
+ *
+ * Existe por la CSP de M6-3: `style-src 'self'` (sin `unsafe-inline`) prohíbe
+ * el atributo `style=""`, pero NO la CSSOM. Así una barra de progreso puede
+ * seguir dependiendo de un dato sin abrir la puerta a estilos inline, que es
+ * la mitad de un XSS por exfiltración.
+ *
+ * Solo se aceptan números finitos. Cualquier otra cosa se ignora: por aquí no
+ * entra una cadena arbitraria a la hoja de estilos.
+ * @param {Element} root
+ */
+export function applyCssVars(root) {
+    const targets = root.querySelectorAll('*');
+    for (const el of [root, ...targets]) {
+        if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) continue;
+        for (const [key, value] of Object.entries(el.dataset)) {
+            if (!key.startsWith('css') || key === 'css') continue;
+            const number = Number(value);
+            if (!Number.isFinite(number)) continue;
+            // dataset da camelCase ('cssProgress'); la propiedad es kebab
+            const name = key.slice(3).replace(/([A-Z])/g, (m) => `-${m.toLowerCase()}`);
+            el.style.setProperty(`-${name}`, String(number));
+        }
+    }
+}
+
+/**
  * Vuelca una plantilla en un elemento. Si recibe una cadena suelta
  * (no marcada como confiable), la escapa: no hay camino sin escapado.
  * @param {Element} element
@@ -87,6 +115,7 @@ export function html(strings, ...values) {
  */
 export function render(element, template) {
     element.innerHTML = template instanceof RawHtml ? template.html : escapeHtml(template);
+    applyCssVars(element);
 }
 
 /**

@@ -105,7 +105,7 @@ function renderSubjective(items) {
                         <div class="subj-bars" role="img"
                              aria-label="${t('checkin.subjective.scale', { value: num(avg, 1) })}">
                             ${values.map((v) => html`
-                                <span class="subj-bar" style="--level: ${v === null ? 0 : v / 10}"></span>
+                                <span class="subj-bar" data-css-level="${v === null ? 0 : v / 10}"></span>
                             `)}
                         </div>
                         <span class="muted numeric">${num(avg, 1)}</span>
@@ -137,7 +137,7 @@ function renderStreak(items, startDateISO) {
             <ul class="calendar">
                 ${calendar.map((day) => html`
                     <li class="calendar__cell"
-                        style="--level: ${day.adherence === null ? 0 : day.adherence / 10}"
+                        data-css-level="${day.adherence === null ? 0 : day.adherence / 10}"
                         title="${day.dateISO}">
                         <span class="visually-hidden">
                             ${day.dateISO}: ${day.adherence === null

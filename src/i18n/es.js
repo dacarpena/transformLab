@@ -462,5 +462,9 @@ export const es = {
     'lang.en': 'English',
 
     // Pie
-    'footer.privacy': 'Tus datos no salen del navegador.'
+    'footer.privacy': 'Tus datos no salen del navegador.',
+
+    // PWA
+    'pwa.updateReady': 'Hay una versión nueva de TransformLab.',
+    'pwa.reload': 'Recargar'
 };

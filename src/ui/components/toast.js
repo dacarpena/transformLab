@@ -27,8 +27,13 @@ function ensureRegion() {
 
 /**
  * Muestra un aviso.
+ *
+ * `duration: 0` lo deja fijo hasta que el usuario actúe. Solo tiene sentido
+ * acompañado de `action`: un aviso que no se va y no ofrece nada que hacer es
+ * una molestia permanente.
  * @param {string} key clave i18n (nunca un literal: CLAUDE.md A6)
- * @param {{ type?: 'info' | 'success' | 'error', params?: Record<string, string|number> }} [options]
+ * @param {{ type?: 'info' | 'success' | 'error', params?: Record<string, string|number>,
+ *           duration?: number, action?: { labelKey: string, onClick: () => void } }} [options]
  */
 export function show(key, options = {}) {
     const type = options.type ?? 'info';
@@ -38,8 +43,10 @@ export function show(key, options = {}) {
 
     const el = document.createElement('div');
     el.className = `toast toast--${type}`;
-    el.textContent = t(key, options.params); // textContent: cero riesgo de inyección
-    host.appendChild(el);
+
+    const text = document.createElement('span');
+    text.textContent = t(key, options.params); // textContent: cero riesgo de inyección
+    el.appendChild(text);
 
     const remove = () => {
         el.classList.add('toast--leaving');
@@ -47,7 +54,23 @@ export function show(key, options = {}) {
         // red de seguridad si no hay transición (prefers-reduced-motion)
         setTimeout(() => el.remove(), 400);
     };
-    setTimeout(remove, DURATIONS[type]);
+
+    if (options.action) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'toast__action';
+        button.textContent = t(options.action.labelKey);
+        button.addEventListener('click', () => {
+            remove();
+            options.action?.onClick();
+        });
+        el.appendChild(button);
+    }
+
+    host.appendChild(el);
+
+    const duration = options.duration ?? DURATIONS[type];
+    if (duration > 0) setTimeout(remove, duration);
 }
 
 /** @param {string} key @param {Record<string, string|number>} [params] */

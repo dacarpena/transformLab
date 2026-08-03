@@ -462,5 +462,9 @@ export const en = {
     'lang.en': 'English',
 
     // Footer
-    'footer.privacy': 'Your data never leaves your browser.'
+    'footer.privacy': 'Your data never leaves your browser.',
+
+    // PWA
+    'pwa.updateReady': 'A new version of TransformLab is available.',
+    'pwa.reload': 'Reload'
 };

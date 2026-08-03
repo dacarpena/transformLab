@@ -1,0 +1,38 @@
+# Cabeceras de Cloudflare Pages (M6-3).
+#
+# La CSP es estricta a propósito: TransformLab no habla con nadie. No hay API,
+# no hay CDN, no hay analítica, no hay fuentes remotas. Todo lo que carga sale
+# de este mismo origen, así que `default-src 'self'` no cuesta nada y cierra
+# de golpe la clase entera de ataques por inyección de recurso externo.
+#
+# `unsafe-inline` no aparece en ningún sitio:
+#   - script: todo es <script src> de src/ y vendor/. Cero handlers inline
+#     (hay un test que falla si aparece uno).
+#   - style: el atributo style="" se sustituyó por `applyCssVars`, que fija
+#     las propiedades personalizadas por CSSOM (no cubierto por la CSP).
+#
+# `img-src` admite `data:` y `blob:` porque las fotos de progreso se pintan
+# desde IndexedDB con URL de objeto y la tarjeta compartible sale de un canvas.
+# `connect-src 'self'` deja registrar el service worker y nada más.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  X-Frame-Options: DENY
+
+# El service worker no se cachea: si el navegador sirve uno viejo, la
+# aplicación se queda clavada en una versión que ya no existe.
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+# Los estáticos los versiona el service worker, no la URL, así que tampoco se
+# pueden cachear de forma inmutable en el borde.
+/index.html
+  Cache-Control: no-cache

@@ -95,7 +95,7 @@ function renderDataSection() {
                 <div class="quota-bar" role="img"
                      aria-label="${t('settings.storageUsed', { used: formatBytes(used.totalBytes), total: formatBytes(used.limitBytes) })}">
                     <div class="quota-bar__fill ${used.warn ? 'quota-bar__fill--warn' : ''}"
-                         style="width: ${Math.min(100, Math.round(used.usedRatio * 100))}%"></div>
+                         data-css-fill="${Math.min(1, used.usedRatio)}"></div>
                 </div>
                 <p class="muted">${t('settings.storageUsed', {
                     used: formatBytes(used.totalBytes),

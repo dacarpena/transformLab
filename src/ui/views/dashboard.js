@@ -65,7 +65,7 @@ function renderToday(data, today, evaluations) {
 
             <div class="progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"
                  aria-label="${t('today.progress', { percent })}">
-                <div class="progress__fill" style="--progress: ${percent / 100}"></div>
+                <div class="progress__fill" data-css-progress="${percent / 100}"></div>
             </div>
             <p class="muted">${t('today.progress', { percent })}</p>
 
@@ -142,14 +142,13 @@ function renderPlan(data) {
 
             <div class="phase-bar" role="img" aria-label="${plan.phases.map((p) => t('today.plan.phaseDays', { name: t(`phase.${p.type}`), days: p.days })).join('. ')}">
                 ${plan.phases.map((p) => html`
-                    <div class="phase-bar__segment"
-                         style="flex-grow: ${p.days}; background: var(--color-phase-${p.type})"></div>
+                    <div class="phase-bar__segment is-phase-${p.type}" data-css-grow="${p.days}"></div>
                 `)}
             </div>
             <ul class="phase-legend">
                 ${plan.phases.map((p) => html`
                     <li class="phase-legend__item">
-                        <span class="phase-legend__dot" style="background: var(--color-phase-${p.type})"></span>
+                        <span class="phase-legend__dot is-phase-${p.type}"></span>
                         ${t('today.plan.phaseDays', { name: t(`phase.${p.type}`), days: p.days })}
                     </li>
                 `)}

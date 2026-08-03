@@ -1,0 +1,73 @@
+// @ts-check
+
+/**
+ * Servidor de verificación de la CSP (M6-3).
+ *
+ * `python3 -m http.server` no manda cabeceras, así que la CSP de `_headers`
+ * solo se probaría en producción — es decir, cuando ya es tarde. Esto sirve
+ * el sitio con EXACTAMENTE las cabeceras de `_headers` para poder recorrer
+ * las diez vistas bajo la política real y ver los errores en consola.
+ *
+ * Uso: node tools/serve-csp.mjs [puerto]
+ */
+
+import { createServer } from 'node:http';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { join, extname, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const PORT = Number(process.argv[2]) || 8081;
+
+const TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.webmanifest': 'application/manifest+json; charset=utf-8',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml'
+};
+
+/** Lee las cabeceras globales (la sección `/*`) del fichero `_headers`. */
+function globalHeaders() {
+    const lines = readFileSync(join(ROOT, '_headers'), 'utf8').split('\n');
+    /** @type {Record<string, string>} */ const headers = {};
+    let inGlobal = false;
+    for (const line of lines) {
+        if (line.startsWith('#') || line.trim() === '') continue;
+        if (!line.startsWith(' ')) {
+            inGlobal = line.trim() === '/*';
+            continue;
+        }
+        if (!inGlobal) continue;
+        const at = line.indexOf(':');
+        if (at > 0) headers[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+    }
+    return headers;
+}
+
+const HEADERS = globalHeaders();
+console.log('Cabeceras servidas:');
+for (const [k, v] of Object.entries(HEADERS)) console.log(`  ${k}: ${v.slice(0, 120)}${v.length > 120 ? '…' : ''}`);
+
+createServer((req, res) => {
+    const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+    // normalize + prefijo: nadie sale de ROOT con ../
+    let filePath = join(ROOT, normalize(decodeURIComponent(url.pathname)));
+    if (!filePath.startsWith(ROOT)) {
+        res.writeHead(403).end();
+        return;
+    }
+    if (existsSync(filePath) && statSync(filePath).isDirectory()) filePath = join(filePath, 'index.html');
+    if (!existsSync(filePath)) {
+        res.writeHead(404, HEADERS).end('no encontrado');
+        return;
+    }
+    res.writeHead(200, {
+        ...HEADERS,
+        'Content-Type': TYPES[extname(filePath)] ?? 'application/octet-stream'
+    });
+    res.end(readFileSync(filePath));
+}).listen(PORT, () => console.log(`\nCSP real en http://localhost:${PORT}`));

@@ -454,6 +454,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 }
 
 .phase-bar__segment {
+    flex-grow: var(--grow, 1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -481,6 +482,15 @@ ul { margin: 0; padding: 0; list-style: none; }
     border-radius: var(--radius-full);
     flex-shrink: 0;
 }
+
+/* El color de fase es una clase, no un estilo calculado: son seis tipos
+   cerrados y así no hay ningún valor de color viajando por el HTML. */
+.is-phase-adaptation { background: var(--color-phase-adaptation); }
+.is-phase-recomposition { background: var(--color-phase-recomposition); }
+.is-phase-cut { background: var(--color-phase-cut); }
+.is-phase-bulk { background: var(--color-phase-bulk); }
+.is-phase-transition { background: var(--color-phase-transition); }
+.is-phase-maintenance { background: var(--color-phase-maintenance); }
 
 .notice {
     display: flex;
@@ -669,6 +679,30 @@ ul { margin: 0; padding: 0; list-style: none; }
 .toast--error { border-color: var(--color-danger); }
 .toast--leaving { opacity: 0; }
 
+/* Un aviso con acción se alinea en fila; el botón hereda el foco visible del
+   resto de controles y llega al mínimo táctil. */
+.toast:has(.toast__action) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.toast__action {
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: var(--space-1) var(--space-3);
+    background: none;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.toast__action:hover { background: var(--color-surface); }
+
 /* ---------------- Onboarding ---------------- */
 
 .onboarding {
@@ -757,7 +791,13 @@ ul { margin: 0; padding: 0; list-style: none; }
     overflow: hidden;
 }
 
-.quota-bar__fill { height: 100%; background: var(--color-success); }
+/* El ancho sale de `--fill` (0–1), que fija `applyCssVars` por CSSOM: la CSP
+   de M6-3 prohíbe el atributo style="", pero no tocar el estilo desde JS. */
+.quota-bar__fill {
+    height: 100%;
+    width: calc(var(--fill, 0) * 100%);
+    background: var(--color-success);
+}
 .quota-bar__fill--warn { background: var(--color-warning); }
 
 /* ---------------- Silueta (M5-3) ---------------- */
@@ -1028,8 +1068,8 @@ ul { margin: 0; padding: 0; list-style: none; }
     background: var(--color-accent);
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     /* la altura sale del nivel 0–1; sin dato, una traza tenue */
-    height: max(2px, calc(var(--level) * 100%));
-    opacity: calc(0.35 + var(--level) * 0.65);
+    height: max(2px, calc(var(--level, 0) * 100%));
+    opacity: calc(0.35 + var(--level, 0) * 0.65);
 }
 
 /* Calendario de adherencia (heatmap) */
@@ -1039,16 +1079,15 @@ ul { margin: 0; padding: 0; list-style: none; }
     gap: var(--space-1);
 }
 
+/* `--level` (0–1) lo fija `applyCssVars`; con 0 la mezcla da exactamente el
+   fondo base, así que un día sin dato se pinta solo con el valor por defecto
+   y no hace falta una regla aparte. */
 .calendar__cell {
     width: 16px;
     height: 16px;
     border-radius: var(--radius-sm);
-    background: var(--color-surface-2);
+    background: color-mix(in srgb, var(--color-success) calc(var(--level, 0) * 100%), var(--color-surface-2));
     border: 1px solid var(--color-border);
-}
-
-.calendar__cell[style*="--level"] {
-    background: color-mix(in srgb, var(--color-success) calc(var(--level) * 100%), var(--color-surface-2));
 }
 
 /* Aviso de check-in pendiente: informativo, nunca intrusivo (M4-7) */

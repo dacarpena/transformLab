@@ -71,7 +71,7 @@ export function mount(container) {
                     <div class="progress"
                          role="progressbar" aria-valuenow="${g.reached}" aria-valuemin="0" aria-valuemax="${g.total}"
                          aria-label="${categoryLabel(g.category)}: ${g.reached}/${g.total}">
-                        <div class="progress__fill" style="--progress: ${g.total > 0 ? g.reached / g.total : 0}"></div>
+                        <div class="progress__fill" data-css-progress="${g.total > 0 ? g.reached / g.total : 0}"></div>
                     </div>
                 </div>
             `)}
