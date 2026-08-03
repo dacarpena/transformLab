@@ -1,0 +1,10 @@
+# TransformLab
+#
+# La aplicación es pública y se puede indexar: no hay nada privado en el
+# servidor. Los datos del usuario viven en SU navegador y no se sirven desde
+# aquí, así que no hay nada que esconder de un rastreador.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://transformlab.app/sitemap.xml

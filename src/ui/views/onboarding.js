@@ -328,6 +328,19 @@ function renderStepFields(step) {
                 </span>
             </div>
         </div>
+
+        <!-- El aviso va aquí, antes de crear nada, no escondido en ajustes
+             (M6-6/C6): el usuario está a punto de escribir su peso y su grasa
+             corporal en un dispositivo, y tiene derecho a saber dónde acaban
+             ANTES de hacerlo, no después. -->
+        <p class="notice">
+            <span class="notice__icon" aria-hidden="true">🔒</span>
+            <span>${t('settings.privacyBody')}</span>
+        </p>
+        <p class="notice">
+            <span class="notice__icon" aria-hidden="true">ℹ</span>
+            <span>${t('settings.disclaimerBody')}</span>
+        </p>
     `;
 }
 
