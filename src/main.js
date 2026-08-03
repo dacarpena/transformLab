@@ -22,6 +22,11 @@ import * as dashboard from './ui/views/dashboard.js';
 import * as progress from './ui/views/progress.js';
 import * as checkinView from './ui/views/checkin.js';
 import * as nutrition from './ui/views/nutrition.js';
+import * as training from './ui/views/training.js';
+import * as bodyView from './ui/views/body.js';
+import * as milestonesView from './ui/views/milestones.js';
+import * as photos from './ui/views/photos.js';
+import * as achievements from './ui/views/achievements.js';
 import * as settings from './ui/views/settings.js';
 import * as recalibrate from './ui/recalibrate.js';
 import * as toast from './ui/components/toast.js';
@@ -64,13 +69,21 @@ function hasCompletedProfile() {
 /** Registra las vistas del producto y arranca el router. */
 async function startApp(roots) {
     router.reset();
+    // `primary` = pestaña siempre visible en la barra inferior de móvil. El
+    // resto se pliega tras «más» (ver `renderNav`): diez pestañas a 320 px no
+    // caben con objetivos táctiles decentes.
     router.register({
-        id: 'today', labelKey: 'nav.today', icon: '◉',
+        id: 'today', labelKey: 'nav.today', icon: '◉', primary: true,
         mount: dashboard.mount, unmount: dashboard.unmount
     });
-    router.register({ id: 'checkin', labelKey: 'checkin.nav', icon: '＋', mount: checkinView.mount });
-    router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', mount: progress.mount });
-    router.register({ id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', mount: nutrition.mount });
+    router.register({ id: 'checkin', labelKey: 'checkin.nav', icon: '＋', primary: true, mount: checkinView.mount });
+    router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', primary: true, mount: progress.mount });
+    router.register({ id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', primary: true, mount: nutrition.mount });
+    router.register({ id: 'training', labelKey: 'nav.training', icon: '⬛', mount: training.mount });
+    router.register({ id: 'body', labelKey: 'nav.body', icon: '◐', mount: bodyView.mount });
+    router.register({ id: 'milestones', labelKey: 'nav.milestones', icon: '✦', mount: milestonesView.mount });
+    router.register({ id: 'photos', labelKey: 'nav.photos', icon: '▣', mount: photos.mount, unmount: photos.unmount });
+    router.register({ id: 'achievements', labelKey: 'nav.achievements', icon: '★', mount: achievements.mount });
     router.register({ id: 'settings', labelKey: 'nav.settings', icon: '⚙', mount: settings.mount });
     await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'today' });
 

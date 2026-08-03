@@ -12,6 +12,9 @@ export const es = {
     'nav.today': 'Hoy',
     'nav.progress': 'Progreso',
     'nav.settings': 'Ajustes',
+    'nav.achievements': 'Logros',
+    'nav.more': 'Más',
+    'nav.less': 'Menos',
 
     // Acciones
     'action.close': 'Cerrar',
@@ -31,6 +34,7 @@ export const es = {
     'action.today': 'Hoy',
     'action.downloadPng': 'Descargar PNG',
     'action.editProfile': 'Editar perfil',
+    'action.edit': 'Editar',
 
     // Estados genéricos
     'state.loading': 'Cargando…',
@@ -424,6 +428,9 @@ export const es = {
     'photos.usage': '{count} fotos · {size}',
     'photos.deleteTitle': 'Borrar la foto',
     'photos.deleteBody': 'Se borrará la foto del {date}. No se puede deshacer.',
+    'photos.galleryTitle': 'Galería',
+    'photos.before': 'Antes',
+    'photos.after': 'Después',
 
     'achievements.title': 'Logros',
     'achievements.unlockedCount': '{unlocked} de {total}',
@@ -443,6 +450,12 @@ export const es = {
     'achievements.cardProgress': '{percent} % del plan',
     'achievements.cardStreak': 'Racha de {weeks} semanas',
     'achievements.downloadCard': 'Descargar tarjeta',
+    'achievements.cardPhase': 'Fase: {phase}',
+    'achievements.cardUnlocked': '{count} logros desbloqueados',
+    'achievements.cardWeight': 'Peso: {kg} kg',
+    'achievements.cardFat': 'Grasa: {pct} %',
+    'achievements.downloaded': 'Tarjeta descargada.',
+    'achievements.downloadFailed': 'No se pudo generar la imagen.',
 
     // Idiomas
     'lang.es': 'Español',

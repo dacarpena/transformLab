@@ -115,10 +115,31 @@ ul { margin: 0; padding: 0; list-style: none; }
     height: var(--tabbar-height);
 }
 
-.nav-list > li {
+.nav-list__item {
     flex: 1;
     min-width: 0;
 }
+
+/* Móvil: las vistas secundarias viven en la hoja de «más». */
+.nav-list__item--secondary { display: none; }
+
+.app__nav--open {
+    height: auto;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.app__nav--open .nav-list {
+    height: auto;
+    flex-wrap: wrap;
+}
+
+.app__nav--open .nav-list__item {
+    flex: 0 0 25%;
+    min-height: var(--tabbar-height);
+}
+
+.app__nav--open .nav-list__item--secondary { display: block; }
 
 .nav-item {
     width: 100%;
@@ -739,6 +760,152 @@ ul { margin: 0; padding: 0; list-style: none; }
 .quota-bar__fill { height: 100%; background: var(--color-success); }
 .quota-bar__fill--warn { background: var(--color-warning); }
 
+/* ---------------- Silueta (M5-3) ---------------- */
+
+.silhouette-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+    align-items: end;
+}
+
+.silhouette { margin: 0; min-width: 0; }
+
+/* La figura se adapta al ancho pero nunca desborda la pantalla a lo alto:
+   comparar tres siluetas solo funciona si las tres se ven de una vez. */
+.silhouette svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 46vh;
+}
+
+/* La transición al cambiar de forma es un adorno: si el usuario pide menos
+   movimiento, la silueta salta al valor nuevo y ya está (F7). */
+.silhouette path {
+    transition: d var(--duration-base) var(--ease-standard);
+}
+
+.silhouette figcaption {
+    text-align: center;
+    font-size: var(--text-sm);
+    margin-top: var(--space-2);
+}
+
+/* ---------------- Hitos (M5-5) ---------------- */
+
+.milestone-cat {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.milestone-cat .progress { grid-column: 1 / -1; }
+
+/* ---------------- Fotos (M5-4) ---------------- */
+
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-3);
+    list-style: none;
+}
+
+.photo-item {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.photo-item img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    background: var(--color-surface);
+}
+
+.photo-item__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    font-size: var(--text-sm);
+}
+
+.photo-compare {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.photo-compare figure { margin: 0; min-width: 0; }
+
+/* El par se compara de un vistazo o no se compara: se acota la altura para
+   que las dos fotos quepan juntas en pantalla. */
+.photo-compare img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    max-height: 55vh;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+}
+
+.photo-compare figcaption {
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    margin-top: var(--space-2);
+}
+
+/* ---------------- Logros (M5-6) ---------------- */
+
+.achievement-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-3);
+    list-style: none;
+}
+
+.achievement {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+}
+
+/* Desbloqueado se marca con color Y con el glifo relleno: el color no es la
+   única señal (WCAG 1.4.1). */
+.achievement--unlocked {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+}
+
+.achievement__icon { font-size: var(--text-lg); line-height: 1; }
+.achievement__name { font-size: var(--text-sm); min-width: 0; }
+.achievement .progress { grid-column: 1 / -1; }
+
+.share-card {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+}
+
 /* ---------------- Escritorio (≥768 px): barra lateral ---------------- */
 
 @media (min-width: 768px) {
@@ -767,6 +934,12 @@ ul { margin: 0; padding: 0; list-style: none; }
         height: auto;
         gap: var(--space-1);
     }
+
+    /* En la barra lateral caben todas: no hay hoja ni botón «más». */
+    .nav-list__item--secondary { display: block; }
+    .nav-list__more { display: none; }
+    .app__nav--open { max-height: none; }
+    .app__nav--open .nav-list__item { flex: none; min-height: 0; }
 
     .nav-item {
         flex-direction: row;

@@ -12,6 +12,9 @@ export const en = {
     'nav.today': 'Today',
     'nav.progress': 'Progress',
     'nav.settings': 'Settings',
+    'nav.achievements': 'Achievements',
+    'nav.more': 'More',
+    'nav.less': 'Less',
 
     // Actions
     'action.close': 'Close',
@@ -31,6 +34,7 @@ export const en = {
     'action.today': 'Today',
     'action.downloadPng': 'Download PNG',
     'action.editProfile': 'Edit profile',
+    'action.edit': 'Edit',
 
     // Generic states
     'state.loading': 'Loading…',
@@ -424,6 +428,9 @@ export const en = {
     'photos.usage': '{count} photos · {size}',
     'photos.deleteTitle': 'Delete photo',
     'photos.deleteBody': 'The photo from {date} will be deleted. This cannot be undone.',
+    'photos.galleryTitle': 'Gallery',
+    'photos.before': 'Before',
+    'photos.after': 'After',
 
     'achievements.title': 'Achievements',
     'achievements.unlockedCount': '{unlocked} of {total}',
@@ -443,6 +450,12 @@ export const en = {
     'achievements.cardProgress': '{percent} % of the plan',
     'achievements.cardStreak': '{weeks}-week streak',
     'achievements.downloadCard': 'Download card',
+    'achievements.cardPhase': 'Phase: {phase}',
+    'achievements.cardUnlocked': '{count} achievements unlocked',
+    'achievements.cardWeight': 'Weight: {kg} kg',
+    'achievements.cardFat': 'Body fat: {pct} %',
+    'achievements.downloaded': 'Card downloaded.',
+    'achievements.downloadFailed': 'The image could not be generated.',
 
     // Languages
     'lang.es': 'Español',

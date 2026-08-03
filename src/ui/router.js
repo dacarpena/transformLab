@@ -22,6 +22,7 @@ import * as storage from '../data/storage.js';
  * @property {(container: HTMLElement) => void | Promise<void>} mount
  * @property {() => void} [unmount] limpieza (listeners, gráficas, timers)
  * @property {boolean} [hidden] fuera de la barra de navegación (p. ej. onboarding)
+ * @property {boolean} [primary] visible siempre en la barra inferior de móvil
  */
 
 /** @type {Map<string, ViewDefinition>} */
@@ -44,6 +45,9 @@ const VIEW_KEY = 'ui.activeView';
 
 /** Los listeners del armazón se cablean una sola vez. */
 let chromeWired = false;
+
+/** ¿Está desplegada la hoja de «más» de la barra inferior? */
+let navExpanded = false;
 
 /**
  * Registra una vista. El orden de registro es el orden de la navegación.
@@ -71,6 +75,11 @@ export function onChange(fn) {
  * Pinta la barra de navegación con las vistas visibles.
  * `aria-current="page"` marca la activa para los lectores de pantalla; el
  * resaltado visual NO es la única señal.
+ *
+ * A partir de M5 hay diez vistas y una barra inferior de diez pestañas a
+ * 320 px daría objetivos de 32 px, por debajo del mínimo táctil. Las que no
+ * son `primary` se pliegan tras un botón «más» que despliega una hoja; en
+ * escritorio la barra lateral las muestra todas y el botón desaparece.
  */
 function renderNav() {
     if (!navContainer) return;
@@ -79,27 +88,38 @@ function renderNav() {
         navContainer.hidden = true;
         return;
     }
+    const hasSecondary = items.some((v) => !v.primary);
     navContainer.hidden = false;
+    navContainer.classList.toggle('app__nav--open', navExpanded && hasSecondary);
     render(navContainer, html`
         <ul class="nav-list">
             ${items.map((v) => html`
-                <li>
-                    <button type="button" class="nav-item" data-view="${v.id}"
-                            ${v.id === activeView?.id ? 'aria-current="page"' : ''}>
+                <li class="nav-list__item ${v.primary ? '' : 'nav-list__item--secondary'}">
+                    <button type="button" class="nav-item" data-view="${v.id}">
                         <span class="nav-icon" aria-hidden="true">${v.icon}</span>
                         <span class="nav-label">${t(v.labelKey)}</span>
                     </button>
                 </li>
             `)}
+            ${hasSecondary ? html`
+                <li class="nav-list__item nav-list__more">
+                    <button type="button" class="nav-item" data-nav-more>
+                        <span class="nav-icon" aria-hidden="true">${navExpanded ? '×' : '⋯'}</span>
+                        <span class="nav-label">${t(navExpanded ? 'nav.less' : 'nav.more')}</span>
+                    </button>
+                </li>
+            ` : ''}
         </ul>
     `);
-    // `aria-current` no se puede interpolar como atributo dinámico con el
-    // tagged template sin romper el escapado, así que se fija aquí.
-    for (const button of navContainer.querySelectorAll('.nav-item')) {
+    // `aria-current` y `aria-expanded` no se interpolan como atributos con el
+    // tagged template sin romper el escapado, así que se fijan aquí.
+    for (const button of navContainer.querySelectorAll('.nav-item[data-view]')) {
         const isActive = button.getAttribute('data-view') === activeView?.id;
         if (isActive) button.setAttribute('aria-current', 'page');
         else button.removeAttribute('aria-current');
     }
+    navContainer.querySelector('[data-nav-more]')
+        ?.setAttribute('aria-expanded', navExpanded ? 'true' : 'false');
 }
 
 /**
@@ -111,7 +131,13 @@ function renderNav() {
 export async function navigate(id, options = {}) {
     const next = views.get(id);
     if (!next || !viewContainer) return false;
-    if (activeView?.id === id) return true;
+    // Navegar siempre repliega la hoja, incluso si se pulsa la vista actual:
+    // si no, el usuario se queda con la hoja abierta tapando lo que eligió.
+    navExpanded = false;
+    if (activeView?.id === id) {
+        renderNav();
+        return true;
+    }
 
     if (activeView?.unmount) {
         try {
@@ -167,8 +193,26 @@ export async function start(options) {
     if (!chromeWired) {
         chromeWired = true;
         on(navContainer, 'click', '.nav-item', (_event, target) => {
+            if (target.hasAttribute('data-nav-more')) {
+                navExpanded = !navExpanded;
+                renderNav();
+                // El foco vive en el botón que se acaba de repintar: hay que
+                // devolvérselo o el teclado se queda sin ancla.
+                /** @type {HTMLElement | null} */
+                (navContainer?.querySelector('[data-nav-more]'))?.focus();
+                return;
+            }
             const id = target.getAttribute('data-view');
             if (id) navigate(id);
+        });
+        // Escape repliega la hoja, como cualquier otra capa de la aplicación.
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && navExpanded) {
+                navExpanded = false;
+                renderNav();
+                /** @type {HTMLElement | null} */
+                (navContainer?.querySelector('[data-nav-more]'))?.focus();
+            }
         });
         on(viewContainer, 'click', '[data-action="reload"]', () => {
             globalThis.location?.reload();
@@ -191,6 +235,7 @@ export async function start(options) {
 export function reset() {
     if (activeView?.unmount) activeView.unmount();
     activeView = null;
+    navExpanded = false;
     views.clear();
     if (viewContainer) viewContainer.replaceChildren();
     if (navContainer) navContainer.replaceChildren();
