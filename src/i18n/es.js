@@ -464,6 +464,33 @@ export const es = {
     // Pie
     'footer.privacy': 'Tus datos no salen del navegador.',
 
+    // Recordatorio semanal (M6-2)
+    'reminder.title': 'Recordatorio semanal',
+    'reminder.body': 'Un aviso el día y la hora que elijas para hacer el check-in.',
+    'reminder.weekday': 'Día',
+    'reminder.hour': 'Hora',
+    'reminder.enable': 'Activar recordatorio',
+    'reminder.update': 'Actualizar',
+    'reminder.disable': 'Desactivar',
+    'reminder.saved': 'Recordatorio activado.',
+    'reminder.disabled': 'Recordatorio desactivado.',
+    'reminder.activeHint': 'Solo llega si TransformLab está abierto en alguna pestaña. Sin servidor no hay otra forma, y montar uno significaría contarle a alguien cuándo te pesas.',
+    'reminder.localOnly': 'El aviso se programa en este dispositivo. No hay servidor ni suscripción de por medio.',
+    'reminder.denied': 'Tu navegador tiene bloqueadas las notificaciones para este sitio. Puedes desbloquearlas desde su configuración; mientras tanto, el aviso de check-in pendiente sigue apareciendo en Hoy.',
+    'reminder.deniedToast': 'Sin notificaciones: el aviso sigue en la pantalla de Hoy.',
+    'reminder.unsupported': 'Este navegador no admite notificaciones. El aviso de check-in pendiente sigue apareciendo en Hoy.',
+    'reminder.notificationTitle': 'Toca check-in',
+    'reminder.notificationBody': 'Pésate y registra la semana en TransformLab.',
+
+    // Días de la semana (Date.getDay: 0 = domingo)
+    'weekday.0': 'Domingo',
+    'weekday.1': 'Lunes',
+    'weekday.2': 'Martes',
+    'weekday.3': 'Miércoles',
+    'weekday.4': 'Jueves',
+    'weekday.5': 'Viernes',
+    'weekday.6': 'Sábado',
+
     // PWA
     'pwa.updateReady': 'Hay una versión nueva de TransformLab.',
     'pwa.reload': 'Recargar'

@@ -464,6 +464,33 @@ export const en = {
     // Footer
     'footer.privacy': 'Your data never leaves your browser.',
 
+    // Weekly reminder (M6-2)
+    'reminder.title': 'Weekly reminder',
+    'reminder.body': 'A nudge on the day and time you choose, to do your check-in.',
+    'reminder.weekday': 'Day',
+    'reminder.hour': 'Time',
+    'reminder.enable': 'Enable reminder',
+    'reminder.update': 'Update',
+    'reminder.disable': 'Disable',
+    'reminder.saved': 'Reminder enabled.',
+    'reminder.disabled': 'Reminder disabled.',
+    'reminder.activeHint': 'It only arrives while TransformLab is open in a tab. Without a server there is no other way, and running one would mean telling someone when you weigh yourself.',
+    'reminder.localOnly': 'The reminder is scheduled on this device. No server and no subscription involved.',
+    'reminder.denied': 'Your browser has notifications blocked for this site. You can unblock them in its settings; meanwhile the pending check-in notice still shows on Today.',
+    'reminder.deniedToast': 'No notifications: the notice still shows on the Today screen.',
+    'reminder.unsupported': 'This browser does not support notifications. The pending check-in notice still shows on Today.',
+    'reminder.notificationTitle': 'Check-in time',
+    'reminder.notificationBody': 'Weigh in and log your week in TransformLab.',
+
+    // Weekdays (Date.getDay: 0 = Sunday)
+    'weekday.0': 'Sunday',
+    'weekday.1': 'Monday',
+    'weekday.2': 'Tuesday',
+    'weekday.3': 'Wednesday',
+    'weekday.4': 'Thursday',
+    'weekday.5': 'Friday',
+    'weekday.6': 'Saturday',
+
     // PWA
     'pwa.updateReady': 'A new version of TransformLab is available.',
     'pwa.reload': 'Reload'

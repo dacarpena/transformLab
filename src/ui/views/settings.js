@@ -16,6 +16,7 @@ import * as profiles from '../../data/profiles.js';
 import * as backup from '../../data/backup.js';
 import * as plans from '../plan-state.js';
 import * as router from '../router.js';
+import * as reminder from '../reminder.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 
@@ -136,6 +137,65 @@ function renderLanguageSection() {
     `;
 }
 
+/**
+ * Recordatorio semanal (M6-2). El permiso NO se pide aquí: se pide en el
+ * manejador del botón, que es el gesto del usuario que el navegador exige.
+ */
+function renderReminderSection() {
+    const state = reminder.permissionState();
+    const schedule = reminder.getSchedule();
+    const active = schedule !== null && state === 'granted';
+
+    return html`
+        <section class="card" aria-labelledby="set-reminder">
+            <h2 id="set-reminder" class="card__title">${t('reminder.title')}</h2>
+            <p class="secondary">${t('reminder.body')}</p>
+
+            ${state === 'unsupported' ? html`
+                <p class="notice notice--warning">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <span>${t('reminder.unsupported')}</span>
+                </p>
+            ` : state === 'denied' ? html`
+                <p class="notice notice--warning">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <span>${t('reminder.denied')}</span>
+                </p>
+            ` : html`
+                <div class="field-grid">
+                    <label class="field">
+                        <span class="field__label">${t('reminder.weekday')}</span>
+                        <select class="select" data-reminder-weekday>
+                            ${[1, 2, 3, 4, 5, 6, 0].map((d) => html`
+                                <option value="${d}" ${schedule?.weekday === d ? 'selected' : ''}>${t(`weekday.${d}`)}</option>
+                            `)}
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span class="field__label">${t('reminder.hour')}</span>
+                        <select class="select" data-reminder-hour>
+                            ${Array.from({ length: 24 }, (_, h) => html`
+                                <option value="${h}" ${(schedule?.hour ?? 9) === h ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>
+                            `)}
+                        </select>
+                    </label>
+                </div>
+                <div class="btn-row">
+                    <button type="button" class="btn ${active ? '' : 'btn--primary'}" data-reminder-enable>
+                        ${t(active ? 'reminder.update' : 'reminder.enable')}
+                    </button>
+                    ${active ? html`
+                        <button type="button" class="btn" data-reminder-disable>${t('reminder.disable')}</button>
+                    ` : ''}
+                </div>
+                ${active ? html`<p class="muted">${t('reminder.activeHint')}</p>` : ''}
+            `}
+
+            <p class="muted">${t('reminder.localOnly')}</p>
+        </section>
+    `;
+}
+
 function renderLegalSection() {
     return html`
         <section class="card" aria-labelledby="set-legal">
@@ -172,6 +232,7 @@ function draw(container) {
         ${renderProfileSection()}
         ${renderProfilesSection()}
         ${renderLanguageSection()}
+        ${renderReminderSection()}
         ${renderDataSection()}
         ${renderLegalSection()}
         ${renderDangerSection()}
@@ -194,6 +255,38 @@ function download(filename, text) {
 /** @param {HTMLElement} container */
 export function mount(container) {
     draw(container);
+
+    // El permiso se pide DENTRO del clic: es el gesto que el navegador exige,
+    // y pedirlo al cargar es la vía rápida a que lo bloqueen para siempre.
+    on(container, 'click', '[data-reminder-enable]', async () => {
+        const weekday = Number(/** @type {HTMLSelectElement | null} */ (container.querySelector('[data-reminder-weekday]'))?.value);
+        const hour = Number(/** @type {HTMLSelectElement | null} */ (container.querySelector('[data-reminder-hour]'))?.value);
+        if (!Number.isInteger(weekday) || !Number.isInteger(hour)) return;
+
+        const permission = await reminder.requestPermission();
+        if (permission !== 'granted') {
+            // Denegar es una respuesta válida: se repinta para explicar que
+            // queda el aviso in-app, y no se insiste.
+            draw(container);
+            toast.show('reminder.deniedToast');
+            return;
+        }
+        if (!reminder.setSchedule({ weekday, hour })) {
+            toast.error('error.generic');
+            return;
+        }
+        draw(container);
+        toast.success('reminder.saved');
+    });
+
+    on(container, 'click', '[data-reminder-disable]', () => {
+        if (!reminder.setSchedule(null)) {
+            toast.error('error.generic');
+            return;
+        }
+        draw(container);
+        toast.success('reminder.disabled');
+    });
 
     on(container, 'change', '[data-locale]', (_event, target) => {
         const locale = /** @type {HTMLSelectElement} */ (target).value;
