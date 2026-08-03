@@ -240,14 +240,14 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Tareas
 
-- [ ] M5-1 · Nutrición (E4): macros por fase derivadas del motor v2 (coherentes con B3), constantes con fuente (la proteína 2,2 g/kg del legacy no tenía cita — resolver con fuente o ajustar), variantes de refeed, **plantillas de comidas propias** (CRUD) ajustadas a las macros del día, copiar plan. Port auditado de `legacy/js/nutrition.js`.
-- [ ] M5-2 · Entrenamiento (E5): rutina por fase/nivel como **plantilla editable** (CRUD de ejercicios/series), registro de sesión, detección de PRs, progresión sugerida desde el histórico. Port auditado de `legacy/js/training.js`.
-- [ ] M5-3 · Silueta (E6): port auditado de `legacy/js/body-visualizer.js`; morfología alimentada también por medidas reales (E2) cuando existen; comparador inicio/actual/objetivo con transición (reduced-motion respetado).
-- [ ] M5-4 · Fotos (E3): captura/carga a `photos-db.js`, galería por fecha, comparador antes/después de dos fechas, borrado. Aviso de privacidad específico (dispositivo compartido).
-- [ ] M5-5 · Hitos: generados por el motor (cruce real de la serie), vista de hitos portada con auditoría de los 9 defectos internos de `legacy/js/milestones.js` (HIT-*), ficha clicable desde la gráfica (D3-d). Decidir en sesión el rescate editorial de las 102 descripciones de `legacy/aesthetic_milestones_complete.json` despersonalizándolas (F4-3 del plan legacy) — si aporta, portarlas como catálogo por umbral de composición.
-- [ ] M5-6 · Logros y tarjeta (E9 c-d): sistema de logros local (hitos alcanzados, rachas, PRs) y tarjeta-resumen exportable como imagen sin datos sensibles.
-- [ ] M5-7 · i18n al día en todos los módulos nuevos; estados vacíos/error de cada vista.
-- [ ] M5-8 · **Eliminar `legacy/`** (el port está completo; git conserva la historia). Commit ceremonial: `chore: remove legacy — v5 port complete`.
+- [x] M5-1 · Nutrición (E4): macros por fase derivadas del motor v2 (coherentes con B3), constantes con fuente (la proteína 2,2 g/kg del legacy no tenía cita — resolver con fuente o ajustar), variantes de refeed, **plantillas de comidas propias** (CRUD) ajustadas a las macros del día, copiar plan. Port auditado de `legacy/js/nutrition.js`.
+- [x] M5-2 · Entrenamiento (E5): rutina por fase/nivel como **plantilla editable** (CRUD de ejercicios/series), registro de sesión, detección de PRs, progresión sugerida desde el histórico. Port auditado de `legacy/js/training.js`.
+- [x] M5-3 · Silueta (E6): port auditado de `legacy/js/body-visualizer.js`; morfología alimentada también por medidas reales (E2) cuando existen; comparador inicio/actual/objetivo con transición (reduced-motion respetado).
+- [x] M5-4 · Fotos (E3): captura/carga a `photos-db.js`, galería por fecha, comparador antes/después de dos fechas, borrado. Aviso de privacidad específico (dispositivo compartido).
+- [x] M5-5 · Hitos: generados por el motor (cruce real de la serie), vista de hitos portada con auditoría de los 9 defectos internos de `legacy/js/milestones.js` (HIT-*), ficha clicable desde la gráfica (D3-d). Decidir en sesión el rescate editorial de las 102 descripciones de `legacy/aesthetic_milestones_complete.json` despersonalizándolas (F4-3 del plan legacy) — si aporta, portarlas como catálogo por umbral de composición.
+- [x] M5-6 · Logros y tarjeta (E9 c-d): sistema de logros local (hitos alcanzados, rachas, PRs) y tarjeta-resumen exportable como imagen sin datos sensibles.
+- [x] M5-7 · i18n al día en todos los módulos nuevos; estados vacíos/error de cada vista.
+- [x] M5-8 · **Eliminar `legacy/`** (el port está completo; git conserva la historia). Commit ceremonial: `chore: remove legacy — v5 port complete`.
 
 ### Criterios de cierre
 
@@ -257,7 +257,57 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Bitácora M5
 
-_(vacía)_
+**2026-08-03 · M5 cerrada.** Portadas las cinco vistas satélite que faltaban
+(entrenamiento, silueta, hitos, fotos, logros) sobre los cores ya cerrados, y
+eliminado `legacy/` tras verificar `rg -n "legacy/" src/ index.html` → 0. Las
+citas a rutas del legacy que quedaban en comentarios se reescribieron para
+citar la v4.0 sin la ruta: una referencia a un directorio que ya no existe es
+una pista muerta.
+
+Decisión tomada en sesión: el rescate editorial del catálogo de hitos SÍ
+aporta (97 fichas anatómicas frente a ~15 plantillas del generador) y se portó
+despersonalizado e indexado por umbral de composición.
+
+Diez vistas no caben en una barra inferior a 320 px con objetivos táctiles
+decentes (saldrían de 32 px), así que el router pliega las no primarias tras
+un botón «más» con hoja desplegable, `aria-expanded`, cierre con Escape y
+devolución de foco. En la barra lateral de escritorio siguen todas visibles.
+
+**Verificación adversarial (5 atacantes + 1 refutador independiente por
+hallazgo, 32 agentes, ~2,7 M tokens).** 27 hallazgos, 12 refutados por
+reproducción fallida o por ser comportamiento deliberado, **15 confirmados**
+—deduplicados, 11 defectos reales, todos introducidos en M5 y todos
+corregidos en `82f8340`:
+
+1. *(alta)* La vista de nutrición afirmaba del refeed «no rompe el plan: la
+   proyección ya lo absorbe». El motor no modela refeeds: la serie aplica el
+   déficit los siete días. Un refeed semanal costaba 2,29 kg en el plan
+   canónico (14,8 % del objetivo) y terminaba disparando una oferta de
+   recalibración por una desviación que la propia app había causado. Es
+   exactamente la clase de defecto que la v5 existe para erradicar —una
+   afirmación cuantitativa sin respaldo en el motor, mostrada como certeza—
+   y se coló igual. Ahora `refeedMacros` devuelve el coste y la vista lo dice.
+2. *(alta)* El catálogo estaba a medio despersonalizar: `muscleGainKgAbove`
+   guardaba la masa ABSOLUTA del usuario de la v4.0 (56,8–64,8 kg) y se
+   comparaba contra la ganancia → 58 de 97 hitos inalcanzables, categorías
+   enteras invisibles. Recuperado el fichero original de git (su masa inicial
+   era 56,55 kg), los umbrales son ganancias de 0,25 a 8,25 kg.
+3. *(alta)* Los hitos ya cumplidos el día 0 se marcaban `reached` y
+   desbloqueaban logros sin que el usuario hubiera hecho nada, contra la
+   decisión E9c. Ahora son `fromStart` y no cuentan: un perfil nuevo pasa de
+   2/9 logros a 0/9.
+4. *(alta)* La tarjeta compartible imprimía el peso y el %grasa PROYECTADOS
+   con el mismo formato que una medición.
+5. *(alta)* Las medidas reales multiplicaban la estimación y solo se aplicaban
+   a la figura de «hoy»: las tres siluetas del comparador no eran comparables.
+6. *(alta)* El generador de ids de ejercicio colisionaba con cuatro clics
+   normales, y a partir de ahí se guardaban los datos del ejercicio erróneo.
+7. *(alta)* `newRecordsIn` no deduplicaba por ejercicio.
+8-11. *(media)* Consentimiento heredado entre perfiles · empates de 1RM rotos
+   por coma flotante · inyección en selector CSS vía import de backup que
+   perdía la sesión sin avisar · textos del catálogo solo en español.
+
+Los tests que cierran cada uno llevan escrito el fallo que evitan.
 
 ---
 
@@ -267,12 +317,12 @@ _(vacía)_
 
 ### Tareas
 
-- [ ] M6-1 · PWA (E7): `manifest.webmanifest` + iconos, `sw.js` a mano (precache del shell + vendor, estrategia de actualización con aviso «nueva versión disponible»), instalable en móvil y escritorio.
-- [ ] M6-2 · Recordatorio local (E8): día/hora configurables con Notification API bajo permiso explícito; degradación limpia si se deniega (queda el aviso in-app de M4-7).
-- [ ] M6-3 · Seguridad (F6): revisión final de escapado (test que greppea interpolaciones fuera de `html``), CSP estricta vía `_headers` de Cloudflare (`default-src 'self'`; sin `unsafe-inline` — las fuentes se sirven en local si hace falta), cabeceras `X-Content-Type-Options`, `Referrer-Policy`.
-- [ ] M6-4 · Accesibilidad AA (F7): pasada completa con lista — foco visible en todo, focus-trap en todos los modales, contraste ≥ 4,5:1 medido en pares reales, `prefers-reduced-motion` cubriendo toda animación, canvas con alternativa, zoom 200 %, 320 px. Registrar resultados.
-- [ ] M6-5 · Rendimiento: Lighthouse ≥ 90 en las cuatro categorías sobre staging; corregir lo que baje de ahí.
-- [ ] M6-6 · Legales y meta: aviso de privacidad visible (C6), disclaimer «no es consejo médico», Open Graph completo, `robots.txt` real, título/descripciones i18n.
+- [x] M6-1 · PWA (E7): `manifest.webmanifest` + iconos, `sw.js` a mano (precache del shell + vendor, estrategia de actualización con aviso «nueva versión disponible»), instalable en móvil y escritorio.
+- [x] M6-2 · Recordatorio local (E8): día/hora configurables con Notification API bajo permiso explícito; degradación limpia si se deniega (queda el aviso in-app de M4-7).
+- [x] M6-3 · Seguridad (F6): revisión final de escapado (test que greppea interpolaciones fuera de `html``), CSP estricta vía `_headers` de Cloudflare (`default-src 'self'`; sin `unsafe-inline` — las fuentes se sirven en local si hace falta), cabeceras `X-Content-Type-Options`, `Referrer-Policy`.
+- [x] M6-4 · Accesibilidad AA (F7): pasada completa con lista — foco visible en todo, focus-trap en todos los modales, contraste ≥ 4,5:1 medido en pares reales, `prefers-reduced-motion` cubriendo toda animación, canvas con alternativa, zoom 200 %, 320 px. Registrar resultados.
+- [x] M6-5 · Rendimiento: Lighthouse ≥ 90 en las cuatro categorías sobre staging; corregir lo que baje de ahí.
+- [x] M6-6 · Legales y meta: aviso de privacidad visible (C6), disclaimer «no es consejo médico», Open Graph completo, `robots.txt` real, título/descripciones i18n.
 - [ ] M6-7 · Dominio propio en Cloudflare Pages + HTTPS; redirecciones limpias.
 - [ ] M6-8 · **Checklist de release** (F8) ejecutada y pegada en la bitácora con fecha: CI verde · typecheck limpio · E2E verde · Lighthouse ≥90×4 · guion de humo manual pasado (adaptación del de `docs/VERIFICACION-MANUAL.md` a v5) · migración v4 probada con datos reales · backup/restore probado · dominio y PWA instalable verificados en un móvil real.
 
@@ -283,13 +333,58 @@ _(vacía)_
 
 ### Bitácora M6
 
-_(vacía)_
+**2026-08-03 · M6-1 a M6-6 hechas; queda el dominio (M6-7) y la checklist
+(M6-8), que dependen del panel de Cloudflare.**
+
+**PWA.** `sw.js` a mano con precache del shell entero (55 recursos: sin bundler
+cada módulo es una petición y si falta uno la app no abre sin red). Nunca
+recarga sola: el SW nuevo espera, la página avisa y decide el usuario —
+recargar por sorpresa a alguien a mitad de un check-in es perder su trabajo.
+`test/pwa.test.js` compara PRECACHE contra el árbol real y encontró su primer
+módulo ausente en su primera ejecución. Iconos generados sin dependencias
+(`tools/make-icons.mjs` escribe el PNG con zlib).
+
+**Seguridad.** CSP `default-src 'self'` sin `unsafe-inline` en ninguna
+directiva. Para que `style-src 'self'` fuera real hubo que sustituir los nueve
+`style="…"` con datos por `applyCssVars`, que fija las propiedades
+personalizadas por CSSOM (que la CSP no cubre) y solo acepta números finitos.
+Verificado con la CSP REAL (`tools/serve-csp.mjs`): las diez vistas montan con
+0 violaciones. `test/security.test.js` duplica la defensa en estático.
+
+**Accesibilidad.** `test/e2e/accessibility.spec.js` automatiza lo comprobable
+sobre el DOM real de las diez vistas: nombre accesible, alternativas
+textuales, jerarquía de encabezados, 320 px, 320 px con el tipo al doble
+(zoom 200 %), teclado, focus-trap, `:focus-visible` no anulado, `aria-live`
+sin robar foco, y `prefers-reduced-motion` sin transiciones > 50 ms. Encontró
+un desborde real: al encoger la ventana (rotar el móvil), Chart.js dejaba el
+canvas con el ancho viejo y arrastraba el documento a 847 px en una pantalla
+de 320.
+
+**Rendimiento.** Lighthouse móvil salía 72. Dos hipótesis descartadas POR
+MEDICIÓN: `modulepreload` de los 43 módulos empeoró (82 → 76, compite con el
+CSS), y medir sobre `python3 -m http.server` mentía porque HTTP/1.1 serializa
+~50 peticiones en 6 conexiones (`tools/serve-h2.mjs` sirve HTTP/2 con las
+cabeceras reales, como Cloudflare: 72 → 82). Lo que sí funcionó: vistas
+diferidas con `import()` en el router (82 → 89; el arranque ya no arrastra
+seis vistas y el catálogo de 34 KB para pintar una pantalla que no los usa) y
+Chart.js bajo demanda (89 → 96; sus 208 KB no pintan nada del primer paint).
+**Resultado sobre HTTP/2 con la CSP real: móvil 96/100/100/100, escritorio
+100/100/100/100.** La medición vinculante sigue siendo la de staging.
+
+**Legales.** El aviso de privacidad y el disclaimer no-médico estaban en
+ajustes; lo que faltaba era el momento. Ahora salen también en el último paso
+del onboarding, antes de que el usuario escriba su peso y su grasa corporal.
+
+**Pendiente y bloqueado en el usuario:** M6-7 (dominio en Cloudflare Pages) y
+M6-8 (checklist de release: Lighthouse sobre el dominio, migración v4→v5 con
+datos reales, PWA instalada en un móvil real, guion de humo manual).
 
 ---
 
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
+- **Hallazgos de M5 refutados pero que siguen siendo endurecimiento razonable:** `escapeHtml` no cubre atributos sin comillas ni esquemas de URL (hoy no hay ningún sitio que los use, pero un `raw()` futuro podría); `splitIntoMeals` no tiene suelo en 0 aunque hoy ninguna entrada real lo alcanza; `suggestProgression` y `refeedMacros` lanzan con objetos corruptos que el almacén nunca produce; `unmount()` de fotos no revoca las URLs de un `draw()` en vuelo.
 - i18n a más idiomas · modo claro · sincronización entre dispositivos · exportación PDF del plan · integración con básculas/wearables · comparativas entre perfiles
 - **Hallazgos media/baja del ataque a M2 (2026-08-02), pendientes de revisar en M3:** `sanitizeText` parte pares sustitutos al recortar y no elimina los controles C1 de Unicode; un perfil cuyo nombre son solo caracteres invisibles no se puede borrar; `readIndex` normaliza sin marcarlo; los validadores no se protegen de getters que lanzan; `photos-db` no valida que el id no contenga `:` ni que `blob.size` sea finito y positivo; los campos de kilos del plan no tienen cota superior; `migrate` no valida `nowISO`; `transformlab_startDate` nunca se lee.
 
