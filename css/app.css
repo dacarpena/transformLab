@@ -26,6 +26,13 @@ body {
     font-size: var(--text-base);
     line-height: var(--leading-normal);
     -webkit-font-smoothing: antialiased;
+    /* Reflow (WCAG 1.4.10): a 320 px con el texto al 200 % una palabra larga
+       —«Braquiorradial», «recomposición»— es más ancha que su caja y empuja
+       el documento entero. `anywhere` la parte, y además cuenta para el
+       tamaño mínimo de los elementos de grid y flex, que es lo que impedía
+       que las cajas encogieran. Con tipo normal no rompe nada: solo actúa
+       cuando la palabra no cabe. */
+    overflow-wrap: anywhere;
 }
 
 body.has-modal {
@@ -779,6 +786,10 @@ ul { margin: 0; padding: 0; list-style: none; }
     display: flex;
     align-items: center;
     justify-content: space-between;
+    /* Los hijos de un flex traen `min-width: auto`, así que no encogen por
+       debajo de su contenido y empujan el documento cuando el texto crece.
+       Con `min-width: 0` sí encogen, y si aun así no caben, se apilan. */
+    flex-wrap: wrap;
     gap: var(--space-3);
     padding: var(--space-3);
     background: var(--color-surface-2);
@@ -786,6 +797,8 @@ ul { margin: 0; padding: 0; list-style: none; }
     border-radius: var(--radius-md);
     flex-wrap: wrap;
 }
+
+.profile-item > * { min-width: 0; }
 
 .profile-item--active { border-color: var(--color-accent); }
 
@@ -811,9 +824,11 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 /* ---------------- Silueta (M5-3) ---------------- */
 
+/* Las tres siluetas caben en fila mientras el ancho lo permita; con el texto
+   muy grande pasan a dos filas antes que desbordar. */
 .silhouette-row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
     gap: var(--space-2);
     align-items: end;
 }
@@ -839,6 +854,7 @@ ul { margin: 0; padding: 0; list-style: none; }
     text-align: center;
     font-size: var(--text-sm);
     margin-top: var(--space-2);
+    min-width: 0;
 }
 
 /* ---------------- Hitos (M5-5) ---------------- */
