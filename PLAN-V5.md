@@ -1,6 +1,6 @@
 # TransformLab v5 — Plan de reconstrucción
 
-> Estado: **M3 cerrada (2026-08-02) · M4 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
+> Estado: **M4 cerrada (2026-08-02) · producto núcleo COMPLETO · M5 activa** · Estrategia: reconstrucción dirigida en el mismo repo, legacy congelado en `legacy/` · Convenciones e invariantes: `CLAUDE.md` · Staging: https://transformlab.pages.dev
 
 Este documento es el estado vivo del proyecto: registro de decisiones, milestones con tareas (checkboxes), criterios de cierre verificables, backlog y bitácora. Claude Code lo lee al inicio de cada sesión y lo actualiza al cerrar cada tarea.
 
@@ -203,14 +203,14 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Tareas
 
-- [ ] M4-1 · Check-in v2: peso obligatorio; %grasa, set de medidas configurable (E2) y las 4 métricas subjetivas (energía, sueño, adherencia, motivación — que **sustituyen** a las sintéticas, A2); notas. Editable/borrable. Port auditado de `legacy/js/checkin.js` con catálogo en mano (A7).
-- [ ] M4-2 · Desviación: comparar cada check-in con el escenario esperado y la banda; señal clara de «dentro de banda / fuera de banda».
-- [ ] M4-3 · Vista Progreso (D4): historial de check-ins, gráficas de cada medida, desviación acumulada, y las métricas subjetivas como serie real.
-- [ ] M4-4 · Check-ins superpuestos en la gráfica principal (D3-b): puntos reales sobre la proyección.
-- [ ] M4-5 · Recalibración (E1): cuando la desviación supera umbral definido, la app **ofrece** regenerar el plan desde el estado real; el plan anterior se archiva en un historial de planes consultable; nunca automático, nunca silencioso.
-- [ ] M4-6 · Constancia (E9 a-b): racha de check-ins semanales y calendario de adherencia (heatmap) en la vista Progreso.
-- [ ] M4-7 · Recordatorio in-app: al entrar con check-in pendiente de la semana, aviso no intrusivo (la notificación de sistema llega con la PWA en M6).
-- [ ] M4-8 · E2E: registrar 3 check-ins (uno fuera de banda) → aparece oferta de recalibrar → recalibrar → el historial conserva el plan anterior → la gráfica muestra el nuevo plan con los puntos reales.
+- [x] M4-1 · Check-in v2: peso obligatorio; %grasa, set de medidas configurable (E2) y las 4 métricas subjetivas (energía, sueño, adherencia, motivación — que **sustituyen** a las sintéticas, A2); notas. Editable/borrable. Port auditado de `legacy/js/checkin.js` con catálogo en mano (A7).
+- [x] M4-2 · Desviación: comparar cada check-in con el escenario esperado y la banda; señal clara de «dentro de banda / fuera de banda».
+- [x] M4-3 · Vista Progreso (D4): historial de check-ins, gráficas de cada medida, desviación acumulada, y las métricas subjetivas como serie real.
+- [x] M4-4 · Check-ins superpuestos en la gráfica principal (D3-b): puntos reales sobre la proyección.
+- [x] M4-5 · Recalibración (E1): cuando la desviación supera umbral definido, la app **ofrece** regenerar el plan desde el estado real; el plan anterior se archiva en un historial de planes consultable; nunca automático, nunca silencioso.
+- [x] M4-6 · Constancia (E9 a-b): racha de check-ins semanales y calendario de adherencia (heatmap) en la vista Progreso.
+- [x] M4-7 · Recordatorio in-app: al entrar con check-in pendiente de la semana, aviso no intrusivo (la notificación de sistema llega con la PWA en M6).
+- [x] M4-8 · E2E: registrar 3 check-ins (uno fuera de banda) → aparece oferta de recalibrar → recalibrar → el historial conserva el plan anterior → la gráfica muestra el nuevo plan con los puntos reales.
 
 ### Criterios de cierre
 
@@ -220,7 +220,17 @@ Con las 50 respuestas al máximo, esto son **~30–45 jornadas efectivas** de tr
 
 ### Bitácora M4
 
-_(vacía)_
+**2026-08-02 · Sesión 1 — M4 completa (M4-1 → M4-8) en 4 commits. Producto núcleo completo.**
+
+- **El checkpoint cambió el diseño antes de escribir una línea.** Medir la banda de escenarios sobre un plan real demostró que NO puede ser el criterio de desviación por los dos extremos: en la semana 1 mide ±0,17 kg (más estrecha que la variación real de agua y glucógeno, ±0,5–1,5 kg) y al final vale exactamente cero, porque el invariante `escenarios` de M1 exige que los tres cierren en el objetivo. Usarla literalmente habría gritado «fuera de plan» todo el primer mes por ruido puro, y siempre en el tramo final. La banda es lo que se DIBUJA; lo que se JUZGA es la banda ensanchada con un suelo de ruido del 1,3 % del peso (Bhutani 2017).
+- Umbrales (E1a): mínimo 3 check-ins; A) persistencia, B) magnitud; ambos exigiendo el mismo lado. La adherencia baja se señala como contexto, **nunca bloquea**: un plan no está mal por no haberse ejecutado.
+- **Probar la recalibración en el navegador destapó un error propio:** al regenerar el plan se tomaba el `%grasa` PROYECTADO, lo que suponía que un usuario estancado había perdido grasa que no había perdido — y desplazaba su peso objetivo 1,2 kg sin que él hubiera cambiado su meta. Corregido con `inferFatPct`, ahora en `core/` y con test: el músculo cambia despacio y lo dirige el entrenamiento, así que se conserva el proyectado; la desviación de peso se atribuye a la GRASA. Deriva del objetivo: 1,2 kg → 0,3 kg (residuo legítimo, el músculo sí creció).
+- **Verificación adversarial: 871.063 casos, 24 roturas confirmadas.** El hallazgo que obligó a rediseñar los umbrales: mi test usaba ruido ALTERNANTE, el caso fácil. El ruido real de una báscula es CORRELACIONADO (la retención de agua persiste días) y producía rachas del mismo lado. Medido: **37 % de falsos positivos** con AR(1) φ=0,75 y **58 % con pesaje diario**. Tres correcciones: (1) la racha debe abarcar 14 días REALES, no N check-ins; (2) **la brecha debe CRECER** — es el discriminador central, porque el agua desplaza el peso un escalón y ahí se queda (residuos planos) mientras un estancamiento real ensancha la brecha cada semana; (3) techo en la tolerancia, que sin él llegaba a 18 kg en planes largos y volvía invisible medio año de deriva justo a quien más peso tenía que perder.
+- Falsos positivos medidos, antes → después: pesaje diario 58 % → **0,00 %** · AR(1) 37,2 % → **1,53 %** · iid σ=0,8 7,1 % → **0,00 %** · pico de hidratación 6,5 % → **0,00 %**. Detección de deriva real: estancamiento en **7 semanas** de media.
+- Otras roturas cerradas: la memoria del rechazo pasa a ser una huella del CONTENIDO (con el id bastaba editar el check-in de hoy para heredar el silencio, o borrarlo para reabrir la oferta con menos información); fechas imposibles rechazadas en el core; la racha se acota al presente; el migrador deriva los ids de la fecha; la vista enseña el campo y el límite exactos; perfil antes que plan al recalibrar.
+- **Limitación conocida y aceptada:** una deriva sostenida justo por debajo del umbral (0,99 × tolerancia) es invisible por construcción — una regla de umbral no puede detectar lo que nunca lo cruza. Anotado en BACKLOG: una prueba de tendencia acumulada lo cubriría, a costa de más falsos positivos. Igualmente, en planes de recomposición o de cambio neto pequeño la detección es más lenta, porque hay menos progreso esperado contra el que contrastar.
+- Criterios de cierre ejecutados: **22/22 E2E** (incluido el guion del producto entero: onboarding → 3 check-ins → oferta → recalibrar → el historial conserva el plan anterior → la gráfica muestra el nuevo con los puntos reales) · **236/236 unitarios**, con los 7 invariantes de M1 en verde sobre los planes recalibrados · typecheck limpio · cero onclick, innerHTML fuera de dom.js, localStorage fuera de storage.js, Math.random o hex fuera de tokens. **M4 CERRADA: el producto núcleo está completo.**
+- Siguiente paso: `prompts/M5-satelites.md` — nutrición, entrenamiento, silueta, fotos, hitos y logros; se cierra eliminando `legacy/`.
 
 ---
 
@@ -279,6 +289,7 @@ _(vacía)_
 
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
+- **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
 - i18n a más idiomas · modo claro · sincronización entre dispositivos · exportación PDF del plan · integración con básculas/wearables · comparativas entre perfiles
 - **Hallazgos media/baja del ataque a M2 (2026-08-02), pendientes de revisar en M3:** `sanitizeText` parte pares sustitutos al recortar y no elimina los controles C1 de Unicode; un perfil cuyo nombre son solo caracteres invisibles no se puede borrar; `readIndex` normaliza sin marcarlo; los validadores no se protegen de getters que lanzan; `photos-db` no valida que el id no contenga `:` ni que `blob.size` sea finito y positivo; los campos de kilos del plan no tienen cota superior; `migrate` no valida `nowISO`; `transformlab_startDate` nunca se lee.
 
