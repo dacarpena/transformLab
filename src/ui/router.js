@@ -57,6 +57,15 @@ let chromeWired = false;
 let navExpanded = false;
 
 /**
+ * Contador de navegaciones. Con vistas diferidas, `navigate` tiene un `await`
+ * en medio (la petición del módulo), así que dos navegaciones pueden estar en
+ * vuelo a la vez. Sin este testigo, la LENTA terminaba después de la rápida y
+ * pisaba la vista persistida, la barra de navegación y los oyentes: el
+ * usuario veía B y la aplicación creía estar en A.
+ */
+let navToken = 0;
+
+/**
  * Registra una vista. El orden de registro es el orden de la navegación.
  * @param {ViewDefinition} view
  */
@@ -154,6 +163,7 @@ export async function navigate(id, options = {}) {
         }
     }
     activeView = next;
+    const token = ++navToken;
 
     // Cada vista recibe un elemento PROPIO y recién creado. Al navegar se
     // descarta entero, y con él mueren todos sus listeners delegados. Sin
@@ -170,13 +180,24 @@ export async function navigate(id, options = {}) {
         // definición, así la segunda visita es inmediata.
         if (!next.mount && next.load) {
             const module = await next.load();
-            next.mount = module.mount;
-            next.unmount = module.unmount;
-            next.afterLoad?.(module);
+            // El cableado (`afterLoad`) se hace SIEMPRE aunque esta navegación
+            // ya no valga: el módulo ya está aquí y su cableado es global.
+            if (!next.mount) {
+                next.mount = module.mount;
+                next.unmount = module.unmount;
+                next.afterLoad?.(module);
+            }
+            // Pero montar y persistir, no: el usuario ya está en otra vista.
+            // Montar aquí dejaría una vista viva en un nodo desconectado, con
+            // sus timers, sus URL de objeto y su gráfica sin nadie que las
+            // limpie, porque su `unmount` ya no se va a llamar nunca.
+            if (token !== navToken) return false;
         }
         if (!next.mount) throw new Error(`la vista ${id} no tiene mount`);
         await next.mount(host);
+        if (token !== navToken) return false;
     } catch (err) {
+        if (token !== navToken) return false;
         console.error('[router] fallo al montar', id, err);
         render(host, html`
             <div class="state state--error" role="alert">
@@ -186,6 +207,7 @@ export async function navigate(id, options = {}) {
             </div>
         `);
     }
+    if (token !== navToken) return false;
     viewContainer.removeAttribute('aria-busy');
 
     if (options.persist !== false) storage.set(VIEW_KEY, id);
@@ -252,6 +274,9 @@ export function reset() {
     if (activeView?.unmount) activeView.unmount();
     activeView = null;
     navExpanded = false;
+    // Invalida las navegaciones en vuelo: al cambiar de perfil, una vista que
+    // aún estuviera cargando no puede montarse sobre el perfil nuevo.
+    navToken += 1;
     views.clear();
     if (viewContainer) viewContainer.replaceChildren();
     if (navContainer) navContainer.replaceChildren();

@@ -16,3 +16,4 @@ playwright-report/
 
 # Specs temporales de los agentes de verificación adversarial
 test/e2e/_tmp-*.spec.js
+_tmp-*
