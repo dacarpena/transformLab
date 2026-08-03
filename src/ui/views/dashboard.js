@@ -208,14 +208,26 @@ function renderChartSection(data) {
     `;
 }
 
-/** Redibuja solo la gráfica (cambio de métrica, rango o fluctuación). */
-function redraw(container) {
+/**
+ * Redibuja solo la gráfica (cambio de métrica, rango o fluctuación).
+ *
+ * Es asíncrona porque Chart.js se carga bajo demanda: sus 208 KB no pintan
+ * nada de la primera pantalla y no tienen por qué retrasarla.
+ */
+async function redraw(container) {
     const data = plans.get();
     if (!data) return;
     const host = container.querySelector('[data-chart-host]');
     const canvas = /** @type {HTMLCanvasElement | null} */ (container.querySelector('[data-canvas]'));
     const readout = /** @type {HTMLElement | null} */ (container.querySelector('[data-readout]'));
     if (!host || !canvas || !readout) return;
+
+    if (!await chart.ensureLoaded()) {
+        chart.renderFallback(/** @type {HTMLElement} */ (host));
+        return;
+    }
+    // El usuario puede haber cambiado de vista mientras llegaba el vendor.
+    if (!container.isConnected) return;
 
     const today = plans.todayIndex(data, plans.todayISO());
     const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);

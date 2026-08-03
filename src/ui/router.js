@@ -19,10 +19,17 @@ import * as storage from '../data/storage.js';
  * @property {string} id
  * @property {string} labelKey clave i18n de la etiqueta de navegación
  * @property {string} icon glifo decorativo (aria-hidden)
- * @property {(container: HTMLElement) => void | Promise<void>} mount
+ * @property {(container: HTMLElement) => void | Promise<void>} [mount]
  * @property {() => void} [unmount] limpieza (listeners, gráficas, timers)
  * @property {boolean} [hidden] fuera de la barra de navegación (p. ej. onboarding)
  * @property {boolean} [primary] visible siempre en la barra inferior de móvil
+ * @property {() => Promise<{ mount: (container: HTMLElement) => void | Promise<void>, unmount?: () => void }>} [load]
+ *   carga diferida del módulo de la vista. Sin bundler, cada vista es una
+ *   petición, y montarlas todas por adelantado ponía el catálogo de hitos
+ *   (34 KB) y cinco vistas más en el camino crítico del primer pintado.
+ * @property {(module: *) => void} [afterLoad] cableado que antes se hacía en
+ *   el arranque (los `setOnX` de cada vista); con carga diferida hay que
+ *   hacerlo cuando el módulo llega, no antes.
  */
 
 /** @type {Map<string, ViewDefinition>} */
@@ -159,6 +166,15 @@ export async function navigate(id, options = {}) {
     viewContainer.setAttribute('aria-busy', 'true');
 
     try {
+        // Vista diferida: se pide su módulo la primera vez y se guarda en la
+        // definición, así la segunda visita es inmediata.
+        if (!next.mount && next.load) {
+            const module = await next.load();
+            next.mount = module.mount;
+            next.unmount = module.unmount;
+            next.afterLoad?.(module);
+        }
+        if (!next.mount) throw new Error(`la vista ${id} no tiene mount`);
         await next.mount(host);
     } catch (err) {
         console.error('[router] fallo al montar', id, err);

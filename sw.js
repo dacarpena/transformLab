@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0002';
+const CACHE_VERSION = 'tl-v5-0003';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -32,6 +32,8 @@ const PRECACHE = [
     'manifest.webmanifest',
     'css/tokens.css',
     'css/app.css',
+    // Chart.js ya no lo enlaza el HTML (lo pide chart.js bajo demanda), pero
+    // se precachea igual: sin él no habría gráfica sin red.
     'vendor/chart.umd.min.js',
     'icons/icon-192.png',
     'icons/icon-512.png',

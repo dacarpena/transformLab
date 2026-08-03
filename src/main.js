@@ -19,15 +19,6 @@ import * as router from './ui/router.js';
 import * as plans from './ui/plan-state.js';
 import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
-import * as progress from './ui/views/progress.js';
-import * as checkinView from './ui/views/checkin.js';
-import * as nutrition from './ui/views/nutrition.js';
-import * as training from './ui/views/training.js';
-import * as bodyView from './ui/views/body.js';
-import * as milestonesView from './ui/views/milestones.js';
-import * as photos from './ui/views/photos.js';
-import * as achievements from './ui/views/achievements.js';
-import * as settings from './ui/views/settings.js';
 import * as recalibrate from './ui/recalibrate.js';
 import * as pwa from './ui/pwa.js';
 import * as reminder from './ui/reminder.js';
@@ -78,15 +69,39 @@ async function startApp(roots) {
         id: 'today', labelKey: 'nav.today', icon: '◉', primary: true,
         mount: dashboard.mount, unmount: dashboard.unmount
     });
-    router.register({ id: 'checkin', labelKey: 'checkin.nav', icon: '＋', primary: true, mount: checkinView.mount });
-    router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', primary: true, mount: progress.mount });
-    router.register({ id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', primary: true, mount: nutrition.mount });
-    router.register({ id: 'training', labelKey: 'nav.training', icon: '⬛', mount: training.mount });
-    router.register({ id: 'body', labelKey: 'nav.body', icon: '◐', mount: bodyView.mount });
-    router.register({ id: 'milestones', labelKey: 'nav.milestones', icon: '✦', mount: milestonesView.mount });
-    router.register({ id: 'photos', labelKey: 'nav.photos', icon: '▣', mount: photos.mount, unmount: photos.unmount });
-    router.register({ id: 'achievements', labelKey: 'nav.achievements', icon: '★', mount: achievements.mount });
-    router.register({ id: 'settings', labelKey: 'nav.settings', icon: '⚙', mount: settings.mount });
+    // Las demás vistas se cargan al visitarlas. Sin bundler cada una es una
+    // petición, y tenerlas todas en el arranque metía en el camino crítico
+    // del primer pintado seis vistas, media docena de módulos del motor y el
+    // catálogo de hitos entero (34 KB) — para pintar una pantalla que no usa
+    // nada de eso. Su cableado va en `afterLoad`, que corre cuando el módulo
+    // llega de verdad.
+    router.register({
+        id: 'checkin', labelKey: 'checkin.nav', icon: '＋', primary: true,
+        load: () => import('./ui/views/checkin.js'),
+        afterLoad: (m) => m.setOnSaved(() => route(roots))
+    });
+    router.register({
+        id: 'progress', labelKey: 'nav.progress', icon: '◔', primary: true,
+        load: () => import('./ui/views/progress.js'),
+        afterLoad: (m) => m.setOnGoToCheckin(() => router.navigate('checkin'))
+    });
+    router.register({
+        id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', primary: true,
+        load: () => import('./ui/views/nutrition.js')
+    });
+    router.register({ id: 'training', labelKey: 'nav.training', icon: '⬛', load: () => import('./ui/views/training.js') });
+    router.register({ id: 'body', labelKey: 'nav.body', icon: '◐', load: () => import('./ui/views/body.js') });
+    router.register({ id: 'milestones', labelKey: 'nav.milestones', icon: '✦', load: () => import('./ui/views/milestones.js') });
+    router.register({ id: 'photos', labelKey: 'nav.photos', icon: '▣', load: () => import('./ui/views/photos.js') });
+    router.register({ id: 'achievements', labelKey: 'nav.achievements', icon: '★', load: () => import('./ui/views/achievements.js') });
+    router.register({
+        id: 'settings', labelKey: 'nav.settings', icon: '⚙',
+        load: () => import('./ui/views/settings.js'),
+        afterLoad: (m) => {
+            m.setOnProfilesChanged(() => route(roots));
+            m.setOnEditProfile(() => editProfile(roots));
+        }
+    });
     await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'today' });
 
     // Tras montar, se comprueba si procede OFRECER una recalibración (E1a).
@@ -101,6 +116,33 @@ async function startOnboarding(roots, seed) {
     onboarding.resetDraft(seed);
     router.register({ id: 'onboarding', labelKey: 'onboarding.title', icon: '', hidden: true, mount: onboarding.mount });
     await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'onboarding' });
+}
+
+/**
+ * Reabre el asistente con los datos actuales, para editar el perfil.
+ *
+ * Vive en el módulo (y no dentro de `boot`) porque ahora lo llaman dos sitios
+ * que ocurren en momentos distintos: la tarjeta de Hoy y el `afterLoad` de
+ * ajustes, que puede pasar minutos después de arrancar.
+ * @param {{viewRoot: HTMLElement, navRoot: HTMLElement}} roots
+ */
+function editProfile(roots) {
+    const data = plans.get();
+    startOnboarding(roots, data ? {
+        name: data.profile.name,
+        sex: data.profile.user.sex,
+        age: data.profile.user.age,
+        heightCm: data.profile.user.heightCm,
+        activityLevel: data.profile.user.activityLevel,
+        trainingStatus: data.profile.user.trainingStatus,
+        weightKg: data.profile.initial.weightKg,
+        fatPct: data.profile.initial.fatPct,
+        muscleKg: data.profile.initial.muscleKg,
+        targetFatPct: data.profile.target.fatPct,
+        targetMuscleKg: data.profile.target.muscleKg,
+        startDateISO: data.profile.startDateISO,
+        intensity: data.profile.intensity
+    } : undefined);
 }
 
 /**
@@ -185,34 +227,11 @@ async function boot() {
         }
     }
 
-    // 4 · cableado entre vistas
+    // 4 · cableado de las vistas que SÍ se cargan en el arranque. El resto lo
+    // hace `afterLoad` cuando llega su módulo (ver `startApp`).
     onboarding.setOnComplete(() => route(roots));
-    // Guardar un check-in recarga el plan en memoria y vuelve a evaluar la
-    // desviación, que es lo que puede disparar la oferta de recalibración.
-    checkinView.setOnSaved(() => route(roots));
-    progress.setOnGoToCheckin(() => router.navigate('checkin'));
     dashboard.setOnGoToCheckin(() => router.navigate('checkin'));
-    settings.setOnProfilesChanged(() => route(roots));
-    const editProfile = () => {
-        const data = plans.get();
-        startOnboarding(roots, data ? {
-            name: data.profile.name,
-            sex: data.profile.user.sex,
-            age: data.profile.user.age,
-            heightCm: data.profile.user.heightCm,
-            activityLevel: data.profile.user.activityLevel,
-            trainingStatus: data.profile.user.trainingStatus,
-            weightKg: data.profile.initial.weightKg,
-            fatPct: data.profile.initial.fatPct,
-            muscleKg: data.profile.initial.muscleKg,
-            targetFatPct: data.profile.target.fatPct,
-            targetMuscleKg: data.profile.target.muscleKg,
-            startDateISO: data.profile.startDateISO,
-            intensity: data.profile.intensity
-        } : undefined);
-    };
-    settings.setOnEditProfile(editProfile);
-    dashboard.setOnEditProfile(editProfile);
+    dashboard.setOnEditProfile(() => editProfile(roots));
 
     // 5 · a rodar
     await route(roots);

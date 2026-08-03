@@ -26,17 +26,20 @@
     <meta property="og:locale" content="es_ES">
     <meta name="twitter:card" content="summary">
 
+
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/app.css">
+
 </head>
 <body>
     <div id="app"></div>
     <noscript>
         <p>TransformLab necesita JavaScript. / TransformLab requires JavaScript.</p>
     </noscript>
-    <!-- Chart.js servido en local (vendor/), no desde un CDN: CSP 'self' y
-         funcionamiento offline. Si falla, la app avisa y sigue funcionando. -->
-    <script src="vendor/chart.umd.min.js" defer></script>
+    <!-- Chart.js NO se carga aquí: son 208 KB que no pintan nada de la
+         primera pantalla. Lo pide `src/ui/chart.js` cuando toca dibujar una
+         gráfica, desde vendor/ y nunca desde un CDN (CSP 'self' y offline).
+         Si falla, la vista avisa y la aplicación sigue funcionando. -->
     <script type="module" src="src/main.js"></script>
 </body>
 </html>

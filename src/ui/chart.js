@@ -33,6 +33,42 @@ function getChartLib() {
     return /** @type {*} */ (globalThis).Chart ?? null;
 }
 
+/** @type {Promise<boolean> | null} */
+let loadPromise = null;
+
+/**
+ * Carga Chart.js bajo demanda desde `vendor/`.
+ *
+ * Son 208 KB, el recurso más pesado con diferencia, y no hace falta ninguno
+ * para pintar la primera pantalla: se pedía en el `<head>` y competía por el
+ * ancho de banda con lo que el usuario sí está esperando. Ahora se pide
+ * cuando toca dibujar una gráfica.
+ *
+ * Sigue siendo del propio origen (CSP `script-src 'self'`) y sigue sin CDN.
+ * Si falla, `draw` devuelve false y la vista enseña su estado de error: nunca
+ * una acción destructiva (ficha H-013).
+ * @returns {Promise<boolean>} true si la biblioteca está disponible
+ */
+export function ensureLoaded() {
+    if (getChartLib()) return Promise.resolve(true);
+    if (loadPromise) return loadPromise;
+    if (typeof document === 'undefined') return Promise.resolve(false);
+
+    loadPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'vendor/chart.umd.min.js';
+        script.addEventListener('load', () => resolve(Boolean(getChartLib())), { once: true });
+        script.addEventListener('error', () => {
+            // Se descarta la promesa fallida para que un reintento del usuario
+            // (recargar la vista) vuelva a intentarlo de verdad.
+            loadPromise = null;
+            resolve(false);
+        }, { once: true });
+        document.head.appendChild(script);
+    });
+    return loadPromise;
+}
+
 /**
  * Lee un token de color del documento (D8: los colores viven en tokens.css,
  * también los que consume el canvas). Si el token no resuelve, se cae al de
