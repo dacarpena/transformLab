@@ -47,6 +47,33 @@ function num(n, d = 1) {
     return Number.isFinite(n) ? n.toFixed(d) : '—';
 }
 
+/**
+ * Id nuevo que NO colisiona con ninguno existente.
+ *
+ * El generador anterior era `ex_${existing.length + 1}_${nombre}`, y eso
+ * reutiliza el índice tras un borrado: añadir «Curl», añadir «Curl», borrar el
+ * primero y añadir «Curl» otra vez producía dos ejercicios con el mismo id.
+ * A partir de ahí, el modal de sesión leía siempre el primer campo (perdiendo
+ * lo tecleado en el segundo) y borrar uno borraba los dos.
+ *
+ * El id se restringe además a `[A-Za-z0-9_]`, para que nunca pueda romper un
+ * selector CSS ni el esquema de validación.
+ * @param {Array<{id?: string}>} existing
+ * @param {string} name
+ * @returns {string}
+ */
+function freshExerciseId(existing, name) {
+    const taken = new Set(existing.map((e) => e?.id).filter(Boolean));
+    const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || 'ex';
+    let n = existing.length + 1;
+    let id = `ex_${n}_${slug}`;
+    while (taken.has(id)) {
+        n += 1;
+        id = `ex_${n}_${slug}`;
+    }
+    return id;
+}
+
 function renderRoutine(data) {
     const exercises = exercisesOf(data.routine);
     return html`
@@ -159,7 +186,7 @@ export function mount(container) {
 
             const data = readTraining();
             const existing = exercisesOf(data.routine);
-            const id = `ex_${existing.length + 1}_${name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '')}`;
+            const id = freshExerciseId(existing, name);
             const routine = data.routine ?? { days: [{ name: t('training.routine'), exercises: [] }] };
             routine.days[0].exercises = [...(routine.days[0].exercises ?? []), { id, name, sets, reps, loadKg: null }];
 
@@ -219,9 +246,17 @@ export function mount(container) {
         dialog.querySelector('[data-go]')?.addEventListener('click', () => {
             const dateISO = plans.todayISO();
             const entries = [];
-            for (const ex of exercises) {
-                const reps = Number(/** @type {HTMLInputElement | null} */ (dialog.querySelector(`[data-log-reps="${ex.id}"]`))?.value);
-                const loadKg = Number(/** @type {HTMLInputElement | null} */ (dialog.querySelector(`[data-log-load="${ex.id}"]`))?.value);
+            // Los campos se leen por POSICIÓN, no por selector con el id
+            // dentro. Un id con comillas —que puede llegar por import de un
+            // backup— rompía `querySelector` con una DOMException dentro del
+            // manejador: la sesión no se guardaba, no salía aviso, y el
+            // usuario perdía todo lo tecleado sin enterarse.
+            const repsFields = dialog.querySelectorAll('[data-log-reps]');
+            const loadFields = dialog.querySelectorAll('[data-log-load]');
+            for (let i = 0; i < exercises.length; i += 1) {
+                const ex = exercises[i];
+                const reps = Number(/** @type {HTMLInputElement | undefined} */ (repsFields[i])?.value);
+                const loadKg = Number(/** @type {HTMLInputElement | undefined} */ (loadFields[i])?.value);
                 if (!Number.isFinite(reps) || !Number.isFinite(loadKg) || loadKg <= 0) continue;
                 entries.push({
                     exerciseId: ex.id,

@@ -15,6 +15,8 @@
  * magnitud correcta, y el objetivo de pasos no entra en absoluto.
  */
 
+import { KCAL_PER_KG_FAT } from './constants.js';
+
 /**
  * @typedef {import('./generator.js').DailyPoint} DailyPoint
  * @typedef {Object} Macros
@@ -23,6 +25,9 @@
  * @property {number} carbsG
  * @property {number} fatG
  * @property {string[]} warnings códigos i18n, p. ej. calorías insuficientes
+ * @property {number} [costKg] solo en un refeed: kg de grasa que ese día NO se
+ *   pierden, porque la proyección aplica el déficit los siete días
+ * @property {number} [costKcal] solo en un refeed: calorías por encima del plan
  */
 
 /**
@@ -127,7 +132,7 @@ export function refeedMacros(base, point) {
     const maintenance = point.kcal.tdeeKcal;
     // Sin déficit no hay nada de lo que descansar.
     if (maintenance <= base.kcal) {
-        return { ok: true, value: { ...base, warnings: [...base.warnings] } };
+        return { ok: true, value: { ...base, costKg: 0, costKcal: 0, warnings: [...base.warnings] } };
     }
     const extraKcal = maintenance - base.kcal;
     return {
@@ -137,6 +142,14 @@ export function refeedMacros(base, point) {
             proteinG: base.proteinG,
             fatG: base.fatG,
             carbsG: base.carbsG + Math.round(extraKcal / 4),
+            // Lo que cuesta el día, en kg de grasa no perdida. El motor NO
+            // modela refeeds: la serie diaria aplica el déficit los siete
+            // días. Así que el coste se devuelve para que la vista lo diga en
+            // vez de afirmar que el plan lo absorbe, que era falso y además
+            // acababa disparando una oferta de recalibración por una
+            // desviación que la propia app había provocado.
+            costKg: Math.round((extraKcal / KCAL_PER_KG_FAT) * 1000) / 1000,
+            costKcal: Math.round(extraKcal),
             warnings: [...base.warnings, 'nutrition.refeedDay']
         }
     };

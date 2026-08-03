@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeComposition, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
-import { shapeFor, waistToShoulderRatio } from '../src/core/silhouette.js';
+import { shapeFor, waistToShoulderRatio, calibrationFrom } from '../src/core/silhouette.js';
 import { aestheticMilestonesFor, nextAesthetic, byCategory, AESTHETIC_CATALOG, VISIBILITY_LEVELS } from '../src/core/milestones.js';
 import { evaluate, shareCard, ACHIEVEMENT_RULES } from '../src/core/achievements.js';
 
@@ -42,13 +42,39 @@ test('más músculo ensancha hombros y brazo', () => {
     assert.ok(strong.arm > base.arm);
 });
 
-test('las medidas REALES mandan sobre la estimación y quedan señaladas', () => {
-    const estimated = shapeFor({ weightKg: 80, fatPct: 18, muscleKg: 31, sex: 'male' });
-    const measured = shapeFor({ weightKg: 80, fatPct: 18, muscleKg: 31, sex: 'male' }, { waist: 72 });
+test('las medidas REALES calibran la silueta y quedan señaladas', () => {
+    const comp = { weightKg: 80, fatPct: 18, muscleKg: 31, sex: /** @type {const} */ ('male') };
+    const estimated = shapeFor(comp);
+    const measured = shapeFor(comp, calibrationFrom('male', { waist: 72 }));
     assert.ok(estimated && measured);
     assert.equal(estimated.fromMeasures, false);
     assert.equal(measured.fromMeasures, true);
     assert.ok(measured.waist < estimated.waist, 'una cintura medida más estrecha debe reflejarse');
+});
+
+test('calibrationFrom devuelve null si no hay ninguna medida útil', () => {
+    assert.equal(calibrationFrom('male', undefined), null);
+    assert.equal(calibrationFrom('male', {}), null);
+    assert.equal(calibrationFrom('male', { waist: 0 }), null);
+    assert.equal(calibrationFrom('male', { waist: NaN }), null);
+    assert.equal(calibrationFrom('male', /** @type {*} */ ('x')), null);
+});
+
+test('la MISMA calibración aplicada a dos composiciones las deja comparables', () => {
+    // El fallo que esto cierra: la calibración se aplicaba solo a la figura
+    // de «hoy», así que el día 0 —misma composición en inicio y hoy— las dos
+    // siluetas salían distintas y el usuario veía «progreso» sin haber hecho
+    // nada. Con la misma calibración, misma entrada → misma salida.
+    const comp = { weightKg: 80, fatPct: 18, muscleKg: 31, sex: /** @type {const} */ ('male') };
+    const cal = calibrationFrom('male', { waist: 95, hip: 104, arm: 36 });
+    const a = shapeFor(comp, cal);
+    const b = shapeFor(comp, cal);
+    assert.deepEqual(a, b);
+
+    // Y adelgazar nunca puede dibujar una cintura MÁS ancha que la de partida
+    const thinner = shapeFor({ ...comp, weightKg: 69, fatPct: 12 }, cal);
+    assert.ok(a && thinner);
+    assert.ok(thinner.waist < a.waist, `${thinner.waist} debería ser menor que ${a.waist}`);
 });
 
 test('ninguna silueta se vuelve imposible, por extremos que sean los datos', () => {
@@ -80,12 +106,57 @@ test('el catálogo está despersonalizado: sin fechas, días ni semanas del plan
     assert.ok(AESTHETIC_CATALOG.length > 50);
     for (const item of AESTHETIC_CATALOG) {
         for (const forbidden of ['day', 'date', 'dateFormatted', 'week', 'dayOfWeek', 'phase', 'metricsAtMilestone']) {
-            assert.ok(!(forbidden in item), `«${item.title}» aún arrastra ${forbidden}`);
+            assert.ok(!(forbidden in item), `«${item.title.es}» aún arrastra ${forbidden}`);
         }
         // y cada uno tiene al menos un umbral de composición: si no, no sería
         // aplicable a otro usuario
-        assert.ok(item.fatPctBelow !== null || item.muscleGainKgAbove !== null, `«${item.title}» sin umbral`);
+        assert.ok(item.fatPctBelow !== null || item.muscleGainKgAbove !== null, `«${item.title.es}» sin umbral`);
         assert.ok(VISIBILITY_LEVELS.includes(item.visibility), `visibilidad desconocida: ${item.visibility}`);
+    }
+});
+
+test('los umbrales de músculo son GANANCIA alcanzable, no la masa de otra persona', () => {
+    // El fallo que esto cierra: el catálogo guardaba la masa muscular ABSOLUTA
+    // del usuario único de la v4.0 (56,8–64,8 kg) y el código la comparaba
+    // contra la ganancia, así que 58 de los 97 hitos —categorías enteras como
+    // brazos, antebrazos y proporciones— eran inalcanzables para cualquiera.
+    const gains = AESTHETIC_CATALOG
+        .map((i) => i.muscleGainKgAbove)
+        .filter((g) => g !== null && g !== undefined);
+    assert.ok(gains.length > 40, 'esperábamos umbrales de músculo en el catálogo');
+    for (const g of gains) {
+        assert.ok(g > 0 && g <= 15, `umbral de ganancia implausible: ${g} kg`);
+    }
+});
+
+test('el catálogo trae los dos idiomas en todas sus fichas', () => {
+    // Los textos son datos, no cadenas de interfaz, pero el usuario los ve:
+    // la regla de i18n (A6) manda igual. Con la app en inglés se leían en
+    // español porque el JSON solo traía una lengua.
+    for (const item of AESTHETIC_CATALOG) {
+        for (const field of /** @type {const} */ (['title', 'description'])) {
+            const value = item[field];
+            assert.equal(typeof value, 'object', `${item.id}.${field} no es bilingüe`);
+            for (const locale of ['es', 'en']) {
+                assert.equal(typeof value[locale], 'string', `${item.id}.${field}.${locale} ausente`);
+                assert.ok(value[locale].trim().length > 0, `${item.id}.${field}.${locale} vacío`);
+            }
+        }
+    }
+});
+
+test('ninguna ficha arrastra ya las cifras del plan de aquella persona', () => {
+    // Quedaban textos con «56.4 kg iniciales», «485 días», «De 81.2kg/26.6%»
+    // y los nombres de SUS fases («Corte 1», «Bulking 1»).
+    const forbidden = [/485\s*d[ií]as/i, /56\.4/, /81\.2/, /77\.8/, /\+8\.4/, /60 kg de masa/i,
+        /corte 1/i, /bulking 1/i, /mini-?corte/i, /newbie gains/i];
+    for (const item of AESTHETIC_CATALOG) {
+        for (const locale of /** @type {const} */ (['es', 'en'])) {
+            const text = `${item.title[locale]} ${item.description[locale]}`;
+            for (const rx of forbidden) {
+                assert.ok(!rx.test(text), `«${text}» aún cita el plan de la v4.0 (${rx})`);
+            }
+        }
     }
 });
 
@@ -123,7 +194,7 @@ test('no se promete un hito que el plan NO alcanza', () => {
 test('reached distingue lo alcanzado de lo pendiente, y next es el primero pendiente', () => {
     const { comp, projection } = canonical();
     const milestones = aestheticMilestonesFor(projection, { startMuscleKg: comp.muscleKg }, 60);
-    assert.ok(milestones.every((m) => m.reached === (m.dayIndex <= 60)));
+    assert.ok(milestones.every((m) => m.reached === (!m.fromStart && m.dayIndex <= 60)));
 
     const next = nextAesthetic(milestones);
     assert.ok(next);
@@ -131,12 +202,36 @@ test('reached distingue lo alcanzado de lo pendiente, y next es el primero pendi
     assert.ok(next.dayIndex > 60);
 });
 
+test('lo que ya se cumplía el día 0 es punto de partida, no un logro', () => {
+    // El fallo que esto cierra: quien se apunta ya por debajo de un umbral
+    // veía decenas de ✓ nada más terminar el asistente, y esos ticks
+    // desbloqueaban logros sin que hubiera hecho absolutamente nada (E9c).
+    const { comp, projection } = canonical();
+    const day0 = aestheticMilestonesFor(projection, { startMuscleKg: comp.muscleKg }, 0);
+    assert.ok(day0.length > 0);
+    assert.equal(day0.filter((m) => m.reached).length, 0, 'algo se marcó alcanzado el día 0');
+
+    const fromStart = day0.filter((m) => m.fromStart);
+    assert.ok(fromStart.length > 0, 'este perfil debería traer hitos ya cumplidos');
+    assert.ok(fromStart.every((m) => m.dayIndex === 0));
+
+    // Y siguen sin contar más adelante: no es que «aún no toque», es que no
+    // son suyos.
+    const later = aestheticMilestonesFor(projection, { startMuscleKg: comp.muscleKg }, 999);
+    assert.ok(later.filter((m) => m.fromStart).every((m) => !m.reached));
+
+    // El siguiente hito tampoco puede ser uno de partida
+    const next = nextAesthetic(day0);
+    if (next) assert.equal(next.fromStart, false);
+});
+
 test('byCategory cuenta bien y no inventa categorías', () => {
     const { comp, projection } = canonical();
     const milestones = aestheticMilestonesFor(projection, { startMuscleKg: comp.muscleKg }, 60);
     const groups = byCategory(milestones);
     const total = groups.reduce((s, g) => s + g.total, 0);
-    assert.equal(total, milestones.length);
+    // los de partida no entran en el recuento: ni suman ni restan
+    assert.equal(total, milestones.filter((m) => !m.fromStart).length);
     for (const g of groups) assert.ok(g.reached <= g.total);
 });
 
@@ -199,4 +294,21 @@ test('shareCard degrada con basura y acota el porcentaje', () => {
         assert.ok(card.percentComplete >= 0 && card.percentComplete <= 100);
         assert.equal(card.weightKg, null);
     }
+});
+
+test('la puerta de datos absolutos solo se abre con includeAbsolutes === true', () => {
+    // Son datos de salud: la puerta se abre con un true explícito y con nada
+    // más. Cualquier otro valor —incluido uno «verdadero» como 1 o 'yes'— es
+    // un no.
+    const input = { percentComplete: 40, phaseKey: 'cut', streakWeeks: 3, achievementsUnlocked: 2, weightKg: 81.6, fatPct: 19.2 };
+    for (const options of [undefined, {}, null, { includeAbsolutes: false },
+        { includeAbsolutes: 1 }, { includeAbsolutes: 'yes' }, { includeAbsolutes: 'true' },
+        { includeAbsolutes: {} }, { includeAbsolutes: [] }]) {
+        const card = shareCard(input, /** @type {*} */ (options));
+        assert.equal(card.weightKg, null, `se filtró el peso con ${JSON.stringify(options)}`);
+        assert.equal(card.fatPct, null, `se filtró la grasa con ${JSON.stringify(options)}`);
+    }
+    const open = shareCard(input, { includeAbsolutes: true });
+    assert.equal(open.weightKg, 81.6);
+    assert.equal(open.fatPct, 19.2);
 });

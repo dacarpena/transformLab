@@ -12,7 +12,7 @@ import { html, render } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as checkins from '../../data/checkins.js';
-import { shapeFor, waistToShoulderRatio } from '../../core/silhouette.js';
+import { shapeFor, waistToShoulderRatio, calibrationFrom } from '../../core/silhouette.js';
 import { error as errorState } from '../components/state.js';
 
 const W = 180;
@@ -150,9 +150,15 @@ export function mount(container) {
         weightKg: point.weightKg, fatPct: point.fatPct, muscleKg: point.muscleKg, sex
     });
 
-    const start = shapeFor(toComposition(daily[0]));
-    const now = shapeFor(toComposition(daily[today.dayIndex]), measures);
-    const goal = shapeFor(toComposition(daily[daily.length - 1]));
+    // La calibración de las medidas reales se aplica a las TRES figuras.
+    // Aplicarla solo a «hoy» era comparar peras con manzanas: el día 0 las
+    // dos primeras siluetas son la misma composición y salían distintas, y
+    // alguien con la cintura por encima de la referencia se veía MÁS ancho
+    // hoy que al empezar, aunque hubiera adelgazado.
+    const calibration = calibrationFrom(sex, measures);
+    const start = shapeFor(toComposition(daily[0]), calibration);
+    const now = shapeFor(toComposition(daily[today.dayIndex]), calibration);
+    const goal = shapeFor(toComposition(daily[daily.length - 1]), calibration);
 
     render(container, html`
         <h1 class="card__title">${t('body.title')}</h1>

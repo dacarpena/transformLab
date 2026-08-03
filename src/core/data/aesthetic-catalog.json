@@ -1,976 +1,1558 @@
 {
- "_comment": "Catálogo estético despersonalizado, rescatado del plan personal de v4.0 (M5-5). Se conservan solo los hitos con umbral de composición: son aplicables a cualquier usuario. Los que dependían del día absoluto del plan de una persona se descartaron; el motor ya genera hitos de fase y de progreso desde el cruce real de la serie.",
- "source": "aesthetic_milestones_complete.json (v4.0)",
- "items": [
-  {
-   "id": "braquiorradial_visible",
-   "category": "antebrazos",
-   "muscleGroup": "braquiorradial",
-   "title": "Braquiorradial visible",
-   "description": "El músculo braquiorradial crea un bulto visible en la parte superior del antebrazo.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 58.1
-  },
-  {
-   "id": "antebrazos_con_forma_definida",
-   "category": "antebrazos",
-   "muscleGroup": "extensores",
-   "title": "Antebrazos con forma definida",
-   "description": "Los extensores y flexores del antebrazo crean formas visibles. Antebrazo grueso y atlético.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 61.6
-  },
-  {
-   "id": "b_ceps_con_forma_definida",
-   "category": "brazos",
-   "muscleGroup": "bíceps",
-   "title": "Bíceps con forma definida",
-   "description": "El bíceps braquial muestra una curvatura más pronunciada al flexionar. El pico comienza a formarse.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 57.0
-  },
-  {
-   "id": "herradura_del_tr_ceps_insinuada",
-   "category": "brazos",
-   "muscleGroup": "tríceps",
-   "title": "Herradura del tríceps insinuada",
-   "description": "La forma de herradura del tríceps es visible bajo luz directa al extender el brazo.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 57.6
-  },
-  {
-   "id": "pico_del_b_ceps_desarrollado",
-   "category": "brazos",
-   "muscleGroup": "bíceps",
-   "title": "Pico del bíceps desarrollado",
-   "description": "El pico del bíceps es prominente al flexionar. El bíceps braquial muestra altura notable.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.3
-  },
-  {
-   "id": "tr_ceps_dominante_en_el_brazo",
-   "category": "brazos",
-   "muscleGroup": "tríceps",
-   "title": "Tríceps dominante en el brazo",
-   "description": "El tríceps es visiblemente más grande que el bíceps. El brazo tiene grosor real.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 61.2
-  },
-  {
-   "id": "braquial_visible_entre_b_ceps_y_tr_ceps",
-   "category": "brazos",
-   "muscleGroup": "braquial",
-   "title": "Braquial visible entre bíceps y tríceps",
-   "description": "El músculo braquial crea un bulto visible entre bíceps y tríceps. Detalle de brazo avanzado.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 63.1
-  },
-  {
-   "id": "b_ceps_con_detalle_de_cabezas",
-   "category": "brazos",
-   "muscleGroup": "bíceps",
-   "title": "Bíceps con detalle de cabezas",
-   "description": "La cabeza corta y larga del bíceps son distinguibles. Pico muy desarrollado.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 64.6
-  },
-  {
-   "id": "primeros_signos_de_v_taper",
-   "category": "espalda",
-   "muscleGroup": "dorsales",
-   "title": "Primeros signos de V-taper",
-   "description": "Los dorsales empiezan a ensancharse visiblemente. La cintura parece proporcionalmente más estrecha.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 57.2
-  },
-  {
-   "id": "trapecios_superiores_desarrollados",
-   "category": "espalda",
-   "muscleGroup": "trapecios",
-   "title": "Trapecios superiores desarrollados",
-   "description": "Los trapecios superiores crean una línea diagonal notable desde el cuello hasta los hombros.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 58.0
-  },
-  {
-   "id": "romboides_marcados_en_contracci_n",
-   "category": "espalda",
-   "muscleGroup": "romboides",
-   "title": "Romboides marcados en contracción",
-   "description": "Al juntar las escápulas, los romboides crean un relieve visible en la espalda media.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 58.6
-  },
-  {
-   "id": "wings_de_dorsales_en_desarrollo",
-   "category": "espalda",
-   "muscleGroup": "dorsales",
-   "title": "Wings de dorsales en desarrollo",
-   "description": "Los dorsales crean una sombra visible debajo de las axilas. El V-taper es evidente.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 59.2
-  },
-  {
-   "id": "dorsales_anchos_establecidos",
-   "category": "espalda",
-   "muscleGroup": "dorsales",
-   "title": "Dorsales anchos establecidos",
-   "description": "Los dorsales crean un spread impresionante al expandir. V-taper muy pronunciado.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.5
-  },
-  {
-   "id": "trapecios_inferiores_definidos",
-   "category": "espalda",
-   "muscleGroup": "trapecio_inferior",
-   "title": "Trapecios inferiores definidos",
-   "description": "La porción inferior del trapecio crea detalle en la espalda media-baja.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.6
-  },
-  {
-   "id": "trapecios_medios_desarrollados",
-   "category": "espalda",
-   "muscleGroup": "trapecios",
-   "title": "Trapecios medios desarrollados",
-   "description": "Los trapecios medios crean grosor visible en la espalda superior. Postura más imponente.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 61.4
-  },
-  {
-   "id": "detalle_del_manguito_rotador_visible",
-   "category": "espalda",
-   "muscleGroup": "infraespinoso",
-   "title": "Detalle del manguito rotador visible",
-   "description": "El infraespinoso y teres menor crean detalle visible en la parte posterior del hombro.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 62.2
-  },
-  {
-   "id": "teres_mayor_desarrollado",
-   "category": "espalda",
-   "muscleGroup": "redondo_mayor",
-   "title": "Teres mayor desarrollado",
-   "description": "El redondo mayor crea grosor adicional bajo la axila. Espalda con detalle avanzado.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 63.3
-  },
-  {
-   "id": "detalle_de_espalda_media_completo",
-   "category": "espalda",
-   "muscleGroup": "romboides",
-   "title": "Detalle de espalda media completo",
-   "description": "Romboides, trapecios medios e infraespinoso crean un mapa muscular visible.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 64.1
-  },
-  {
-   "id": "masa_muscular_sustancial_alcanzada",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Masa muscular sustancial alcanzada",
-   "description": "El físico transmite fuerza y musculatura incluso con ropa. Presencia física notable.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 62.6
-  },
-  {
-   "id": "f_sico_de_nivel_intermedio_avanzado",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Físico de nivel intermedio-avanzado",
-   "description": "El desarrollo muscular supera al promedio de gimnasio. Físico que destaca.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 64.5
-  },
-  {
-   "id": "deltoides_lateral_emergente",
-   "category": "hombros",
-   "muscleGroup": "deltoides_lateral",
-   "title": "Deltoides lateral emergente",
-   "description": "La cabeza lateral del deltoides crea una pequeña curva visible al levantar los brazos. Los hombros parecen más anchos.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 57.3
-  },
-  {
-   "id": "deltoides_anterior_definido",
-   "category": "hombros",
-   "muscleGroup": "deltoides_anterior",
-   "title": "Deltoides anterior definido",
-   "description": "La cabeza anterior del deltoides se separa visualmente del pectoral. Crea sombra al levantar el brazo.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 58.5
-  },
-  {
-   "id": "cap_del_deltoides_formado",
-   "category": "hombros",
-   "muscleGroup": "deltoides_lateral",
-   "title": "Cap del deltoides formado",
-   "description": "El deltoides lateral crea un 'cap' redondeado sobre el brazo. Apariencia atlética consolidada.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 59.1
-  },
-  {
-   "id": "deltoides_posterior_emergente",
-   "category": "hombros",
-   "muscleGroup": "deltoides_posterior",
-   "title": "Deltoides posterior emergente",
-   "description": "La cabeza posterior del deltoides crea profundidad tridimensional en el hombro visto de lado.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 59.4
-  },
-  {
-   "id": "hombros_3d_completos",
-   "category": "hombros",
-   "muscleGroup": "deltoides_completo",
-   "title": "Hombros 3D completos",
-   "description": "Las tres cabezas del deltoides están desarrolladas. Hombros redondos y llenos desde cualquier ángulo.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.6
-  },
-  {
-   "id": "deltoides_posterior_completamente_desarr",
-   "category": "hombros",
-   "muscleGroup": "deltoides_posterior",
-   "title": "Deltoides posterior completamente desarrollado",
-   "description": "El rear delt crea profundidad impresionante. Hombros tridimensionales desde todos los ángulos.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 62.9
-  },
-  {
-   "id": "separaci_n_deltoides_b_ceps_clara",
-   "category": "hombros",
-   "muscleGroup": "deltoides_separacion",
-   "title": "Separación deltoides-bíceps clara",
-   "description": "La línea entre deltoides y bíceps es profunda y definida.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 63.2
-  },
-  {
-   "id": "caps_de_deltoides_prominentes",
-   "category": "hombros",
-   "muscleGroup": "deltoides_lateral",
-   "title": "Caps de deltoides prominentes",
-   "description": "Los deltoides laterales crean caps que sobresalen significativamente del brazo.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 63.9
-  },
-  {
-   "id": "hito_60_kg_de_masa_muscular_alcanzados",
-   "category": "milestone",
-   "muscleGroup": null,
-   "title": "🎯 HITO: 60 kg de masa muscular alcanzados",
-   "description": "Se supera la barrera de los 60 kg de músculo. Ganancia significativa desde los 56.4 kg iniciales.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.0
-  },
-  {
-   "id": "gemelos_con_forma_de_diamante",
-   "category": "piernas",
-   "muscleGroup": "gemelos",
-   "title": "Gemelos con forma de diamante",
-   "description": "Los gastrocnemios muestran la característica forma de diamante al ponerse de puntillas.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 58.3
-  },
-  {
-   "id": "sweep_del_cu_driceps_visible",
-   "category": "piernas",
-   "muscleGroup": "cuádriceps",
-   "title": "Sweep del cuádriceps visible",
-   "description": "La curva exterior del cuádriceps (sweep) crea una forma distintiva visto de frente.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.8
-  },
-  {
-   "id": "sartorio_visible_al_flexionar",
-   "category": "piernas",
-   "muscleGroup": "sartorio",
-   "title": "Sartorio visible al flexionar",
-   "description": "El músculo sartorio crea una línea diagonal visible en el muslo anterior.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 62.0
-  },
-  {
-   "id": "gemelos_con_separaci_n_medial",
-   "category": "piernas",
-   "muscleGroup": "gemelos",
-   "title": "Gemelos con separación medial",
-   "description": "La separación entre gastrocnemio medial y lateral es visible. Pantorrillas atléticas.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 62.4
-  },
-  {
-   "id": "l_grima_del_vasto_medial_definida",
-   "category": "piernas",
-   "muscleGroup": "vasto_medial",
-   "title": "Lágrima del vasto medial definida",
-   "description": "El vasto medial crea la característica forma de lágrima sobre la rodilla.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 63.5
-  },
-  {
-   "id": "tensor_de_la_fascia_lata_visible",
-   "category": "piernas",
-   "muscleGroup": "tensor_fascia_lata",
-   "title": "Tensor de la fascia lata visible",
-   "description": "El TFL crea un bulto visible en la parte lateral superior del muslo.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 64.0
-  },
-  {
-   "id": "gl_teos_desarrollados_y_definidos",
-   "category": "piernas",
-   "muscleGroup": "glúteos",
-   "title": "Glúteos desarrollados y definidos",
-   "description": "Los glúteos muestran forma atlética y separación visible del bíceps femoral.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 64.3
-  },
-  {
-   "id": "ratio_hombro_cintura_ptimo",
-   "category": "proporciones",
-   "muscleGroup": null,
-   "title": "Ratio hombro-cintura óptimo",
-   "description": "La proporción hombros/cintura alcanza 1.5:1. V-taper estéticamente ideal.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.0
-  },
-  {
-   "id": "simetr_a_bilateral_verificada",
-   "category": "proporciones",
-   "muscleGroup": null,
-   "title": "Simetría bilateral verificada",
-   "description": "Ambos lados del cuerpo muestran desarrollo equilibrado. Sin asimetrías notables.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 61.3
-  },
-  {
-   "id": "proporciones_de_brazo_ideales",
-   "category": "proporciones",
-   "muscleGroup": null,
-   "title": "Proporciones de brazo ideales",
-   "description": "El ratio bíceps/tríceps/antebrazo está equilibrado. Brazo estéticamente completo.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 62.8
-  },
-  {
-   "id": "proporci_n_pierna_torso_equilibrada",
-   "category": "proporciones",
-   "muscleGroup": null,
-   "title": "Proporción pierna-torso equilibrada",
-   "description": "Las piernas están proporcionalmente desarrolladas con el torso. Físico balanceado.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 64.7
-  },
-  {
-   "id": "primer_pump_pectoral_persistente",
-   "category": "torso",
-   "muscleGroup": "pectorales",
-   "title": "Primer pump pectoral persistente",
-   "description": "Los pectorales mantienen un aspecto más lleno incluso en reposo. Primera señal de hipertrofia real.",
-   "visibility": "sutil",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 56.8
-  },
-  {
-   "id": "pectoral_superior_desarrollado",
-   "category": "torso",
-   "muscleGroup": "pectoral_superior",
-   "title": "Pectoral superior desarrollado",
-   "description": "La porción clavicular del pectoral está llena. Pecho completo desde la clavícula.",
-   "visibility": "notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 60.4
-  },
-  {
-   "id": "pectorales_llenos_y_cuadrados",
-   "category": "torso",
-   "muscleGroup": "pectorales",
-   "title": "Pectorales llenos y cuadrados",
-   "description": "Los pectorales tienen forma completa desde la clavícula hasta el borde inferior. Aspecto de armadura.",
-   "visibility": "muy_notable",
-   "fatPctBelow": null,
-   "muscleGainKgAbove": 61.0
-  },
-  {
-   "id": "reducci_n_de_retenci_n_de_l_quidos",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Reducción de retención de líquidos",
-   "description": "El rostro aparece más definido. Las manos y tobillos menos hinchados por la mañana.",
-   "visibility": "notable",
-   "fatPctBelow": 26.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "definici_n_inicial_del_vasto_externo",
-   "category": "piernas",
-   "muscleGroup": "cuádriceps",
-   "title": "Definición inicial del vasto externo",
-   "description": "El vasto lateral del cuádriceps muestra una separación sutil del resto del muslo.",
-   "visibility": "sutil",
-   "fatPctBelow": 25.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "l_nea_de_los_oblicuos_visible",
-   "category": "core",
-   "muscleGroup": "oblicuos",
-   "title": "Línea de los oblicuos visible",
-   "description": "Las líneas laterales del abdomen (oblicuos externos) comienzan a marcarse sutilmente.",
-   "visibility": "sutil",
-   "fatPctBelow": 24.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "separaci_n_pectoral_central",
-   "category": "torso",
-   "muscleGroup": "pectorales",
-   "title": "Separación pectoral central",
-   "description": "La línea central entre ambos pectorales se hace visible. El surco esternal aparece definido.",
-   "visibility": "notable",
-   "fatPctBelow": 24.0,
-   "muscleGainKgAbove": 57.8
-  },
-  {
-   "id": "l_nea_alba_visible",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Línea alba visible",
-   "description": "La línea alba (línea central del abdomen) es claramente visible. Primer paso hacia abdominales definidos.",
-   "visibility": "notable",
-   "fatPctBelow": 23.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "fin_de_newbie_gains_transformaci_n_visib",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Fin de newbie gains - Transformación visible",
-   "description": "Familiares y amigos notan el cambio físico. La ropa queda diferente. Fin de la fase de recomposición.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 23.0,
-   "muscleGainKgAbove": 58.9
-  },
-  {
-   "id": "primera_vena_del_b_ceps_visible",
-   "category": "vascularidad",
-   "muscleGroup": "brazos",
-   "title": "Primera vena del bíceps visible",
-   "description": "La vena cefálica del brazo es visible durante el entrenamiento y pump. Primera señal de vascularidad.",
-   "visibility": "notable",
-   "fatPctBelow": 23.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "dos_abdominales_superiores_visibles",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Dos abdominales superiores visibles",
-   "description": "Los dos bloques superiores del recto abdominal son visibles con buena iluminación.",
-   "visibility": "notable",
-   "fatPctBelow": 22.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "separaci_n_b_ceps_tr_ceps_clara",
-   "category": "brazos",
-   "muscleGroup": "bíceps",
-   "title": "Separación bíceps-tríceps clara",
-   "description": "La división entre bíceps y tríceps es claramente visible. El brazo tiene forma tridimensional.",
-   "visibility": "notable",
-   "fatPctBelow": 21.5,
-   "muscleGainKgAbove": 59.0
-  },
-  {
-   "id": "serrato_anterior_visible",
-   "category": "torso",
-   "muscleGroup": "serrato",
-   "title": "Serrato anterior visible",
-   "description": "Los dedos del serrato anterior aparecen bajo el pectoral al levantar los brazos.",
-   "visibility": "sutil",
-   "fatPctBelow": 21.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "separaci_n_de_cabezas_del_cu_driceps",
-   "category": "piernas",
-   "muscleGroup": "cuádriceps",
-   "title": "Separación de cabezas del cuádriceps",
-   "description": "Las cuatro cabezas del cuádriceps muestran separación visible al flexionar.",
-   "visibility": "notable",
-   "fatPctBelow": 20.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "cuatro_abdominales_definidos",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Cuatro abdominales definidos",
-   "description": "Los cuatro bloques superiores del recto abdominal son claramente visibles.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 20.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "hito_20_de_grasa_corporal_alcanzado",
-   "category": "milestone",
-   "muscleGroup": null,
-   "title": "🎯 HITO: 20% de grasa corporal alcanzado",
-   "description": "Se cruza la barrera del 20%. La definición muscular es visible en todo el cuerpo.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 20.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "tres_cabezas_del_tr_ceps_visibles",
-   "category": "brazos",
-   "muscleGroup": "tríceps",
-   "title": "Tres cabezas del tríceps visibles",
-   "description": "La cabeza larga, lateral y medial del tríceps son distinguibles. Herradura definida.",
-   "visibility": "notable",
-   "fatPctBelow": 19.5,
-   "muscleGainKgAbove": 59.3
-  },
-  {
-   "id": "venas_del_antebrazo_en_reposo",
-   "category": "vascularidad",
-   "muscleGroup": "antebrazos",
-   "title": "Venas del antebrazo en reposo",
-   "description": "Las venas del antebrazo son visibles incluso sin pump. Vascularidad establecida.",
-   "visibility": "notable",
-   "fatPctBelow": 19.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "christmas_tree_insinuado",
-   "category": "espalda",
-   "muscleGroup": "erectores",
-   "title": "Christmas tree insinuado",
-   "description": "Los erectores espinales comienzan a formar el patrón de 'árbol de navidad' en la espalda baja.",
-   "visibility": "sutil",
-   "fatPctBelow": 18.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "serrato_desarrollado",
-   "category": "torso",
-   "muscleGroup": "serrato",
-   "title": "Serrato desarrollado",
-   "description": "Los dedos del serrato anterior son visibles incluso con el brazo en reposo.",
-   "visibility": "notable",
-   "fatPctBelow": 18.5,
-   "muscleGainKgAbove": 62.7
-  },
-  {
-   "id": "abdominales_visibles_bajo_grasa_de_bulk",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Abdominales visibles bajo grasa de bulk",
-   "description": "A pesar del superávit, los abdominales superiores siguen visibles. Buena partición de nutrientes.",
-   "visibility": "notable",
-   "fatPctBelow": 18.2,
-   "muscleGainKgAbove": 62.0
-  },
-  {
-   "id": "b_ceps_femoral_visible",
-   "category": "piernas",
-   "muscleGroup": "femorales",
-   "title": "Bíceps femoral visible",
-   "description": "El bíceps femoral crea una curva visible en la parte posterior del muslo.",
-   "visibility": "notable",
-   "fatPctBelow": 18.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "aductores_visibles_en_tensi_n",
-   "category": "piernas",
-   "muscleGroup": "aductores",
-   "title": "Aductores visibles en tensión",
-   "description": "Los músculos aductores del muslo crean una línea interior visible al flexionar.",
-   "visibility": "sutil",
-   "fatPctBelow": 18.0,
-   "muscleGainKgAbove": 61.8
-  },
-  {
-   "id": "venas_del_dorso_de_la_mano_prominentes",
-   "category": "vascularidad",
-   "muscleGroup": "dorso_mano",
-   "title": "Venas del dorso de la mano prominentes",
-   "description": "Las venas del dorso de la mano son muy visibles. Indicador de bajo % grasa.",
-   "visibility": "notable",
-   "fatPctBelow": 18.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "red_venosa_del_b_ceps_visible",
-   "category": "vascularidad",
-   "muscleGroup": "brazos",
-   "title": "Red venosa del bíceps visible",
-   "description": "Múltiples venas visibles en el bíceps. La vascularidad aumenta rápidamente en el mini-corte.",
-   "visibility": "notable",
-   "fatPctBelow": 18.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "estriaciones_pectorales_iniciales",
-   "category": "torso",
-   "muscleGroup": "pectorales",
-   "title": "Estriaciones pectorales iniciales",
-   "description": "Fibras musculares visibles en el pectoral al flexionar. Primera señal de definición profunda.",
-   "visibility": "sutil",
-   "fatPctBelow": 17.8,
-   "muscleGainKgAbove": 59.6
-  },
-  {
-   "id": "l_neas_de_adonis_marcadas",
-   "category": "core",
-   "muscleGroup": "oblicuos",
-   "title": "Líneas de Adonis marcadas",
-   "description": "Las líneas en V del abdomen inferior (líneas de Adonis/cinturón de Apolo) son claramente visibles.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 17.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "vena_del_deltoides_visible",
-   "category": "vascularidad",
-   "muscleGroup": "hombros",
-   "title": "Vena del deltoides visible",
-   "description": "Una vena cruza visiblemente sobre el deltoides lateral durante el entrenamiento.",
-   "visibility": "notable",
-   "fatPctBelow": 17.3,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "seis_abdominales_en_buena_luz",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Seis abdominales en buena luz",
-   "description": "Los seis bloques superiores del recto abdominal son visibles con iluminación favorable.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 17.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "fin_del_corte_1_f_sico_atl_tico_consolid",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Fin del Corte 1 - Físico atlético consolidado",
-   "description": "Apariencia atlética indiscutible. Definición visible en la mayoría de grupos musculares.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 17.0,
-   "muscleGainKgAbove": 59.8
-  },
-  {
-   "id": "cintura_estrecha_mantenida",
-   "category": "core",
-   "muscleGroup": "transverso",
-   "title": "Cintura estrecha mantenida",
-   "description": "A pesar del aumento de masa, la cintura se mantiene proporcionalmente estrecha.",
-   "visibility": "notable",
-   "fatPctBelow": 16.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "detalle_de_inserci_n_dorsal_visible",
-   "category": "espalda",
-   "muscleGroup": "dorsales",
-   "title": "Detalle de inserción dorsal visible",
-   "description": "La inserción baja del dorsal crea una línea definida hacia la cintura.",
-   "visibility": "notable",
-   "fatPctBelow": 16.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "venas_pectorales_visibles",
-   "category": "vascularidad",
-   "muscleGroup": "pectorales",
-   "title": "Venas pectorales visibles",
-   "description": "Venas cruzando el pectoral son visibles durante el entrenamiento. Alta vascularidad.",
-   "visibility": "notable",
-   "fatPctBelow": 16.4,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "detalle_de_serratos_posteriores",
-   "category": "espalda",
-   "muscleGroup": "serratos_posteriores",
-   "title": "Detalle de serratos posteriores",
-   "description": "Los serratos posteriores añaden detalle a la espalda lateral baja.",
-   "visibility": "sutil",
-   "fatPctBelow": 16.3,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "pectoral_inferior_definido",
-   "category": "torso",
-   "muscleGroup": "pectorales",
-   "title": "Pectoral inferior definido",
-   "description": "La línea inferior del pectoral está claramente marcada. Separación pec-abdomen visible.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 16.3,
-   "muscleGainKgAbove": 63.7
-  },
-  {
-   "id": "separaci_n_clara_gl_teo_femoral",
-   "category": "piernas",
-   "muscleGroup": "femorales",
-   "title": "Separación clara glúteo-femoral",
-   "description": "La línea entre glúteo y bíceps femoral es claramente definida. Piernas atléticas.",
-   "visibility": "notable",
-   "fatPctBelow": 16.2,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "oblicuos_con_textura_visible",
-   "category": "core",
-   "muscleGroup": "oblicuos",
-   "title": "Oblicuos con textura visible",
-   "description": "Los oblicuos externos muestran líneas y textura muscular, no solo forma.",
-   "visibility": "notable",
-   "fatPctBelow": 16.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "seis_abdominales_claramente_definidos",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Seis abdominales claramente definidos",
-   "description": "Los seis bloques principales son visibles con luz normal. Definición abdominal sólida.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 16.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "fin_mini_corte_m_sculo_revelado",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Fin mini-corte - Músculo revelado",
-   "description": "Todo el músculo ganado en Bulking 1 ahora visible. Mejor forma física hasta la fecha.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 16.0,
-   "muscleGainKgAbove": 63.0
-  },
-  {
-   "id": "vascularidad_en_espalda_baja",
-   "category": "vascularidad",
-   "muscleGroup": "espalda",
-   "title": "Vascularidad en espalda baja",
-   "description": "Venas visibles en la zona lumbar. Indicador de definición avanzada.",
-   "visibility": "notable",
-   "fatPctBelow": 16.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "venas_abdominales_emergentes",
-   "category": "vascularidad",
-   "muscleGroup": "abdomen",
-   "title": "Venas abdominales emergentes",
-   "description": "Venas superficiales del abdomen comienzan a ser visibles.",
-   "visibility": "notable",
-   "fatPctBelow": 15.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "hito_15_de_grasa_corporal_alcanzado",
-   "category": "milestone",
-   "muscleGroup": null,
-   "title": "🎯 HITO: 15% de grasa corporal alcanzado",
-   "description": "Se cruza la barrera del 15%. Definición de nivel fitness/atlético alcanzada.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 15.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "estriaciones_pectorales_claras",
-   "category": "torso",
-   "muscleGroup": "pectorales",
-   "title": "Estriaciones pectorales claras",
-   "description": "Las fibras musculares del pectoral son claramente visibles al flexionar.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 15.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "estriaciones_del_deltoides",
-   "category": "hombros",
-   "muscleGroup": "deltoides_completo",
-   "title": "Estriaciones del deltoides",
-   "description": "Las fibras del deltoides son visibles, especialmente en la cabeza lateral y posterior.",
-   "visibility": "notable",
-   "fatPctBelow": 14.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "detalle_dorsal_completo",
-   "category": "espalda",
-   "muscleGroup": "dorsales",
-   "title": "Detalle dorsal completo",
-   "description": "El dorsal muestra estriaciones y detalle en toda su extensión. Christmas tree formándose.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 14.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "separaci_n_completa_del_cu_driceps",
-   "category": "piernas",
-   "muscleGroup": "cuádriceps",
-   "title": "Separación completa del cuádriceps",
-   "description": "Las cuatro cabezas del cuádriceps están completamente separadas. Definición de pierna excelente.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 13.8,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "ocho_abdominales_visibles",
-   "category": "core",
-   "muscleGroup": "abdominales",
-   "title": "Ocho abdominales visibles",
-   "description": "Los ocho bloques del recto abdominal son visibles (incluyendo los inferiores).",
-   "visibility": "muy_notable",
-   "fatPctBelow": 13.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "vascularidad_en_cu_driceps",
-   "category": "vascularidad",
-   "muscleGroup": "piernas",
-   "title": "Vascularidad en cuádriceps",
-   "description": "Venas visibles cruzando el cuádriceps. Nivel de definición muy alto.",
-   "visibility": "notable",
-   "fatPctBelow": 13.2,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "serrato_completamente_definido",
-   "category": "core",
-   "muscleGroup": "serrato",
-   "title": "Serrato completamente definido",
-   "description": "Todos los dientes del serrato anterior son visibles individualmente.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 13.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "christmas_tree_completo",
-   "category": "espalda",
-   "muscleGroup": "erectores",
-   "title": "Christmas tree completo",
-   "description": "Los erectores espinales forman el patrón de árbol de navidad claramente visible.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 13.0,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "intercostales_visibles",
-   "category": "core",
-   "muscleGroup": "intercostales",
-   "title": "Intercostales visibles",
-   "description": "Los músculos intercostales son visibles entre las costillas. Definición de élite.",
-   "visibility": "notable",
-   "fatPctBelow": 12.8,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "condici_n_f_sica_peak_pre_mantenimiento",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Condición física peak pre-mantenimiento",
-   "description": "Máxima definición alcanzada. Todos los grupos musculares visibles con detalle.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 12.5,
-   "muscleGainKgAbove": 64.8
-  },
-  {
-   "id": "estriaciones_en_b_ceps_femoral",
-   "category": "piernas",
-   "muscleGroup": "femorales",
-   "title": "Estriaciones en bíceps femoral",
-   "description": "Las fibras del bíceps femoral son visibles. Definición de pierna de élite.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 12.5,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "vascularidad_completa_en_todo_el_cuerpo",
-   "category": "vascularidad",
-   "muscleGroup": "general",
-   "title": "Vascularidad completa en todo el cuerpo",
-   "description": "Venas visibles en brazos, hombros, abdomen y piernas. Condición muy definida.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 12.3,
-   "muscleGainKgAbove": null
-  },
-  {
-   "id": "equilibrio_est_tico_alcanzado",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Equilibrio estético alcanzado",
-   "description": "Proporciones musculares balanceadas. Ningún grupo muscular rezagado visualmente.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 12.1,
-   "muscleGainKgAbove": 64.8
-  },
-  {
-   "id": "condici_n_sostenible_establecida",
-   "category": "general",
-   "muscleGroup": null,
-   "title": "Condición sostenible establecida",
-   "description": "El físico es mantenible sin esfuerzo extremo. Punto de equilibrio encontrado.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 12.0,
-   "muscleGainKgAbove": 64.8
-  },
-  {
-   "id": "transformaci_n_completada",
-   "category": "milestone",
-   "muscleGroup": null,
-   "title": "🏆 TRANSFORMACIÓN COMPLETADA",
-   "description": "485 días de transformación. De 81.2kg/26.6% grasa a 77.8kg/12.1% grasa. +8.4kg músculo. Objetivo alcanzado.",
-   "visibility": "muy_notable",
-   "fatPctBelow": 12.0,
-   "muscleGainKgAbove": 64.8
-  }
- ]
+  "_comment": "Catálogo estético despersonalizado, rescatado del plan personal de la v4.0 (M5-5). Solo se conservan los hitos con umbral de composición: son aplicables a cualquiera. `muscleGainKgAbove` es GANANCIA de músculo respecto al punto de partida del usuario, en kg — el fichero original guardaba la masa ABSOLUTA de una persona concreta (56,8–64,8 kg), lo que hacía inalcanzables 58 de los 97 hitos. Los textos que aún citaban sus cifras o los nombres de sus fases se reescribieron.",
+  "source": "aesthetic_milestones_complete.json (v4.0), umbrales de músculo convertidos restando su masa inicial de 56,55 kg",
+  "items": [
+    {
+      "id": "braquiorradial_visible",
+      "category": "antebrazos",
+      "muscleGroup": "braquiorradial",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Braquiorradial visible",
+        "en": "Brachioradialis visible"
+      },
+      "description": {
+        "es": "El músculo braquiorradial crea un bulto visible en la parte superior del antebrazo.",
+        "en": "The brachioradialis forms a visible bulge on the upper forearm."
+      },
+      "muscleGainKgAbove": 1.55
+    },
+    {
+      "id": "antebrazos_con_forma_definida",
+      "category": "antebrazos",
+      "muscleGroup": "extensores",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Antebrazos con forma definida",
+        "en": "Forearms take shape"
+      },
+      "description": {
+        "es": "Los extensores y flexores del antebrazo crean formas visibles. Antebrazo grueso y atlético.",
+        "en": "Forearm extensors and flexors create visible shapes. Thick, athletic forearm."
+      },
+      "muscleGainKgAbove": 5.05
+    },
+    {
+      "id": "b_ceps_con_forma_definida",
+      "category": "brazos",
+      "muscleGroup": "bíceps",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Bíceps con forma definida",
+        "en": "Biceps take shape"
+      },
+      "description": {
+        "es": "El bíceps braquial muestra una curvatura más pronunciada al flexionar. El pico comienza a formarse.",
+        "en": "The biceps brachii shows a more pronounced curve when flexed. The peak starts to form."
+      },
+      "muscleGainKgAbove": 0.45
+    },
+    {
+      "id": "herradura_del_tr_ceps_insinuada",
+      "category": "brazos",
+      "muscleGroup": "tríceps",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Herradura del tríceps insinuada",
+        "en": "Tricep horseshoe hinted"
+      },
+      "description": {
+        "es": "La forma de herradura del tríceps es visible bajo luz directa al extender el brazo.",
+        "en": "The horseshoe shape of the tricep shows under direct light when the arm is extended."
+      },
+      "muscleGainKgAbove": 1.05
+    },
+    {
+      "id": "pico_del_b_ceps_desarrollado",
+      "category": "brazos",
+      "muscleGroup": "bíceps",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Pico del bíceps desarrollado",
+        "en": "Bicep peak developed"
+      },
+      "description": {
+        "es": "El pico del bíceps es prominente al flexionar. El bíceps braquial muestra altura notable.",
+        "en": "The bicep peak is prominent when flexed. The biceps brachii shows real height."
+      },
+      "muscleGainKgAbove": 3.75
+    },
+    {
+      "id": "tr_ceps_dominante_en_el_brazo",
+      "category": "brazos",
+      "muscleGroup": "tríceps",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Tríceps dominante en el brazo",
+        "en": "Triceps dominate the arm"
+      },
+      "description": {
+        "es": "El tríceps es visiblemente más grande que el bíceps. El brazo tiene grosor real.",
+        "en": "The tricep is visibly larger than the bicep. The arm has real thickness."
+      },
+      "muscleGainKgAbove": 4.65
+    },
+    {
+      "id": "braquial_visible_entre_b_ceps_y_tr_ceps",
+      "category": "brazos",
+      "muscleGroup": "braquial",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Braquial visible entre bíceps y tríceps",
+        "en": "Brachialis visible between bicep and tricep"
+      },
+      "description": {
+        "es": "El músculo braquial crea un bulto visible entre bíceps y tríceps. Detalle de brazo avanzado.",
+        "en": "The brachialis forms a visible bulge between bicep and tricep. Advanced arm detail."
+      },
+      "muscleGainKgAbove": 6.55
+    },
+    {
+      "id": "b_ceps_con_detalle_de_cabezas",
+      "category": "brazos",
+      "muscleGroup": "bíceps",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Bíceps con detalle de cabezas",
+        "en": "Bicep heads distinguishable"
+      },
+      "description": {
+        "es": "La cabeza corta y larga del bíceps son distinguibles. Pico muy desarrollado.",
+        "en": "The short and long heads of the bicep can be told apart. Very developed peak."
+      },
+      "muscleGainKgAbove": 8.05
+    },
+    {
+      "id": "primeros_signos_de_v_taper",
+      "category": "espalda",
+      "muscleGroup": "dorsales",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Primeros signos de V-taper",
+        "en": "First signs of a V-taper"
+      },
+      "description": {
+        "es": "Los dorsales empiezan a ensancharse visiblemente. La cintura parece proporcionalmente más estrecha.",
+        "en": "The lats begin to widen visibly. The waist looks proportionally narrower."
+      },
+      "muscleGainKgAbove": 0.65
+    },
+    {
+      "id": "trapecios_superiores_desarrollados",
+      "category": "espalda",
+      "muscleGroup": "trapecios",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Trapecios superiores desarrollados",
+        "en": "Upper traps developed"
+      },
+      "description": {
+        "es": "Los trapecios superiores crean una línea diagonal notable desde el cuello hasta los hombros.",
+        "en": "The upper traps draw a noticeable diagonal line from neck to shoulders."
+      },
+      "muscleGainKgAbove": 1.45
+    },
+    {
+      "id": "romboides_marcados_en_contracci_n",
+      "category": "espalda",
+      "muscleGroup": "romboides",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Romboides marcados en contracción",
+        "en": "Rhomboids show when squeezed"
+      },
+      "description": {
+        "es": "Al juntar las escápulas, los romboides crean un relieve visible en la espalda media.",
+        "en": "Pulling the shoulder blades together makes the rhomboids stand out across the mid back."
+      },
+      "muscleGainKgAbove": 2.05
+    },
+    {
+      "id": "wings_de_dorsales_en_desarrollo",
+      "category": "espalda",
+      "muscleGroup": "dorsales",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Wings de dorsales en desarrollo",
+        "en": "Lat wings developing"
+      },
+      "description": {
+        "es": "Los dorsales crean una sombra visible debajo de las axilas. El V-taper es evidente.",
+        "en": "The lats cast a visible shadow below the armpits. The V-taper is obvious."
+      },
+      "muscleGainKgAbove": 2.65
+    },
+    {
+      "id": "dorsales_anchos_establecidos",
+      "category": "espalda",
+      "muscleGroup": "dorsales",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Dorsales anchos establecidos",
+        "en": "Wide lats established"
+      },
+      "description": {
+        "es": "Los dorsales crean un spread impresionante al expandir. V-taper muy pronunciado.",
+        "en": "The lats create an impressive spread when expanded. Very pronounced V-taper."
+      },
+      "muscleGainKgAbove": 3.95
+    },
+    {
+      "id": "trapecios_inferiores_definidos",
+      "category": "espalda",
+      "muscleGroup": "trapecio_inferior",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Trapecios inferiores definidos",
+        "en": "Lower traps defined"
+      },
+      "description": {
+        "es": "La porción inferior del trapecio crea detalle en la espalda media-baja.",
+        "en": "The lower portion of the trapezius adds detail to the mid-to-lower back."
+      },
+      "muscleGainKgAbove": 4.05
+    },
+    {
+      "id": "trapecios_medios_desarrollados",
+      "category": "espalda",
+      "muscleGroup": "trapecios",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Trapecios medios desarrollados",
+        "en": "Mid traps developed"
+      },
+      "description": {
+        "es": "Los trapecios medios crean grosor visible en la espalda superior. Postura más imponente.",
+        "en": "The mid traps add visible thickness to the upper back. More imposing posture."
+      },
+      "muscleGainKgAbove": 4.85
+    },
+    {
+      "id": "detalle_del_manguito_rotador_visible",
+      "category": "espalda",
+      "muscleGroup": "infraespinoso",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Detalle del manguito rotador visible",
+        "en": "Rotator cuff detail visible"
+      },
+      "description": {
+        "es": "El infraespinoso y teres menor crean detalle visible en la parte posterior del hombro.",
+        "en": "The infraspinatus and teres minor add visible detail to the rear shoulder."
+      },
+      "muscleGainKgAbove": 5.65
+    },
+    {
+      "id": "teres_mayor_desarrollado",
+      "category": "espalda",
+      "muscleGroup": "redondo_mayor",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Teres mayor desarrollado",
+        "en": "Teres major developed"
+      },
+      "description": {
+        "es": "El redondo mayor crea grosor adicional bajo la axila. Espalda con detalle avanzado.",
+        "en": "The teres major adds thickness under the armpit. Advanced back detail."
+      },
+      "muscleGainKgAbove": 6.75
+    },
+    {
+      "id": "detalle_de_espalda_media_completo",
+      "category": "espalda",
+      "muscleGroup": "romboides",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Detalle de espalda media completo",
+        "en": "Full mid-back detail"
+      },
+      "description": {
+        "es": "Romboides, trapecios medios e infraespinoso crean un mapa muscular visible.",
+        "en": "Rhomboids, mid traps and infraspinatus draw a visible muscle map."
+      },
+      "muscleGainKgAbove": 7.55
+    },
+    {
+      "id": "masa_muscular_sustancial_alcanzada",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Masa muscular sustancial alcanzada",
+        "en": "Substantial muscle mass"
+      },
+      "description": {
+        "es": "El físico transmite fuerza y musculatura incluso con ropa. Presencia física notable.",
+        "en": "The physique reads as strong and muscular even in clothes. Noticeable presence."
+      },
+      "muscleGainKgAbove": 6.05
+    },
+    {
+      "id": "f_sico_de_nivel_intermedio_avanzado",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Físico de nivel intermedio-avanzado",
+        "en": "Intermediate-to-advanced physique"
+      },
+      "description": {
+        "es": "El desarrollo muscular supera al promedio de gimnasio. Físico que destaca.",
+        "en": "Muscle development is above the gym average. A physique that stands out."
+      },
+      "muscleGainKgAbove": 7.95
+    },
+    {
+      "id": "deltoides_lateral_emergente",
+      "category": "hombros",
+      "muscleGroup": "deltoides_lateral",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Deltoides lateral emergente",
+        "en": "Side delt emerging"
+      },
+      "description": {
+        "es": "La cabeza lateral del deltoides crea una pequeña curva visible al levantar los brazos. Los hombros parecen más anchos.",
+        "en": "The lateral head of the deltoid shows a small visible curve when raising the arms. Shoulders look wider."
+      },
+      "muscleGainKgAbove": 0.75
+    },
+    {
+      "id": "deltoides_anterior_definido",
+      "category": "hombros",
+      "muscleGroup": "deltoides_anterior",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Deltoides anterior definido",
+        "en": "Front delt defined"
+      },
+      "description": {
+        "es": "La cabeza anterior del deltoides se separa visualmente del pectoral. Crea sombra al levantar el brazo.",
+        "en": "The anterior deltoid separates visually from the chest. Casts a shadow when the arm is raised."
+      },
+      "muscleGainKgAbove": 1.95
+    },
+    {
+      "id": "cap_del_deltoides_formado",
+      "category": "hombros",
+      "muscleGroup": "deltoides_lateral",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Cap del deltoides formado",
+        "en": "Delt cap formed"
+      },
+      "description": {
+        "es": "El deltoides lateral crea un 'cap' redondeado sobre el brazo. Apariencia atlética consolidada.",
+        "en": "The side delt forms a rounded cap over the arm. Athletic look consolidated."
+      },
+      "muscleGainKgAbove": 2.55
+    },
+    {
+      "id": "deltoides_posterior_emergente",
+      "category": "hombros",
+      "muscleGroup": "deltoides_posterior",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Deltoides posterior emergente",
+        "en": "Rear delt emerging"
+      },
+      "description": {
+        "es": "La cabeza posterior del deltoides crea profundidad tridimensional en el hombro visto de lado.",
+        "en": "The posterior deltoid gives the shoulder three-dimensional depth seen from the side."
+      },
+      "muscleGainKgAbove": 2.85
+    },
+    {
+      "id": "hombros_3d_completos",
+      "category": "hombros",
+      "muscleGroup": "deltoides_completo",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Hombros 3D completos",
+        "en": "Fully 3D shoulders"
+      },
+      "description": {
+        "es": "Las tres cabezas del deltoides están desarrolladas. Hombros redondos y llenos desde cualquier ángulo.",
+        "en": "All three deltoid heads are developed. Round, full shoulders from any angle."
+      },
+      "muscleGainKgAbove": 4.05
+    },
+    {
+      "id": "deltoides_posterior_completamente_desarr",
+      "category": "hombros",
+      "muscleGroup": "deltoides_posterior",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Deltoides posterior completamente desarrollado",
+        "en": "Rear delt fully developed"
+      },
+      "description": {
+        "es": "El rear delt crea profundidad impresionante. Hombros tridimensionales desde todos los ángulos.",
+        "en": "The rear delt adds impressive depth. Three-dimensional shoulders from every angle."
+      },
+      "muscleGainKgAbove": 6.35
+    },
+    {
+      "id": "separaci_n_deltoides_b_ceps_clara",
+      "category": "hombros",
+      "muscleGroup": "deltoides_separacion",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Separación deltoides-bíceps clara",
+        "en": "Clear delt-bicep separation"
+      },
+      "description": {
+        "es": "La línea entre deltoides y bíceps es profunda y definida.",
+        "en": "The line between deltoid and bicep is deep and defined."
+      },
+      "muscleGainKgAbove": 6.65
+    },
+    {
+      "id": "caps_de_deltoides_prominentes",
+      "category": "hombros",
+      "muscleGroup": "deltoides_lateral",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Caps de deltoides prominentes",
+        "en": "Prominent delt caps"
+      },
+      "description": {
+        "es": "Los deltoides laterales crean caps que sobresalen significativamente del brazo.",
+        "en": "The side delts form caps that stand well clear of the arm."
+      },
+      "muscleGainKgAbove": 7.35
+    },
+    {
+      "id": "hito_60_kg_de_masa_muscular_alcanzados",
+      "category": "milestone",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Masa muscular notablemente aumentada",
+        "en": "Muscle mass noticeably up"
+      },
+      "description": {
+        "es": "La ganancia acumulada de músculo ya es evidente en el espejo y en la ropa.",
+        "en": "The accumulated muscle gain now shows in the mirror and in how clothes fit."
+      },
+      "muscleGainKgAbove": 3.45
+    },
+    {
+      "id": "gemelos_con_forma_de_diamante",
+      "category": "piernas",
+      "muscleGroup": "gemelos",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Gemelos con forma de diamante",
+        "en": "Diamond-shaped calves"
+      },
+      "description": {
+        "es": "Los gastrocnemios muestran la característica forma de diamante al ponerse de puntillas.",
+        "en": "The gastrocnemius shows its characteristic diamond shape when up on the toes."
+      },
+      "muscleGainKgAbove": 1.75
+    },
+    {
+      "id": "sweep_del_cu_driceps_visible",
+      "category": "piernas",
+      "muscleGroup": "cuádriceps",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Sweep del cuádriceps visible",
+        "en": "Quad sweep visible"
+      },
+      "description": {
+        "es": "La curva exterior del cuádriceps (sweep) crea una forma distintiva visto de frente.",
+        "en": "The outer curve of the quad (the sweep) forms a distinctive shape from the front."
+      },
+      "muscleGainKgAbove": 4.25
+    },
+    {
+      "id": "sartorio_visible_al_flexionar",
+      "category": "piernas",
+      "muscleGroup": "sartorio",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Sartorio visible al flexionar",
+        "en": "Sartorius visible when flexing"
+      },
+      "description": {
+        "es": "El músculo sartorio crea una línea diagonal visible en el muslo anterior.",
+        "en": "The sartorius draws a visible diagonal line across the front of the thigh."
+      },
+      "muscleGainKgAbove": 5.45
+    },
+    {
+      "id": "gemelos_con_separaci_n_medial",
+      "category": "piernas",
+      "muscleGroup": "gemelos",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Gemelos con separación medial",
+        "en": "Calves with medial separation"
+      },
+      "description": {
+        "es": "La separación entre gastrocnemio medial y lateral es visible. Pantorrillas atléticas.",
+        "en": "The split between medial and lateral gastrocnemius is visible. Athletic calves."
+      },
+      "muscleGainKgAbove": 5.85
+    },
+    {
+      "id": "l_grima_del_vasto_medial_definida",
+      "category": "piernas",
+      "muscleGroup": "vasto_medial",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Lágrima del vasto medial definida",
+        "en": "Teardrop defined"
+      },
+      "description": {
+        "es": "El vasto medial crea la característica forma de lágrima sobre la rodilla.",
+        "en": "The vastus medialis forms its characteristic teardrop above the knee."
+      },
+      "muscleGainKgAbove": 6.95
+    },
+    {
+      "id": "tensor_de_la_fascia_lata_visible",
+      "category": "piernas",
+      "muscleGroup": "tensor_fascia_lata",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Tensor de la fascia lata visible",
+        "en": "Tensor fasciae latae visible"
+      },
+      "description": {
+        "es": "El TFL crea un bulto visible en la parte lateral superior del muslo.",
+        "en": "The TFL forms a visible bulge on the upper outer thigh."
+      },
+      "muscleGainKgAbove": 7.45
+    },
+    {
+      "id": "gl_teos_desarrollados_y_definidos",
+      "category": "piernas",
+      "muscleGroup": "glúteos",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Glúteos desarrollados y definidos",
+        "en": "Glutes developed and defined"
+      },
+      "description": {
+        "es": "Los glúteos muestran forma atlética y separación visible del bíceps femoral.",
+        "en": "The glutes show athletic shape and visible separation from the hamstring."
+      },
+      "muscleGainKgAbove": 7.75
+    },
+    {
+      "id": "ratio_hombro_cintura_ptimo",
+      "category": "proporciones",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Ratio hombro-cintura óptimo",
+        "en": "Optimal shoulder-to-waist ratio"
+      },
+      "description": {
+        "es": "La proporción hombros/cintura alcanza 1.5:1. V-taper estéticamente ideal.",
+        "en": "The shoulder-to-waist proportion reaches 1.5:1. Aesthetically ideal V-taper."
+      },
+      "muscleGainKgAbove": 3.45
+    },
+    {
+      "id": "simetr_a_bilateral_verificada",
+      "category": "proporciones",
+      "muscleGroup": null,
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Simetría bilateral verificada",
+        "en": "Bilateral symmetry confirmed"
+      },
+      "description": {
+        "es": "Ambos lados del cuerpo muestran desarrollo equilibrado. Sin asimetrías notables.",
+        "en": "Both sides of the body show balanced development. No noticeable asymmetry."
+      },
+      "muscleGainKgAbove": 4.75
+    },
+    {
+      "id": "proporciones_de_brazo_ideales",
+      "category": "proporciones",
+      "muscleGroup": null,
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Proporciones de brazo ideales",
+        "en": "Ideal arm proportions"
+      },
+      "description": {
+        "es": "El ratio bíceps/tríceps/antebrazo está equilibrado. Brazo estéticamente completo.",
+        "en": "The bicep/tricep/forearm ratio is balanced. An aesthetically complete arm."
+      },
+      "muscleGainKgAbove": 6.25
+    },
+    {
+      "id": "proporci_n_pierna_torso_equilibrada",
+      "category": "proporciones",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Proporción pierna-torso equilibrada",
+        "en": "Balanced leg-to-torso proportion"
+      },
+      "description": {
+        "es": "Las piernas están proporcionalmente desarrolladas con el torso. Físico balanceado.",
+        "en": "The legs are developed in proportion to the torso. A balanced physique."
+      },
+      "muscleGainKgAbove": 8.15
+    },
+    {
+      "id": "primer_pump_pectoral_persistente",
+      "category": "torso",
+      "muscleGroup": "pectorales",
+      "visibility": "sutil",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Primer pump pectoral persistente",
+        "en": "First lasting chest pump"
+      },
+      "description": {
+        "es": "Los pectorales mantienen un aspecto más lleno incluso en reposo. Primera señal de hipertrofia real.",
+        "en": "The chest keeps a fuller look even at rest. First sign of real hypertrophy."
+      },
+      "muscleGainKgAbove": 0.25
+    },
+    {
+      "id": "pectoral_superior_desarrollado",
+      "category": "torso",
+      "muscleGroup": "pectoral_superior",
+      "visibility": "notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Pectoral superior desarrollado",
+        "en": "Upper chest developed"
+      },
+      "description": {
+        "es": "La porción clavicular del pectoral está llena. Pecho completo desde la clavícula.",
+        "en": "The clavicular head of the chest is full. A complete chest from the collarbone down."
+      },
+      "muscleGainKgAbove": 3.85
+    },
+    {
+      "id": "pectorales_llenos_y_cuadrados",
+      "category": "torso",
+      "muscleGroup": "pectorales",
+      "visibility": "muy_notable",
+      "fatPctBelow": null,
+      "title": {
+        "es": "Pectorales llenos y cuadrados",
+        "en": "Full, square chest"
+      },
+      "description": {
+        "es": "Los pectorales tienen forma completa desde la clavícula hasta el borde inferior. Aspecto de armadura.",
+        "en": "The chest is complete from collarbone to lower border. An armour-plated look."
+      },
+      "muscleGainKgAbove": 4.45
+    },
+    {
+      "id": "reducci_n_de_retenci_n_de_l_quidos",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "notable",
+      "fatPctBelow": 26,
+      "title": {
+        "es": "Reducción de retención de líquidos",
+        "en": "Less water retention"
+      },
+      "description": {
+        "es": "El rostro aparece más definido. Las manos y tobillos menos hinchados por la mañana.",
+        "en": "The face looks sharper. Hands and ankles less puffy in the morning."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "definici_n_inicial_del_vasto_externo",
+      "category": "piernas",
+      "muscleGroup": "cuádriceps",
+      "visibility": "sutil",
+      "fatPctBelow": 25,
+      "title": {
+        "es": "Definición inicial del vasto externo",
+        "en": "Outer quad starting to show"
+      },
+      "description": {
+        "es": "El vasto lateral del cuádriceps muestra una separación sutil del resto del muslo.",
+        "en": "The vastus lateralis shows a subtle separation from the rest of the thigh."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "l_nea_de_los_oblicuos_visible",
+      "category": "core",
+      "muscleGroup": "oblicuos",
+      "visibility": "sutil",
+      "fatPctBelow": 24.5,
+      "title": {
+        "es": "Línea de los oblicuos visible",
+        "en": "Oblique line visible"
+      },
+      "description": {
+        "es": "Las líneas laterales del abdomen (oblicuos externos) comienzan a marcarse sutilmente.",
+        "en": "The side lines of the abdomen (external obliques) start to show subtly."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "separaci_n_pectoral_central",
+      "category": "torso",
+      "muscleGroup": "pectorales",
+      "visibility": "notable",
+      "fatPctBelow": 24,
+      "title": {
+        "es": "Separación pectoral central",
+        "en": "Central chest separation"
+      },
+      "description": {
+        "es": "La línea central entre ambos pectorales se hace visible. El surco esternal aparece definido.",
+        "en": "The line between the two pecs becomes visible. The sternal groove appears."
+      },
+      "muscleGainKgAbove": 1.25
+    },
+    {
+      "id": "l_nea_alba_visible",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "notable",
+      "fatPctBelow": 23.5,
+      "title": {
+        "es": "Línea alba visible",
+        "en": "Linea alba visible"
+      },
+      "description": {
+        "es": "La línea alba (línea central del abdomen) es claramente visible. Primer paso hacia abdominales definidos.",
+        "en": "The linea alba (the centre line of the abdomen) is clearly visible. First step towards defined abs."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "fin_de_newbie_gains_transformaci_n_visib",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 23,
+      "title": {
+        "es": "Transformación visible para los demás",
+        "en": "Change others can see"
+      },
+      "description": {
+        "es": "Familiares y amigos notan el cambio físico. La ropa queda diferente.",
+        "en": "Family and friends notice the physical change. Clothes fit differently."
+      },
+      "muscleGainKgAbove": 2.35
+    },
+    {
+      "id": "primera_vena_del_b_ceps_visible",
+      "category": "vascularidad",
+      "muscleGroup": "brazos",
+      "visibility": "notable",
+      "fatPctBelow": 23,
+      "title": {
+        "es": "Primera vena del bíceps visible",
+        "en": "First bicep vein"
+      },
+      "description": {
+        "es": "La vena cefálica del brazo es visible durante el entrenamiento y pump. Primera señal de vascularidad.",
+        "en": "The cephalic vein of the arm shows during training and pump. First sign of vascularity."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "dos_abdominales_superiores_visibles",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "notable",
+      "fatPctBelow": 22,
+      "title": {
+        "es": "Dos abdominales superiores visibles",
+        "en": "Top two abs visible"
+      },
+      "description": {
+        "es": "Los dos bloques superiores del recto abdominal son visibles con buena iluminación.",
+        "en": "The top two blocks of the rectus abdominis show in good light."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "separaci_n_b_ceps_tr_ceps_clara",
+      "category": "brazos",
+      "muscleGroup": "bíceps",
+      "visibility": "notable",
+      "fatPctBelow": 21.5,
+      "title": {
+        "es": "Separación bíceps-tríceps clara",
+        "en": "Clear bicep-tricep separation"
+      },
+      "description": {
+        "es": "La división entre bíceps y tríceps es claramente visible. El brazo tiene forma tridimensional.",
+        "en": "The split between bicep and tricep is clearly visible. The arm looks three-dimensional."
+      },
+      "muscleGainKgAbove": 2.45
+    },
+    {
+      "id": "serrato_anterior_visible",
+      "category": "torso",
+      "muscleGroup": "serrato",
+      "visibility": "sutil",
+      "fatPctBelow": 21,
+      "title": {
+        "es": "Serrato anterior visible",
+        "en": "Serratus anterior visible"
+      },
+      "description": {
+        "es": "Los dedos del serrato anterior aparecen bajo el pectoral al levantar los brazos.",
+        "en": "The fingers of the serratus appear below the chest when the arms are raised."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "separaci_n_de_cabezas_del_cu_driceps",
+      "category": "piernas",
+      "muscleGroup": "cuádriceps",
+      "visibility": "notable",
+      "fatPctBelow": 20.5,
+      "title": {
+        "es": "Separación de cabezas del cuádriceps",
+        "en": "Quad heads separating"
+      },
+      "description": {
+        "es": "Las cuatro cabezas del cuádriceps muestran separación visible al flexionar.",
+        "en": "All four heads of the quadriceps show visible separation when flexed."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "cuatro_abdominales_definidos",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 20,
+      "title": {
+        "es": "Cuatro abdominales definidos",
+        "en": "Four-pack defined"
+      },
+      "description": {
+        "es": "Los cuatro bloques superiores del recto abdominal son claramente visibles.",
+        "en": "The top four blocks of the rectus abdominis are clearly visible."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "hito_20_de_grasa_corporal_alcanzado",
+      "category": "milestone",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 20,
+      "title": {
+        "es": "🎯 20 % de grasa corporal",
+        "en": "🎯 20% body fat"
+      },
+      "description": {
+        "es": "Se cruza la barrera del 20 %. La definición muscular es visible en todo el cuerpo.",
+        "en": "The 20% mark is crossed. Muscle definition is visible all over."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "tres_cabezas_del_tr_ceps_visibles",
+      "category": "brazos",
+      "muscleGroup": "tríceps",
+      "visibility": "notable",
+      "fatPctBelow": 19.5,
+      "title": {
+        "es": "Tres cabezas del tríceps visibles",
+        "en": "All three tricep heads visible"
+      },
+      "description": {
+        "es": "La cabeza larga, lateral y medial del tríceps son distinguibles. Herradura definida.",
+        "en": "The long, lateral and medial heads can be told apart. A defined horseshoe."
+      },
+      "muscleGainKgAbove": 2.75
+    },
+    {
+      "id": "venas_del_antebrazo_en_reposo",
+      "category": "vascularidad",
+      "muscleGroup": "antebrazos",
+      "visibility": "notable",
+      "fatPctBelow": 19,
+      "title": {
+        "es": "Venas del antebrazo en reposo",
+        "en": "Forearm veins at rest"
+      },
+      "description": {
+        "es": "Las venas del antebrazo son visibles incluso sin pump. Vascularidad establecida.",
+        "en": "Forearm veins are visible even without a pump. Vascularity established."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "christmas_tree_insinuado",
+      "category": "espalda",
+      "muscleGroup": "erectores",
+      "visibility": "sutil",
+      "fatPctBelow": 18.5,
+      "title": {
+        "es": "Christmas tree insinuado",
+        "en": "Christmas tree hinted"
+      },
+      "description": {
+        "es": "Los erectores espinales comienzan a formar el patrón de 'árbol de navidad' en la espalda baja.",
+        "en": "The spinal erectors begin to form the christmas-tree pattern in the lower back."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "serrato_desarrollado",
+      "category": "torso",
+      "muscleGroup": "serrato",
+      "visibility": "notable",
+      "fatPctBelow": 18.5,
+      "title": {
+        "es": "Serrato desarrollado",
+        "en": "Serratus developed"
+      },
+      "description": {
+        "es": "Los dedos del serrato anterior son visibles incluso con el brazo en reposo.",
+        "en": "The fingers of the serratus anterior are visible even with the arm at rest."
+      },
+      "muscleGainKgAbove": 6.15
+    },
+    {
+      "id": "abdominales_visibles_bajo_grasa_de_bulk",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "notable",
+      "fatPctBelow": 18.2,
+      "title": {
+        "es": "Abdominales visibles durante el superávit",
+        "en": "Abs still visible in a surplus"
+      },
+      "description": {
+        "es": "A pesar del superávit calórico, los abdominales superiores siguen visibles. Buena partición de nutrientes.",
+        "en": "Despite the calorie surplus, the upper abs stay visible. Good nutrient partitioning."
+      },
+      "muscleGainKgAbove": 5.45
+    },
+    {
+      "id": "b_ceps_femoral_visible",
+      "category": "piernas",
+      "muscleGroup": "femorales",
+      "visibility": "notable",
+      "fatPctBelow": 18,
+      "title": {
+        "es": "Bíceps femoral visible",
+        "en": "Hamstring visible"
+      },
+      "description": {
+        "es": "El bíceps femoral crea una curva visible en la parte posterior del muslo.",
+        "en": "The biceps femoris forms a visible curve at the back of the thigh."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "aductores_visibles_en_tensi_n",
+      "category": "piernas",
+      "muscleGroup": "aductores",
+      "visibility": "sutil",
+      "fatPctBelow": 18,
+      "title": {
+        "es": "Aductores visibles en tensión",
+        "en": "Adductors visible under tension"
+      },
+      "description": {
+        "es": "Los músculos aductores del muslo crean una línea interior visible al flexionar.",
+        "en": "The adductors of the thigh draw a visible inner line when flexed."
+      },
+      "muscleGainKgAbove": 5.25
+    },
+    {
+      "id": "venas_del_dorso_de_la_mano_prominentes",
+      "category": "vascularidad",
+      "muscleGroup": "dorso_mano",
+      "visibility": "notable",
+      "fatPctBelow": 18,
+      "title": {
+        "es": "Venas del dorso de la mano prominentes",
+        "en": "Prominent hand veins"
+      },
+      "description": {
+        "es": "Las venas del dorso de la mano son muy visibles. Indicador de bajo % grasa.",
+        "en": "The veins on the back of the hand are very visible. A marker of low body fat."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "red_venosa_del_b_ceps_visible",
+      "category": "vascularidad",
+      "muscleGroup": "brazos",
+      "visibility": "notable",
+      "fatPctBelow": 18,
+      "title": {
+        "es": "Red venosa del bíceps visible",
+        "en": "Bicep vein network visible"
+      },
+      "description": {
+        "es": "Múltiples venas visibles en el bíceps. La vascularidad aumenta al bajar la grasa.",
+        "en": "Several veins visible on the bicep. Vascularity increases as body fat drops."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "estriaciones_pectorales_iniciales",
+      "category": "torso",
+      "muscleGroup": "pectorales",
+      "visibility": "sutil",
+      "fatPctBelow": 17.8,
+      "title": {
+        "es": "Estriaciones pectorales iniciales",
+        "en": "First chest striations"
+      },
+      "description": {
+        "es": "Fibras musculares visibles en el pectoral al flexionar. Primera señal de definición profunda.",
+        "en": "Muscle fibres visible across the chest when flexing. First sign of deep definition."
+      },
+      "muscleGainKgAbove": 3.05
+    },
+    {
+      "id": "l_neas_de_adonis_marcadas",
+      "category": "core",
+      "muscleGroup": "oblicuos",
+      "visibility": "muy_notable",
+      "fatPctBelow": 17.5,
+      "title": {
+        "es": "Líneas de Adonis marcadas",
+        "en": "Adonis lines showing"
+      },
+      "description": {
+        "es": "Las líneas en V del abdomen inferior (líneas de Adonis/cinturón de Apolo) son claramente visibles.",
+        "en": "The V-lines of the lower abdomen (Adonis belt) are clearly visible."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "vena_del_deltoides_visible",
+      "category": "vascularidad",
+      "muscleGroup": "hombros",
+      "visibility": "notable",
+      "fatPctBelow": 17.3,
+      "title": {
+        "es": "Vena del deltoides visible",
+        "en": "Delt vein visible"
+      },
+      "description": {
+        "es": "Una vena cruza visiblemente sobre el deltoides lateral durante el entrenamiento.",
+        "en": "A vein crosses visibly over the side delt during training."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "seis_abdominales_en_buena_luz",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 17,
+      "title": {
+        "es": "Seis abdominales en buena luz",
+        "en": "Six-pack in good light"
+      },
+      "description": {
+        "es": "Los seis bloques superiores del recto abdominal son visibles con iluminación favorable.",
+        "en": "The top six blocks of the rectus abdominis show under favourable lighting."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "fin_del_corte_1_f_sico_atl_tico_consolid",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 17,
+      "title": {
+        "es": "Físico atlético consolidado",
+        "en": "Athletic physique established"
+      },
+      "description": {
+        "es": "Apariencia atlética indiscutible. Definición visible en la mayoría de grupos musculares.",
+        "en": "Unmistakably athletic. Definition visible across most muscle groups."
+      },
+      "muscleGainKgAbove": 3.25
+    },
+    {
+      "id": "cintura_estrecha_mantenida",
+      "category": "core",
+      "muscleGroup": "transverso",
+      "visibility": "notable",
+      "fatPctBelow": 16.5,
+      "title": {
+        "es": "Cintura estrecha mantenida",
+        "en": "Waist stays narrow"
+      },
+      "description": {
+        "es": "A pesar del aumento de masa, la cintura se mantiene proporcionalmente estrecha.",
+        "en": "Despite the added mass, the waist stays proportionally narrow."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "detalle_de_inserci_n_dorsal_visible",
+      "category": "espalda",
+      "muscleGroup": "dorsales",
+      "visibility": "notable",
+      "fatPctBelow": 16.5,
+      "title": {
+        "es": "Detalle de inserción dorsal visible",
+        "en": "Lat insertion visible"
+      },
+      "description": {
+        "es": "La inserción baja del dorsal crea una línea definida hacia la cintura.",
+        "en": "The lower lat insertion draws a defined line towards the waist."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "venas_pectorales_visibles",
+      "category": "vascularidad",
+      "muscleGroup": "pectorales",
+      "visibility": "notable",
+      "fatPctBelow": 16.4,
+      "title": {
+        "es": "Venas pectorales visibles",
+        "en": "Chest veins visible"
+      },
+      "description": {
+        "es": "Venas cruzando el pectoral son visibles durante el entrenamiento. Alta vascularidad.",
+        "en": "Veins crossing the chest show during training. High vascularity."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "detalle_de_serratos_posteriores",
+      "category": "espalda",
+      "muscleGroup": "serratos_posteriores",
+      "visibility": "sutil",
+      "fatPctBelow": 16.3,
+      "title": {
+        "es": "Detalle de serratos posteriores",
+        "en": "Posterior serratus detail"
+      },
+      "description": {
+        "es": "Los serratos posteriores añaden detalle a la espalda lateral baja.",
+        "en": "The posterior serratus adds detail to the lower lateral back."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "pectoral_inferior_definido",
+      "category": "torso",
+      "muscleGroup": "pectorales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 16.3,
+      "title": {
+        "es": "Pectoral inferior definido",
+        "en": "Lower chest defined"
+      },
+      "description": {
+        "es": "La línea inferior del pectoral está claramente marcada. Separación pec-abdomen visible.",
+        "en": "The lower border of the chest is clearly marked. Visible chest-to-ab separation."
+      },
+      "muscleGainKgAbove": 7.15
+    },
+    {
+      "id": "separaci_n_clara_gl_teo_femoral",
+      "category": "piernas",
+      "muscleGroup": "femorales",
+      "visibility": "notable",
+      "fatPctBelow": 16.2,
+      "title": {
+        "es": "Separación clara glúteo-femoral",
+        "en": "Clear glute-hamstring separation"
+      },
+      "description": {
+        "es": "La línea entre glúteo y bíceps femoral es claramente definida. Piernas atléticas.",
+        "en": "The line between glute and hamstring is clearly defined. Athletic legs."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "oblicuos_con_textura_visible",
+      "category": "core",
+      "muscleGroup": "oblicuos",
+      "visibility": "notable",
+      "fatPctBelow": 16,
+      "title": {
+        "es": "Oblicuos con textura visible",
+        "en": "Obliques show texture"
+      },
+      "description": {
+        "es": "Los oblicuos externos muestran líneas y textura muscular, no solo forma.",
+        "en": "The external obliques show lines and muscle texture, not just shape."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "seis_abdominales_claramente_definidos",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 16,
+      "title": {
+        "es": "Seis abdominales claramente definidos",
+        "en": "Six-pack clearly defined"
+      },
+      "description": {
+        "es": "Los seis bloques principales son visibles con luz normal. Definición abdominal sólida.",
+        "en": "The six main blocks show in normal light. Solid abdominal definition."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "fin_mini_corte_m_sculo_revelado",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 16,
+      "title": {
+        "es": "Músculo revelado tras la definición",
+        "en": "Muscle revealed after the cut"
+      },
+      "description": {
+        "es": "Todo el músculo ganado en la fase de volumen queda ahora a la vista.",
+        "en": "All the muscle built during the bulk is now on display."
+      },
+      "muscleGainKgAbove": 6.45
+    },
+    {
+      "id": "vascularidad_en_espalda_baja",
+      "category": "vascularidad",
+      "muscleGroup": "espalda",
+      "visibility": "notable",
+      "fatPctBelow": 16,
+      "title": {
+        "es": "Vascularidad en espalda baja",
+        "en": "Lower back vascularity"
+      },
+      "description": {
+        "es": "Venas visibles en la zona lumbar. Indicador de definición avanzada.",
+        "en": "Veins visible across the lumbar area. A marker of advanced definition."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "venas_abdominales_emergentes",
+      "category": "vascularidad",
+      "muscleGroup": "abdomen",
+      "visibility": "notable",
+      "fatPctBelow": 15.5,
+      "title": {
+        "es": "Venas abdominales emergentes",
+        "en": "Abdominal veins emerging"
+      },
+      "description": {
+        "es": "Venas superficiales del abdomen comienzan a ser visibles.",
+        "en": "Surface veins on the abdomen start to show."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "hito_15_de_grasa_corporal_alcanzado",
+      "category": "milestone",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 15,
+      "title": {
+        "es": "🎯 15 % de grasa corporal",
+        "en": "🎯 15% body fat"
+      },
+      "description": {
+        "es": "Se cruza la barrera del 15 %. Definición de nivel atlético alcanzada.",
+        "en": "The 15% mark is crossed. Athletic-level definition reached."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "estriaciones_pectorales_claras",
+      "category": "torso",
+      "muscleGroup": "pectorales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 15,
+      "title": {
+        "es": "Estriaciones pectorales claras",
+        "en": "Clear chest striations"
+      },
+      "description": {
+        "es": "Las fibras musculares del pectoral son claramente visibles al flexionar.",
+        "en": "The muscle fibres of the chest are clearly visible when flexing."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "estriaciones_del_deltoides",
+      "category": "hombros",
+      "muscleGroup": "deltoides_completo",
+      "visibility": "notable",
+      "fatPctBelow": 14.5,
+      "title": {
+        "es": "Estriaciones del deltoides",
+        "en": "Delt striations"
+      },
+      "description": {
+        "es": "Las fibras del deltoides son visibles, especialmente en la cabeza lateral y posterior.",
+        "en": "Deltoid fibres are visible, especially in the lateral and rear heads."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "detalle_dorsal_completo",
+      "category": "espalda",
+      "muscleGroup": "dorsales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 14,
+      "title": {
+        "es": "Detalle dorsal completo",
+        "en": "Full lat detail"
+      },
+      "description": {
+        "es": "El dorsal muestra estriaciones y detalle en toda su extensión. Christmas tree formándose.",
+        "en": "The lat shows striations and detail throughout. Christmas tree forming."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "separaci_n_completa_del_cu_driceps",
+      "category": "piernas",
+      "muscleGroup": "cuádriceps",
+      "visibility": "muy_notable",
+      "fatPctBelow": 13.8,
+      "title": {
+        "es": "Separación completa del cuádriceps",
+        "en": "Full quad separation"
+      },
+      "description": {
+        "es": "Las cuatro cabezas del cuádriceps están completamente separadas. Definición de pierna excelente.",
+        "en": "All four quad heads are fully separated. Excellent leg definition."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "ocho_abdominales_visibles",
+      "category": "core",
+      "muscleGroup": "abdominales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 13.5,
+      "title": {
+        "es": "Ocho abdominales visibles",
+        "en": "Eight-pack visible"
+      },
+      "description": {
+        "es": "Los ocho bloques del recto abdominal son visibles (incluyendo los inferiores).",
+        "en": "All eight blocks of the rectus abdominis are visible, lower ones included."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "vascularidad_en_cu_driceps",
+      "category": "vascularidad",
+      "muscleGroup": "piernas",
+      "visibility": "notable",
+      "fatPctBelow": 13.2,
+      "title": {
+        "es": "Vascularidad en cuádriceps",
+        "en": "Quad vascularity"
+      },
+      "description": {
+        "es": "Venas visibles cruzando el cuádriceps. Nivel de definición muy alto.",
+        "en": "Veins visible crossing the quads. A very high level of definition."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "serrato_completamente_definido",
+      "category": "core",
+      "muscleGroup": "serrato",
+      "visibility": "muy_notable",
+      "fatPctBelow": 13,
+      "title": {
+        "es": "Serrato completamente definido",
+        "en": "Serratus fully defined"
+      },
+      "description": {
+        "es": "Todos los dientes del serrato anterior son visibles individualmente.",
+        "en": "Every finger of the serratus anterior is individually visible."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "christmas_tree_completo",
+      "category": "espalda",
+      "muscleGroup": "erectores",
+      "visibility": "muy_notable",
+      "fatPctBelow": 13,
+      "title": {
+        "es": "Christmas tree completo",
+        "en": "Full christmas tree"
+      },
+      "description": {
+        "es": "Los erectores espinales forman el patrón de árbol de navidad claramente visible.",
+        "en": "The spinal erectors form a clearly visible christmas-tree pattern."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "intercostales_visibles",
+      "category": "core",
+      "muscleGroup": "intercostales",
+      "visibility": "notable",
+      "fatPctBelow": 12.8,
+      "title": {
+        "es": "Intercostales visibles",
+        "en": "Intercostals visible"
+      },
+      "description": {
+        "es": "Los músculos intercostales son visibles entre las costillas. Definición de élite.",
+        "en": "The intercostal muscles show between the ribs. Elite-level definition."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "condici_n_f_sica_peak_pre_mantenimiento",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 12.5,
+      "title": {
+        "es": "Condición física peak pre-mantenimiento",
+        "en": "Peak condition before maintenance"
+      },
+      "description": {
+        "es": "Máxima definición alcanzada. Todos los grupos musculares visibles con detalle.",
+        "en": "Maximum definition reached. Every muscle group visible in detail."
+      },
+      "muscleGainKgAbove": 8.25
+    },
+    {
+      "id": "estriaciones_en_b_ceps_femoral",
+      "category": "piernas",
+      "muscleGroup": "femorales",
+      "visibility": "muy_notable",
+      "fatPctBelow": 12.5,
+      "title": {
+        "es": "Estriaciones en bíceps femoral",
+        "en": "Hamstring striations"
+      },
+      "description": {
+        "es": "Las fibras del bíceps femoral son visibles. Definición de pierna de élite.",
+        "en": "The fibres of the biceps femoris are visible. Elite leg definition."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "vascularidad_completa_en_todo_el_cuerpo",
+      "category": "vascularidad",
+      "muscleGroup": "general",
+      "visibility": "muy_notable",
+      "fatPctBelow": 12.3,
+      "title": {
+        "es": "Vascularidad completa en todo el cuerpo",
+        "en": "Full-body vascularity"
+      },
+      "description": {
+        "es": "Venas visibles en brazos, hombros, abdomen y piernas. Condición muy definida.",
+        "en": "Veins visible on arms, shoulders, abdomen and legs. Very conditioned."
+      },
+      "muscleGainKgAbove": null
+    },
+    {
+      "id": "equilibrio_est_tico_alcanzado",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 12.1,
+      "title": {
+        "es": "Equilibrio estético alcanzado",
+        "en": "Aesthetic balance reached"
+      },
+      "description": {
+        "es": "Proporciones musculares balanceadas. Ningún grupo muscular rezagado visualmente.",
+        "en": "Balanced muscular proportions. No group visually lagging behind."
+      },
+      "muscleGainKgAbove": 8.25
+    },
+    {
+      "id": "condici_n_sostenible_establecida",
+      "category": "general",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 12,
+      "title": {
+        "es": "Condición sostenible establecida",
+        "en": "Sustainable condition established"
+      },
+      "description": {
+        "es": "El físico es mantenible sin esfuerzo extremo. Punto de equilibrio encontrado.",
+        "en": "The physique is maintainable without extreme effort. A balance point found."
+      },
+      "muscleGainKgAbove": 8.25
+    },
+    {
+      "id": "transformaci_n_completada",
+      "category": "milestone",
+      "muscleGroup": null,
+      "visibility": "muy_notable",
+      "fatPctBelow": 12,
+      "title": {
+        "es": "🏆 Transformación completada",
+        "en": "🏆 Transformation complete"
+      },
+      "description": {
+        "es": "Has llegado al final del plan que te propusiste. Objetivo alcanzado.",
+        "en": "You have reached the end of the plan you set for yourself. Goal achieved."
+      },
+      "muscleGainKgAbove": 8.25
+    }
+  ]
 }

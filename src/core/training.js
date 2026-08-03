@@ -46,6 +46,17 @@ export const LOAD_STEPS_KG = Object.freeze([1.25, 2.5, 5]);
  */
 export const SESSIONS_BEFORE_PROGRESSION = 2;
 
+/**
+ * Mejora mínima de 1RM estimado para considerarlo récord (kg).
+ *
+ * Sin esto, dos esfuerzos matemáticamente equivalentes rompen el empate por
+ * error de coma flotante: 77,5 kg × 10 y 100 kg × 1 dan ambos 103,333… kg,
+ * pero uno sale 1,4e-14 mayor y la app anuncia un récord por nada. Barriendo
+ * cargas de gimnasio hay 90 grupos de esfuerzos exactamente equivalentes.
+ * 10 gramos está por debajo de cualquier disco real.
+ */
+export const RECORD_MIN_GAIN_KG = 0.01;
+
 /** @param {unknown} v @returns {v is number} */
 function isFiniteNumber(v) {
     return typeof v === 'number' && Number.isFinite(v);
@@ -120,16 +131,23 @@ export function newRecordsIn(sessions, sessionId) {
     const previous = sessions.filter((s) => s && s.id !== sessionId
         && typeof s.dateISO === 'string' && s.dateISO <= target.dateISO);
 
-    /** @type {string[]} */ const out = [];
+    // Un conjunto, no una lista: una sesión puede traer varias entradas del
+    // mismo ejercicio (una rutina que lo repite en dos días, o dos ejercicios
+    // con el id colisionado). Empujando por entrada se anunciaba el mismo
+    // récord dos veces y `pr10` se desbloqueaba con cinco récords reales.
+    /** @type {Set<string>} */ const out = new Set();
     for (const entry of target.entries) {
         if (!entry || typeof entry.exerciseId !== 'string') continue;
+        if (out.has(entry.exerciseId)) continue;
         const now = personalRecord([target], entry.exerciseId);
         if (!now) continue;
         const before = personalRecord(previous, entry.exerciseId);
         // sin histórico previo NO es un récord: es el primer registro
-        if (before !== null && now.bestE1rmKg > before.bestE1rmKg) out.push(entry.exerciseId);
+        if (before !== null && now.bestE1rmKg > before.bestE1rmKg + RECORD_MIN_GAIN_KG) {
+            out.add(entry.exerciseId);
+        }
     }
-    return out;
+    return [...out];
 }
 
 /**

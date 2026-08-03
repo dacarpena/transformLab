@@ -162,3 +162,58 @@ test('todas las funciones degradan con basura sin lanzar', () => {
     assert.equal(sessionVolumeKg(/** @type {*} */ (null)), 0);
     assert.equal(SESSIONS_BEFORE_PROGRESSION >= 2, true);
 });
+
+test('un récord se anuncia UNA vez por ejercicio, aunque la sesión lo repita', () => {
+    // El fallo que esto cierra: se empujaba un id por cada `entry`, así que
+    // una sesión con el ejercicio repetido —una rutina que lo hace dos días,
+    // o dos ejercicios con el id colisionado— anunciaba dos toasts iguales y
+    // el logro `pr10` se desbloqueaba con cinco récords reales.
+    const twice = (dateISO, loadKg) => ({
+        id: `s_${dateISO}`, dateISO,
+        entries: [
+            { exerciseId: 'curl', sets: [{ reps: 10, loadKg }] },
+            { exerciseId: 'curl', sets: [{ reps: 10, loadKg }] }
+        ]
+    });
+    const records = newRecordsIn([twice('2026-03-02', 50), twice('2026-03-09', 55)], 's_2026-03-09');
+    assert.deepEqual(records, ['curl']);
+});
+
+test('un esfuerzo EQUIVALENTE no es un récord (empates rotos por coma flotante)', () => {
+    // 77,5 kg × 10 y 100 kg × 1 dan el mismo 1RM de Epley (103,333…), pero en
+    // coma flotante uno sale 1,4e-14 mayor. Anunciar récord por eso es mentir.
+    const one = (dateISO, reps, loadKg) => ({ id: `s_${dateISO}`, dateISO, entries: [{ exerciseId: 'x', sets: [{ reps, loadKg }] }] });
+    assert.deepEqual(
+        newRecordsIn([one('2026-03-02', 10, 77.5), one('2026-03-09', 1, 100)], 's_2026-03-09'),
+        [], '77,5×10 y 100×1 son el mismo 1RM'
+    );
+    // Pero una mejora real sí se anuncia
+    assert.deepEqual(
+        newRecordsIn([one('2026-03-02', 10, 77.5), one('2026-03-09', 10, 80)], 's_2026-03-09'),
+        ['x']
+    );
+});
+
+test('barrido: ningún par de esfuerzos con el MISMO 1RM produce un récord', () => {
+    const one = (dateISO, reps, loadKg) => ({ id: `s_${dateISO}`, dateISO, entries: [{ exerciseId: 'x', sets: [{ reps, loadKg }] }] });
+    /** @type {Map<number, Array<[number, number]>>} */ const byE1rm = new Map();
+    for (let load = 5; load <= 300; load += 2.5) {
+        for (let reps = 1; reps <= 12; reps += 1) {
+            const key = Math.round(estimatedOneRepMax(reps, load) * 1e6) / 1e6;
+            byE1rm.set(key, [...(byE1rm.get(key) ?? []), [reps, load]]);
+        }
+    }
+    let checked = 0;
+    for (const group of byE1rm.values()) {
+        if (group.length < 2) continue;
+        for (let i = 1; i < group.length; i += 1) {
+            const [r0, l0] = group[0];
+            const [r1, l1] = group[i];
+            const sessions = [one('2026-03-02', r0, l0), one('2026-03-09', r1, l1)];
+            assert.deepEqual(newRecordsIn(sessions, 's_2026-03-09'), [],
+                `${l0}×${r0} y ${l1}×${r1} tienen el mismo 1RM y no deberían ser récord`);
+            checked += 1;
+        }
+    }
+    assert.ok(checked > 50, `se esperaban muchos empates, se probaron ${checked}`);
+});

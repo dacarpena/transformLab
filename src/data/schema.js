@@ -362,13 +362,23 @@ export const validateCheckins = rootValidator({
     }), { maxItems: 2000 })
 });
 
+/**
+ * Identificadores internos: solo caracteres seguros.
+ *
+ * Un id llega del import de un backup, que es hostil por definición. Con
+ * comillas dentro rompía los selectores CSS de la vista de entrenamiento, y
+ * la sesión se perdía sin aviso. Aquí se corta de raíz, igual que ya se hacía
+ * con `profileId`.
+ */
+const SAFE_ID = /^[A-Za-z0-9_-]+$/;
+
 /** Rutina y sesiones de entrenamiento (E5; se llena en M5). */
 export const validateTraining = rootValidator({
     routine: opt(objectOf({
         days: arrayOf(objectOf({
             name: str({ maxLength: 60 }),
             exercises: arrayOf(objectOf({
-                id: str({ maxLength: 60 }),
+                id: str({ maxLength: 60, pattern: SAFE_ID }),
                 name: str({ maxLength: 80 }),
                 sets: num({ min: 1, max: 20, integer: true }),
                 reps: num({ min: 1, max: 100, integer: true }),
@@ -377,10 +387,10 @@ export const validateTraining = rootValidator({
         }), { maxItems: 14 })
     })),
     sessions: arrayOf(objectOf({
-        id: str({ maxLength: 60 }),
+        id: str({ maxLength: 60, pattern: SAFE_ID }),
         dateISO: isoDate,
         entries: arrayOf(objectOf({
-            exerciseId: str({ maxLength: 60 }),
+            exerciseId: str({ maxLength: 60, pattern: SAFE_ID }),
             sets: arrayOf(objectOf({
                 reps: num({ min: 0, max: 200, integer: true }),
                 loadKg: num({ min: 0, max: 500 })

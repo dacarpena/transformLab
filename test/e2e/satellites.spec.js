@@ -94,18 +94,47 @@ test('navegar desde la hoja la repliega y monta la vista elegida', async ({ page
     await expect(page.locator('[data-nav-more]')).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('la tarjeta compartible omite peso y %grasa hasta que se piden', async ({ page }) => {
+test('sin mediciones, la tarjeta no puede publicar cifras: ni siquiera se ofrece', async ({ page }) => {
+    // Antes caían aquí el peso y el %grasa PROYECTADOS y se imprimían con el
+    // mismo formato que una medición. Una proyección no es un dato del usuario.
     await page.locator('[data-view="achievements"]').click();
 
-    const card = page.locator('[data-card]');
-    await expect(card).toHaveAttribute('aria-label', /%/);
-    await expect(card).not.toHaveAttribute('aria-label', /kg/);
+    await expect(page.locator('[data-card]')).toHaveAttribute('aria-label', /%/);
+    await expect(page.locator('[data-card]')).not.toHaveAttribute('aria-label', /kg/);
+    await expect(page.locator('[data-absolutes]')).toBeDisabled();
+});
 
+test('con un check-in real, el opt-in de peso y %grasa funciona en los dos sentidos', async ({ page }) => {
+    await page.locator('[data-view="checkin"]').click();
+    await page.fill('[data-field="weightKg"]', '74.2');
+    await page.fill('[data-field="fatPct"]', '19.4');
+    await page.locator('[data-save]').click();
+
+    await page.locator('[data-view="achievements"]').click();
+    await expect(page.locator('[data-card]')).not.toHaveAttribute('aria-label', /kg/);
+
+    await page.locator('[data-absolutes]').check();
+    await expect(page.locator('[data-card]')).toHaveAttribute('aria-label', /74\.2 kg/);
+
+    // Desmarcar vuelve a ocultarlos: el opt-in no es de un solo sentido
+    await page.locator('[data-absolutes]').uncheck();
+    await expect(page.locator('[data-card]')).not.toHaveAttribute('aria-label', /kg/);
+});
+
+test('el consentimiento no se hereda al volver a la vista', async ({ page }) => {
+    await page.locator('[data-view="checkin"]').click();
+    await page.fill('[data-field="weightKg"]', '74.2');
+    await page.locator('[data-save]').click();
+
+    await page.locator('[data-view="achievements"]').click();
     await page.locator('[data-absolutes]').check();
     await expect(page.locator('[data-card]')).toHaveAttribute('aria-label', /kg/);
 
-    // Y desmarcar vuelve a ocultarlos: el opt-in no es de un solo sentido
-    await page.locator('[data-absolutes]').uncheck();
+    // Salir y volver: la casilla arranca apagada otra vez, como promete su
+    // comentario. Vivía en el módulo y sobrevivía incluso al cambio de perfil.
+    await page.locator('[data-view="today"]').click();
+    await page.locator('[data-view="achievements"]').click();
+    await expect(page.locator('[data-absolutes]')).not.toBeChecked();
     await expect(page.locator('[data-card]')).not.toHaveAttribute('aria-label', /kg/);
 });
 

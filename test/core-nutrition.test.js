@@ -159,3 +159,35 @@ test('las constantes de proteína y grasa están dentro de los rangos citados', 
     // la grasa no baja del 20 % de las calorías por función endocrina
     assert.ok(FAT_PCT_OF_KCAL.min >= 0.15 && FAT_PCT_OF_KCAL.target >= FAT_PCT_OF_KCAL.min);
 });
+
+test('el refeed declara lo que CUESTA, porque el motor no lo modela', () => {
+    // El hallazgo más grave de la verificación adversarial de M5: la interfaz
+    // afirmaba «no rompe el plan: la proyección ya lo absorbe», y la
+    // proyección no sabe nada de refeeds — aplica el déficit los siete días.
+    // Un refeed semanal costaba 2,29 kg en el plan canónico (14,8 % del
+    // objetivo) y acababa disparando una oferta de recalibración por una
+    // desviación que la propia aplicación había causado.
+    const projection = canonical();
+    const point = projection.daily.find((p) => p.kcal.targetKcal < p.kcal.tdeeKcal);
+    assert.ok(point, 'el plan canónico debe tener días con déficit');
+
+    const base = macrosFor(point);
+    assert.ok(base.ok);
+    const refeed = refeedMacros(base.value, point);
+    assert.ok(refeed.ok);
+
+    // El coste existe, es positivo y coincide con el déficit del día
+    assert.ok(refeed.value.costKcal > 0);
+    assert.equal(refeed.value.costKcal, Math.round(point.kcal.tdeeKcal - base.value.kcal));
+    assert.ok(Math.abs(refeed.value.costKg - refeed.value.costKcal / 7700) < 0.002,
+        `coste incoherente: ${refeed.value.costKg} kg vs ${refeed.value.costKcal} kcal`);
+
+    // Sin déficit no hay nada que descansar, y el coste es cero
+    const noDeficit = { ...point, kcal: { ...point.kcal, targetKcal: point.kcal.tdeeKcal + 300, tdeeKcal: point.kcal.tdeeKcal } };
+    const baseUp = macrosFor(noDeficit);
+    assert.ok(baseUp.ok);
+    const none = refeedMacros(baseUp.value, noDeficit);
+    assert.ok(none.ok);
+    assert.equal(none.value.costKcal, 0);
+    assert.equal(none.value.costKg, 0);
+});

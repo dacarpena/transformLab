@@ -22,7 +22,12 @@ import { evaluate, shareCard } from '../../core/achievements.js';
 import { recordCount } from './training.js';
 import * as toast from '../components/toast.js';
 
-/** Estado local de la casilla de datos absolutos: arranca SIEMPRE apagada. */
+/**
+ * Casilla de datos absolutos. Vive en el módulo, así que se REINICIA en cada
+ * `mount()`: si no, sobrevivía al cambio de perfil y la tarjeta del perfil B
+ * salía con el peso y el %grasa de B sin que su dueño hubiera consentido nada.
+ * Un consentimiento heredado de otra persona no es consentimiento.
+ */
 let includeAbsolutes = false;
 
 const CARD_W = 960;
@@ -72,9 +77,15 @@ function collectStats() {
 
         streak = streakOf(list, todayISO, data.startDateISO);
 
-        const last = list.at(-1);
-        weightKg = last ? last.weightKg : point?.weightKg ?? null;
-        fatPct = last?.fatPct ?? point?.fatPct ?? null;
+        // SOLO mediciones reales. Antes, sin check-in, caían aquí el peso y
+        // el %grasa PROYECTADOS y se imprimían en la tarjeta con el mismo
+        // formato que una medición: alguien que pesa 89,5 kg compartía los
+        // 81,6 kg que el plan predecía. Toda la aplicación distingue
+        // proyección de medición; la tarjeta no podía ser la excepción.
+        const measured = [...list].reverse().find((c) => Number.isFinite(c?.weightKg));
+        weightKg = measured ? measured.weightKg : null;
+        const withFat = [...list].reverse().find((c) => Number.isFinite(c?.fatPct));
+        fatPct = withFat ? withFat.fatPct : null;
     }
 
     return {
@@ -183,6 +194,7 @@ function draw(container) {
     const achievements = evaluate(stats);
     const unlocked = achievements.filter((a) => a.unlocked).length;
     const card = cardData(stats, achievements);
+    const hasMeasurements = stats.weightKg !== null || stats.fatPct !== null;
 
     render(container, html`
         <section class="card" aria-labelledby="ach-title">
@@ -211,9 +223,11 @@ function draw(container) {
             <h2 id="share-title" class="card__title">${t('achievements.share')}</h2>
             <p class="muted">${t('achievements.shareHint')}</p>
             <label class="switch">
-                <input type="checkbox" data-absolutes ${includeAbsolutes ? 'checked' : ''}>
+                <input type="checkbox" data-absolutes ${includeAbsolutes ? 'checked' : ''}
+                       ${hasMeasurements ? '' : 'disabled'}>
                 <span>${t('achievements.shareIncludeAbsolutes')}</span>
             </label>
+            ${hasMeasurements ? '' : html`<p class="muted">${t('achievements.noMeasurements')}</p>`}
             <canvas class="share-card" data-card role="img" aria-label="${cardAltText(card)}"></canvas>
             <div class="btn-row">
                 <button type="button" class="btn btn--primary" data-download>${t('achievements.downloadCard')}</button>
@@ -227,6 +241,8 @@ function draw(container) {
 
 /** @param {HTMLElement} container */
 export function mount(container) {
+    // El consentimiento no se hereda entre montajes ni entre perfiles.
+    includeAbsolutes = false;
     draw(container);
 
     on(container, 'change', '[data-absolutes]', (event) => {

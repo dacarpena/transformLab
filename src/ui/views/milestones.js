@@ -9,10 +9,20 @@
  */
 
 import { html, render } from '../dom.js';
-import { t } from '../../i18n/i18n.js';
+import { t, getLocale } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
-import { aestheticMilestonesFor, nextAesthetic, byCategory } from '../../core/milestones.js';
+import { aestheticMilestonesFor, nextAesthetic, byCategory, textOf } from '../../core/milestones.js';
 import { empty } from '../components/state.js';
+
+/**
+ * Texto del catálogo en el idioma activo. Los 97 títulos y descripciones son
+ * datos editoriales, no cadenas de interfaz, pero el usuario los lee: con la
+ * app en inglés se veían en español porque el JSON solo traía una lengua.
+ * @param {{ es: string, en: string } | string} value
+ */
+function catalogText(value) {
+    return textOf(value, getLocale());
+}
 
 /** @param {string} category */
 function categoryLabel(category) {
@@ -41,7 +51,8 @@ export function mount(container) {
         today.dayIndex
     );
     const next = nextAesthetic(milestones);
-    const reached = milestones.filter((m) => m.reached).length;
+    const earned = milestones.filter((m) => !m.fromStart);
+    const reached = earned.filter((m) => m.reached).length;
     const groups = byCategory(milestones);
 
     render(container, html`
@@ -53,8 +64,8 @@ export function mount(container) {
                     <h2 id="next-title" class="card__title">${t('milestones.next')}</h2>
                     <span class="badge badge--recomposition">${t(`milestones.visibility.${next.visibility}`)}</span>
                 </div>
-                <p><strong>${next.title}</strong></p>
-                <p class="secondary">${next.description}</p>
+                <p><strong>${catalogText(next.title)}</strong></p>
+                <p class="secondary">${catalogText(next.description)}</p>
                 <p class="muted">${t('milestones.onDay', { day: next.dayIndex, date: next.dateISO })}</p>
             </section>
         ` : ''}
@@ -62,7 +73,7 @@ export function mount(container) {
         <section class="card" aria-labelledby="cats-title">
             <div class="card__header">
                 <h2 id="cats-title" class="card__title">${t('milestones.byCategory')}</h2>
-                <span class="muted">${t('milestones.reachedCount', { reached, total: milestones.length })}</span>
+                <span class="muted">${t('milestones.reachedCount', { reached, total: earned.length })}</span>
             </div>
             ${groups.map((g) => html`
                 <div class="milestone-cat">
@@ -84,13 +95,15 @@ export function mount(container) {
                 ${milestones.map((m) => html`
                     <li class="profile-item ${m.reached ? 'profile-item--active' : ''}">
                         <span>
-                            <strong>${m.title}</strong>
+                            <strong>${catalogText(m.title)}</strong>
                             <span class="muted"> · ${categoryLabel(m.category)}</span>
                             <br>
-                            <span class="secondary">${m.description}</span>
+                            <span class="secondary">${catalogText(m.description)}</span>
                         </span>
                         <span class="muted numeric">
-                            ${m.reached ? '✓ ' : ''}${t('milestones.onDay', { day: m.dayIndex, date: m.dateISO })}
+                            ${m.fromStart
+                                ? t('milestones.fromStart')
+                                : html`${m.reached ? '✓ ' : ''}${t('milestones.onDay', { day: m.dayIndex, date: m.dateISO })}`}
                         </span>
                     </li>
                 `)}

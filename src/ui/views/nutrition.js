@@ -89,6 +89,15 @@ function renderMacros(macros, point) {
                 <span>${t('nutrition.refeedToggle')}</span>
             </label>
             <p class="muted">${t('nutrition.refeedHint')}</p>
+            ${refeedToday && Number.isFinite(macros.costKg) && macros.costKg > 0 ? html`
+                <p class="notice notice--warning">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <span>${t('nutrition.refeedCost', {
+                        kcal: macros.costKcal ?? 0,
+                        kg: (macros.costKg ?? 0).toFixed(2)
+                    })}</span>
+                </p>
+            ` : ''}
         </section>
     `;
 }
