@@ -4,7 +4,7 @@
  * Hitos estéticos (M5-5): catálogo editorial indexado por umbral de
  * composición, cruzado con la serie REAL de la proyección.
  *
- * El catálogo se rescató del plan personal de la v4.0 (`legacy/…json`), que
+ * El catálogo se rescató del plan personal de la v4.0 (su fichero de hitos), que
  * era la instancia de un único usuario con fechas fijas y días absolutos.
  * Aquí se conserva solo lo aplicable a cualquiera —los 97 hitos que tenían
  * umbral de grasa o de músculo— y se descartaron los 5 que solo dependían del

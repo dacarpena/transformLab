@@ -1,6 +1,6 @@
 {
  "_comment": "Catálogo estético despersonalizado, rescatado del plan personal de v4.0 (M5-5). Se conservan solo los hitos con umbral de composición: son aplicables a cualquier usuario. Los que dependían del día absoluto del plan de una persona se descartaron; el motor ya genera hitos de fase y de progreso desde el cruce real de la serie.",
- "source": "legacy/aesthetic_milestones_complete.json (v4.0)",
+ "source": "aesthetic_milestones_complete.json (v4.0)",
  "items": [
   {
    "id": "braquiorradial_visible",

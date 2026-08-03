@@ -1,5 +1,5 @@
 {
-  "_comment": "Fixture v4.0 realista, con las formas EXACTAS que escribe el legacy. Fuentes: legacy/js/onboarding.js:845-866 (userProfile), legacy/js/checkin.js:266-282 (checkins), legacy/js/app.js:479-490 (prefs y startDate), legacy/js/router.js:65 (activeView).",
+  "_comment": "Fixture v4.0 realista, con las formas EXACTAS que escribe el legacy. Fuentes (v4.0): js/onboarding.js:845-866 (userProfile), js/checkin.js:266-282 (checkins), js/app.js:479-490 (prefs y startDate), js/router.js:65 (activeView).",
 
   "transformlab_userProfile": {
     "initial": { "weight": 80, "fatPct": 20, "muscleKg": 30.7 },

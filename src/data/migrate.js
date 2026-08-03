@@ -9,7 +9,7 @@
  *     `tl.legacy.backup`, ANTES de transformar nada.
  *  2. **Transformación** a esquema v5 como primer perfil, marcando siempre
  *     `muscleSource: 'estimated'` — en v4 el músculo salía del ratio 0,48
- *     (`legacy/js/onboarding.js:521`), jamás de una medición.
+ *     (v4.0, `js/onboarding.js:521`), jamás de una medición.
  *  3. **Archivado**: las claves v4 se renombran a `tl.legacy.*`. No se borran.
  *
  * Lo que NO se migra: `transformlab_generatedData`. La proyección v4 es
@@ -79,7 +79,7 @@ function finiteOrNull(v) {
  * Convierte la adherencia v4 (porcentaje 0–100) a la escala v5 (1–10).
  *
  * Sin heurística de «igual ya venía en 1–10»: en v4 el control es un deslizador
- * de 0 a 100 con paso 5 (`legacy/js/checkin.js:203`) que se consume como
+ * de 0 a 100 con paso 5 (v4.0, `js/checkin.js:203`) que se consume como
  * porcentaje (`:73`, `adherence / 100`). Interpretar un 10 como «10 sobre 10»
  * convertía la peor semana del usuario en la mejor.
  * @param {unknown} v
