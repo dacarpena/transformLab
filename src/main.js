@@ -21,6 +21,7 @@ import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
 import * as progress from './ui/views/progress.js';
 import * as checkinView from './ui/views/checkin.js';
+import * as nutrition from './ui/views/nutrition.js';
 import * as settings from './ui/views/settings.js';
 import * as recalibrate from './ui/recalibrate.js';
 import * as toast from './ui/components/toast.js';
@@ -69,6 +70,7 @@ async function startApp(roots) {
     });
     router.register({ id: 'checkin', labelKey: 'checkin.nav', icon: '＋', mount: checkinView.mount });
     router.register({ id: 'progress', labelKey: 'nav.progress', icon: '◔', mount: progress.mount });
+    router.register({ id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', mount: nutrition.mount });
     router.register({ id: 'settings', labelKey: 'nav.settings', icon: '⚙', mount: settings.mount });
     await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'today' });
 
