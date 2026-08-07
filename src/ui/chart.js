@@ -185,6 +185,10 @@ export function destroy() {
         chartInstance.destroy();
         chartInstance = null;
     }
+    // El cursor pertenece a la gráfica que acaba de morir. Sin esto, la
+    // siguiente vista arranca con el índice de la anterior hasta su primer
+    // `draw()`, y con rangos distintos ese índice puede caer fuera del suyo.
+    cursor = 0;
 }
 
 /**
@@ -195,6 +199,11 @@ export function destroy() {
 export function draw(options) {
     const Chart = getChartLib();
     if (!Chart) return false;
+    // El vendor se carga con `await`, y en ese hueco el usuario puede haber
+    // cambiado de vista: el router llama a `unmount()` ANTES de reemplazar el
+    // host, así que el lienzo viejo sigue conectado un instante. Dibujar aquí
+    // dejaría una instancia viva colgada de un nodo que se va a descartar.
+    if (!options.canvas?.isConnected) return false;
     destroy();
 
     const { projection, metric, range } = options;
@@ -376,6 +385,18 @@ export function announce(readout, projection, index) {
         muscle: muscleUnits.toDisplay(point.muscleKg).toFixed(1),
         phase: t(`phase.${point.phaseType}`)
     });
+}
+
+/**
+ * Posición actual del cursor de lectura.
+ *
+ * Existe para poder observarlo desde los tests sin DOM: `handleKey` solo
+ * devuelve si consumió la tecla, y sin esto la única forma de saber dónde
+ * quedó el cursor era leer el texto ya traducido de la región `aria-live`.
+ * @returns {number}
+ */
+export function cursorIndex() {
+    return cursor;
 }
 
 /**
