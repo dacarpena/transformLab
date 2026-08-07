@@ -412,11 +412,38 @@ dentro. El primero porque la aplicación funcionaba igual con red; el segundo
 porque con teclado sí funcionaba. Ninguno de los 318 tests unitarios podía
 verlos; hicieron falta un navegador real, el modo avión y un dedo simulado.
 
+**Checklist de release, lo verificado contra el despliegue real (2026-08-07).**
+
+```
+[x] CI verde en main (typecheck + 318 unit + 55 e2e)
+[x] Test de identidad: 4 perfiles, desviación 0,000000 kg
+    (la v4.0 publicada devolvía 50,9 kg para el primero)
+[x] Lighthouse sobre https://transformlab.pages.dev
+      móvil       94 / 100 / 100 / 100  (+ Agentic Browsing 100)
+      escritorio  96 / 100 / 100 / 100  (+ Agentic Browsing 100)
+[x] PWA: precache de 54 entradas, modo avión REAL contra el dominio —
+    abre, las nueve secciones cargan, la gráfica dibuja (2 748 px pintados)
+[x] Migración v4→v5 con el fixture de formas reales: no hereda el objetivo
+    roto, conserva los check-ins, archiva los datos v4, idempotente
+[x] Backup → borrar perfil → restore, y un backup hostil que no ejecuta nada
+[x] CSP activa sin violaciones en las diez vistas
+[ ] Migración con los datos REALES del dispositivo principal   ← usuario
+[ ] PWA instalada y abierta sin red en un móvil real           ← usuario
+[ ] Guion de humo manual en el móvil                           ← usuario
+[ ] Dominio propio + HTTPS                                     ← usuario
+```
+
+El rendimiento móvil sobre el dominio salió primero en **64**, no en los 96 de
+local: el service worker precacheaba las 55 piezas dentro de la ventana de
+medición y bloqueaba el hilo principal 3 410 ms — la aplicación se veía en
+1,3 s pero no respondía al dedo. Con el registro aplazado a que la página esté
+quieta: **99**, TBT 60 ms. Es la tercera vez en M6 que un fallo solo aparece
+midiendo contra el despliegue real.
+
 **Pendiente y bloqueado en el usuario:** M6-7 (dominio en Cloudflare Pages) y
-M6-8 (checklist de release: Lighthouse sobre el dominio, migración v4→v5 con
-datos reales, PWA instalada en un móvil real, guion de humo manual). Los pasos
-exactos están en `docs/RELEASE-V5.md`; el resto de la checklist ya está
-automatizado en `test/e2e/release.spec.js`.
+las cuatro casillas de arriba que exigen su móvil y sus datos. Los pasos
+exactos están en `docs/RELEASE-V5.md`; el resto de la checklist está
+automatizado en `test/e2e/release.spec.js` y `test/e2e/pwa.spec.js`.
 
 ---
 

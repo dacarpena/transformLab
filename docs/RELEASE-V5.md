@@ -91,11 +91,15 @@ npx --yes lighthouse https://TU-DOMINIO --view
 - [ ] Buenas prácticas ≥ 90
 - [ ] SEO ≥ 90
 
-Referencia medida en local sobre HTTP/2 con la CSP real (`tools/serve-h2.mjs`),
-que es la misma superficie de transporte que Cloudflare pero sin su CDN
-delante: **móvil 96 / 100 / 100 / 100** · **escritorio 100 / 100 / 100 / 100**.
-Sobre el dominio debería salir igual o mejor. Si baja de 90 en algo, pega el
-JSON y lo corrijo.
+Ya medido sobre el staging real (`https://transformlab.pages.dev`, 2026-08-07):
+**móvil 94 / 100 / 100 / 100** · **escritorio 96 / 100 / 100 / 100**, más
+Agentic Browsing 100 en ambos. Sobre tu dominio debería salir igual: es el
+mismo despliegue. Si baja de 90 en algo, pega el JSON y lo corrijo.
+
+> Ojo con esta medición: la primera vez salió **64** en móvil, no 96 como en
+> local. El service worker precacheaba las 55 piezas dentro de la ventana de
+> medición y bloqueaba el hilo principal 3,4 s. Ya está corregido, pero es un
+> recordatorio de que el número que vale es el del dominio, no el de casa.
 
 ### 3.2 Migración con tus datos reales
 
@@ -137,11 +141,16 @@ En el teléfono, sobre el dominio con HTTPS:
 - [ ] Offline, la gráfica de «Hoy» dibuja (Chart.js va precacheado)
 - [ ] Offline, se puede guardar un check-in y sigue ahí al recuperar la red
 
-> Esto está automatizado en `test/e2e/pwa.spec.js`, pero **hay que repetirlo a
-> mano sobre el dominio**: el fallo más grave de M6 fue justo este —el
-> precache fallaba entero en producción por una redirección que en local no
-> existe— y no había forma de verlo sin probar contra el despliegue real.
-> Si la app no abre en modo avión, avísame antes de seguir.
+> El modo avión **ya está comprobado contra el staging real** con un navegador
+> automatizado: precache de 54 entradas, las nueve secciones cargan y la
+> gráfica dibuja. Lo que falta aquí es el móvil de verdad, que es otra cosa:
+> otro motor (Safari en iOS), otra gestión de memoria y la app instalada en
+> lugar de una pestaña.
+>
+> Merece la pena hacerlo con cuidado porque el fallo más grave de M6 fue justo
+> este: el precache fallaba entero en producción por una redirección que en
+> local no existe, y la aplicación parecía funcionar perfectamente. Si no abre
+> en modo avión, avísame antes de seguir.
 
 ### 3.4 Guion de humo manual, en el móvil
 
