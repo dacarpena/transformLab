@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0012';
+const CACHE_VERSION = 'tl-v5-0013';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -59,6 +59,7 @@ const PRECACHE = [
     'src/core/rng.js',
     'src/core/scale.js',
     'src/core/silhouette.js',
+    'src/core/timeline.js',
     'src/core/tracking.js',
     'src/core/training.js',
     'src/data/backup.js',
