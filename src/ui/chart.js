@@ -307,8 +307,16 @@ export function draw(options) {
                     }
                 }
             },
-            onClick: (_event, elements) => {
-                const hit = elements.find((/** @type {*} */ e) => e.datasetIndex === datasets.length - 1);
+            onClick: (event, _elements, chart) => {
+                // `interaction.intersect: false` está bien para el tooltip —que
+                // debe seguir al dedo— pero NO para abrir una ficha: con él,
+                // `elements` trae el hito más CERCANO aunque el clic haya caído
+                // en zona vacía, y se abría la ficha de un hito que no estaba
+                // ahí. Aquí se vuelve a consultar exigiendo intersección real.
+                const hits = chart.getElementsAtEventForMode(
+                    /** @type {*} */ (event), 'point', { intersect: true }, true
+                );
+                const hit = hits.find((/** @type {*} */ e) => e.datasetIndex === datasets.length - 1);
                 if (!hit) return;
                 const milestone = visibleMilestones[hit.index];
                 if (milestone) options.onMilestone(milestone);
@@ -377,12 +385,29 @@ export function unavailable() {
 }
 
 /**
- * Exporta el lienzo a PNG.
+ * Exporta el lienzo a PNG, con el fondo del tema debajo.
+ *
+ * `toBase64Image` devuelve el lienzo tal cual, y el lienzo es TRANSPARENTE: el
+ * fondo lo pone la página. El PNG salía con líneas y texto claros sobre nada,
+ * así que en cualquier visor o chat con fondo blanco —que son casi todos— se
+ * veía ilegible. Aquí se compone sobre el color de superficie del tema.
  * @returns {string | null} data URL, o null si no hay gráfica
  */
 export function toPng() {
     if (!chartInstance) return null;
-    return chartInstance.toBase64Image('image/png', 1);
+    const source = chartInstance.canvas;
+    if (!source || typeof document === 'undefined') {
+        return chartInstance.toBase64Image('image/png', 1);
+    }
+    const out = document.createElement('canvas');
+    out.width = source.width;
+    out.height = source.height;
+    const ctx = out.getContext('2d');
+    if (!ctx) return chartInstance.toBase64Image('image/png', 1);
+    ctx.fillStyle = cssVar('--color-surface') || '#14141d';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(source, 0, 0);
+    return out.toDataURL('image/png');
 }
 
 /** Render auxiliar para pruebas del módulo sin Chart.js. */

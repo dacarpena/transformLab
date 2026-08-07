@@ -183,6 +183,13 @@ async function route(roots) {
         return;
     }
     await startApp(roots);
+
+    // El recordatorio se arma AQUÍ y no en el arranque, porque el horario es
+    // de cada perfil: al cambiar de perfil, `route` se vuelve a ejecutar y
+    // `start()` desarma el del perfil anterior antes de armar el del nuevo.
+    // Colgado del arranque, el aviso del perfil viejo seguía vivo y el del
+    // nuevo no llegaba a existir.
+    reminder.start();
 }
 
 async function boot() {
@@ -236,10 +243,9 @@ async function boot() {
     // 5 · a rodar
     await route(roots);
 
-    // 6 · offline y recordatorio, al final y sin bloquear: si algo de esto
-    // falla, la aplicación ya está en pie y el usuario no pierde nada.
+    // 6 · offline, al final y sin bloquear: si el registro falla, la
+    // aplicación ya está en pie y el usuario no pierde nada.
     pwa.register();
-    reminder.start();
 }
 
 boot();

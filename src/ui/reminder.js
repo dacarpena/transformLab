@@ -55,8 +55,13 @@ export function setSchedule(schedule) {
         : { schemaVersion: SCHEMA_VERSION, locale: 'es', activeMeasures: ['waist'], fluctuationVisible: false, reminder: null };
     const next = validateCollection('settings', { .../** @type {*} */ (base), reminder: schedule });
     if (!next.ok) return false;
+
+    // Desarmar PRIMERO y escribir después. Si la escritura falla, el usuario
+    // ve el error con el temporizador ya parado: no avisar cuando se pidió
+    // avisar es molesto, pero avisar cuando se pidió NO avisar es peor.
+    stop();
     if (!storage.set('settings', next.value).ok) return false;
-    if (schedule) start(); else stop();
+    if (schedule) start();
     return true;
 }
 
@@ -82,18 +87,58 @@ export async function requestPermission() {
  * @returns {number}
  */
 export function msUntil(schedule, now) {
-    const target = new Date(now.getTime());
-    target.setHours(schedule.hour, 0, 0, 0);
-    const dayDelta = (schedule.weekday - now.getDay() + 7) % 7;
-    target.setDate(target.getDate() + dayDelta);
+    const first = instantFor(schedule, now, 0);
     // si hoy es el día pero la hora ya pasó, toca la semana que viene
-    if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 7);
+    const target = first.getTime() > now.getTime() ? first : instantFor(schedule, now, 1);
     return target.getTime() - now.getTime();
 }
 
-/** Lanza la notificación, si sigue habiendo permiso. */
+/**
+ * El instante del próximo `weekday` a las `hour`, `weeksAhead` semanas después.
+ *
+ * Los días se mueven con el reloj puesto al MEDIODÍA y la hora se aplica
+ * después: desplazar fechas con la hora ya puesta atraviesa instantes que en
+ * la semana del cambio de hora no existen.
+ *
+ * Y aun así puede no existir la hora pedida: en Groenlandia el salto de
+ * primavera se come las 23:00 del sábado, y `setHours(23)` la normalizaba a
+ * las 00:00 del DOMINGO — el aviso llegaba el día equivocado. Cuando pasa, se
+ * retrocede hasta volver al día pedido: avisar una hora antes es un desajuste;
+ * avisar otro día es un fallo.
+ * @param {{ weekday: number, hour: number }} schedule
+ * @param {Date} now
+ * @param {number} weeksAhead
+ * @returns {Date}
+ */
+function instantFor(schedule, now, weeksAhead) {
+    const target = new Date(now.getTime());
+    target.setHours(12, 0, 0, 0);
+    const dayDelta = (schedule.weekday - now.getDay() + 7) % 7;
+    target.setDate(target.getDate() + dayDelta + weeksAhead * 7);
+    target.setHours(schedule.hour, 0, 0, 0);
+
+    let guard = 0;
+    while (target.getDay() !== schedule.weekday && guard < 4) {
+        target.setTime(target.getTime() - 3600000);
+        guard += 1;
+    }
+    return target;
+}
+
+/**
+ * Lanza la notificación, si TODAVÍA procede.
+ *
+ * Vuelve a leer el horario en vez de fiarse del que había al armar el
+ * temporizador: entre medias el usuario ha podido desactivarlo, o cambiar de
+ * perfil, o desactivarlo desde otra pestaña. Notificar a alguien que dijo que
+ * no es exactamente lo que este recordatorio no puede hacer.
+ */
 function fire() {
     if (permissionState() !== 'granted') return;
+    if (getSchedule() === null) {
+        stop();
+        return;
+    }
     const today = new Date().toDateString();
     const last = storage.get(LAST_FIRED_KEY);
     if (last.ok && last.value === today) return; // una al día, no más

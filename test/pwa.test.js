@@ -35,11 +35,20 @@ function filesUnder(dir, extensions) {
 
 const swSource = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 
-/** Extrae el array PRECACHE del fuente del service worker. */
+/**
+ * Extrae el array PRECACHE del fuente del service worker.
+ *
+ * Quitando los comentarios primero: dentro del array hay uno que menciona
+ * `'index.html'` entrecomillado para explicar por qué NO está, y sin esto se
+ * colaba en la lista como si lo estuviera.
+ */
 function precacheList() {
     const match = swSource.match(/const PRECACHE = \[([\s\S]*?)\];/);
     assert.ok(match, 'sw.js debe declarar `const PRECACHE = [...]`');
-    return [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    const body = match[1]
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    return [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
 }
 
 test('PRECACHE incluye todos los módulos de src/ (si falta uno, no abre offline)', () => {
@@ -51,13 +60,38 @@ test('PRECACHE incluye todos los módulos de src/ (si falta uno, no abre offline
 
 test('PRECACHE incluye el CSS, el vendor y los iconos del manifiesto', () => {
     const cached = new Set(precacheList());
-    for (const file of ['css/tokens.css', 'css/app.css', 'vendor/chart.umd.min.js', 'index.html', 'manifest.webmanifest']) {
+    // './' y no 'index.html': ver el test de más abajo sobre el 308 de Cloudflare
+    for (const file of ['css/tokens.css', 'css/app.css', 'vendor/chart.umd.min.js', './', 'manifest.webmanifest']) {
         assert.ok(cached.has(file), `falta ${file} en PRECACHE`);
     }
     const manifest = JSON.parse(readFileSync(join(ROOT, 'manifest.webmanifest'), 'utf8'));
     for (const icon of manifest.icons) {
         assert.ok(cached.has(icon.src), `falta el icono ${icon.src} en PRECACHE`);
     }
+});
+
+test('PRECACHE no contiene index.html: Cloudflare lo redirige y tumba el precache', () => {
+    // El peor fallo de M6. `GET /index.html` responde 308 → / en Cloudflare
+    // Pages, y `cache.addAll` es todo-o-nada: esa sola entrada hacía que el
+    // service worker NO se instalara nunca en producción, así que la
+    // aplicación no tenía offline en absoluto. Y no se notaba, porque cargaba
+    // de red igual. El shell se precachea como './', que sí responde 200.
+    const cached = precacheList();
+    assert.ok(!cached.includes('index.html'),
+        'index.html en PRECACHE: en producción redirige (308) y tumba el precache entero');
+    assert.ok(cached.includes('./'), 'falta el shell (./) en PRECACHE');
+
+    // Y la navegación tiene que servirse de './', no de 'index.html'
+    assert.match(swSource, /caches\.match\('\.\/'\)/,
+        'la navegación debe resolverse con caches.match(\'./\')');
+    assert.ok(!/caches\.match\('index\.html'\)/.test(swSource),
+        'devolver index.html a una navegación sirve una respuesta redirigida, que el navegador rechaza');
+});
+
+test('un precache fallido no puede ser silencioso', () => {
+    // Todo-o-nada es deliberado, pero enterarse no es opcional: sin el aviso,
+    // una app sin offline se descubre en el metro.
+    assert.match(swSource, /console\.error\(\s*'\[sw\] precache incompleto/);
 });
 
 test('todo lo que PRECACHE promete existe de verdad en el repositorio', () => {

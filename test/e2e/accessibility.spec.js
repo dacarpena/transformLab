@@ -236,3 +236,35 @@ test('con prefers-reduced-motion no queda ninguna transición larga', async ({ p
     const tooLong = durations.filter((d) => d > 0.05);
     expect(tooLong).toEqual([]);
 });
+
+test('en escritorio con la ventana baja se llega a TODAS las secciones', async ({ page }) => {
+    // Diez secciones no caben en una ventana baja (un portátil pequeño, media
+    // pantalla, el tipo del sistema en grande). Sin desplazamiento, «Ajustes»
+    // quedaba fuera y era literalmente inalcanzable: ni con el ratón, ni con
+    // el dedo, ni haciendo scroll — la barra lateral no se movía.
+    for (const height of [900, 600, 460, 380]) {
+        await page.setViewportSize({ width: 1280, height });
+
+        const nav = page.locator('.app__nav');
+        const ajustes = page.locator('[data-view="settings"]');
+        await expect(ajustes).toBeAttached();
+
+        const estado = await page.evaluate(() => {
+            const n = /** @type {HTMLElement} */ (document.querySelector('.app__nav'));
+            return {
+                desborda: n.scrollHeight > n.clientHeight,
+                overflowY: getComputedStyle(n).overflowY
+            };
+        });
+        if (estado.desborda) {
+            expect(estado.overflowY, `a ${height} px la barra desborda y no se puede desplazar`)
+                .toMatch(/auto|scroll/);
+            // Y desplazándose se alcanza de verdad
+            await nav.evaluate((n) => { n.scrollTop = n.scrollHeight; });
+        }
+        await expect(ajustes).toBeInViewport();
+        await ajustes.click();
+        await expect(page.locator('.view[data-view-id="settings"]')).toBeVisible();
+        await page.locator('[data-view="today"]').click();
+    }
+});

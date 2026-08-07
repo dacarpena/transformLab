@@ -197,6 +197,7 @@ function draw(container) {
     const hasMeasurements = stats.weightKg !== null || stats.fatPct !== null;
 
     render(container, html`
+        <h1 class="visually-hidden">${t('achievements.title')}</h1>
         <section class="card" aria-labelledby="ach-title">
             <div class="card__header">
                 <h2 id="ach-title" class="card__title">${t('achievements.title')}</h2>

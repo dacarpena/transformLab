@@ -32,7 +32,6 @@
 /manifest.webmanifest
   Cache-Control: no-cache
 
-# Los estáticos los versiona el service worker, no la URL, así que tampoco se
-# pueden cachear de forma inmutable en el borde.
-/index.html
-  Cache-Control: no-cache
+# NO hay regla para /index.html: Cloudflare Pages responde 308 a esa ruta y
+# redirige a /, así que la regla nunca se aplicaría. La raíz ya llega con
+# `must-revalidate` de serie.

@@ -676,6 +676,8 @@ ul { margin: 0; padding: 0; list-style: none; }
     flex-direction: column;
     gap: var(--space-2);
     align-items: center;
+    /* La región cubre el ancho de la pantalla, así que no puede capturar el
+       puntero: los clics tienen que atravesarla hasta el contenido. */
     pointer-events: none;
 }
 
@@ -696,12 +698,19 @@ ul { margin: 0; padding: 0; list-style: none; }
 .toast--leaving { opacity: 0; }
 
 /* Un aviso con acción se alinea en fila; el botón hereda el foco visible del
-   resto de controles y llega al mínimo táctil. */
+   resto de controles y llega al mínimo táctil.
+
+   Y RECUPERA EL PUNTERO. La región lo desactiva para dejar pasar los clics al
+   contenido, y eso dejaba muerto el único botón que existe para aplicar una
+   versión nueva: se veía, se podía enfocar con el tabulador, pero ni el ratón
+   ni el dedo lo alcanzaban — el toque activaba el control que quedara debajo.
+   En un móvil, sin teclado, el aviso era un banner permanente e inútil. */
 .toast:has(.toast__action) {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+    pointer-events: auto;
 }
 
 .toast__action {
@@ -992,6 +1001,11 @@ ul { margin: 0; padding: 0; list-style: none; }
         border-right: 1px solid var(--color-border);
         padding: var(--space-6) var(--space-3);
         padding-bottom: var(--space-6);
+        /* Diez secciones no caben en una ventana baja (o con el tipo grande),
+           y sin esto las últimas quedaban fuera SIN forma de alcanzarlas:
+           «Ajustes» era literalmente inaccesible con el ratón y con el dedo. */
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 
     .nav-list {

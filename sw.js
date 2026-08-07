@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0005';
+const CACHE_VERSION = 'tl-v5-0006';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -27,8 +27,15 @@ const CACHE_VERSION = 'tl-v5-0005';
  * se comprueba en `test/pwa.test.js` contra el árbol real.
  */
 const PRECACHE = [
+    // OJO: aquí va './' y NO 'index.html'.
+    //
+    // Cloudflare Pages responde 308 a /index.html y redirige a /. `addAll` es
+    // todo-o-nada, así que esa sola entrada hacía fallar el precache ENTERO:
+    // en producción el service worker no llegaba a instalarse nunca y la
+    // aplicación no tenía offline en absoluto. Se veía como que todo iba bien
+    // —la app cargaba de red— y solo el modo avión lo habría delatado.
+    // `test/pwa.test.js` no podía verlo porque solo lee este fuente.
     './',
-    'index.html',
     'manifest.webmanifest',
     'css/tokens.css',
     'css/app.css',
@@ -89,8 +96,16 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
     event.waitUntil((async () => {
         const cache = await caches.open(CACHE_VERSION);
-        // `reload` evita precachear lo que el caché HTTP ya tenía viejo.
-        await cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })));
+        try {
+            // `reload` evita precachear lo que el caché HTTP ya tenía viejo.
+            await cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })));
+        } catch (err) {
+            // Todo-o-nada es deliberado (ver §3 de la cabecera), pero silencioso
+            // no: sin esto, un precache fallido deja la aplicación sin offline
+            // sin que nadie se entere hasta que alguien se mete en el metro.
+            console.error('[sw] precache incompleto: la aplicación NO funcionará sin red', err);
+            throw err;
+        }
         // NO se llama a skipWaiting: el SW nuevo espera a que el usuario
         // recargue. Lo activa `SKIP_WAITING`, que manda la página tras avisar.
     })());
@@ -124,8 +139,11 @@ self.addEventListener('fetch', (event) => {
     // cualquier ruta se resuelve en el mismo documento.
     if (request.mode === 'navigate') {
         event.respondWith((async () => {
-            const cached = await caches.match('index.html');
-            if (cached) return cached;
+            // './' y no 'index.html': ver el comentario de PRECACHE. Además,
+            // devolver una respuesta REDIRIGIDA a una navegación es un error
+            // que el navegador rechaza, y /index.html redirige.
+            const cached = await caches.match('./');
+            if (cached && !cached.redirected) return cached;
             try {
                 return await fetch(request);
             } catch {

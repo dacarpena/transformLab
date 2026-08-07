@@ -88,3 +88,43 @@ test('el instante que devuelve cae de verdad en el día y la hora pedidos', () =
         }
     }
 });
+
+test('el cambio de hora no manda el aviso al día equivocado', () => {
+    // Groenlandia adelanta el reloj a las 22:00 del sábado, así que las 23:00
+    // de ese sábado NO EXISTEN. `setHours(23)` las normalizaba a las 00:00 del
+    // domingo y el aviso llegaba un día tarde. Avisar una hora antes es un
+    // desajuste; avisar otro día es un fallo.
+    //
+    // El test solo puede ejecutarse con la zona horaria puesta, así que se
+    // comprueba la PROPIEDAD que lo cierra en cualquier huso: el instante
+    // devuelto cae siempre en el día pedido.
+    const SEMANAS_DE_CAMBIO = [
+        '2026-03-25', '2026-03-27', '2026-03-29', '2026-03-31',
+        '2026-10-22', '2026-10-24', '2026-10-26',
+        '2027-03-12', '2027-03-14', '2027-03-16',
+        '2026-11-01', '2026-11-03', '2026-04-22', '2026-04-24'
+    ];
+    let casos = 0;
+    for (const dia of SEMANAS_DE_CAMBIO) {
+        for (let h = 0; h < 24; h += 1) {
+            const ahora = new Date(`${dia}T${String(h).padStart(2, '0')}:37:00`);
+            if (Number.isNaN(ahora.getTime())) continue; // hora inexistente por el salto
+            for (let weekday = 0; weekday < 7; weekday += 1) {
+                for (const hour of [0, 3, 9, 23]) {
+                    const ms = msUntil({ weekday, hour }, ahora);
+                    const objetivo = new Date(ahora.getTime() + ms);
+                    casos += 1;
+                    assert.ok(ms > 0, `no positivo: ${dia} ${h}h → día ${weekday} ${hour}h`);
+                    assert.ok(ms <= 8 * DAY, `más de 8 días: ${dia} ${h}h → día ${weekday} ${hour}h`);
+                    assert.equal(objetivo.getDay(), weekday,
+                        `día equivocado: el ${dia} a las ${h}h, «día ${weekday} a las ${hour}h» cayó en ${objetivo.toString().slice(0, 21)}`);
+                    // La hora puede desplazarse una por el salto, nunca más
+                    const desvio = Math.abs(objetivo.getHours() - hour);
+                    assert.ok(desvio <= 1 || desvio === 23,
+                        `hora desviada ${desvio} h: ${dia} ${h}h → día ${weekday} ${hour}h dio ${objetivo.getHours()}h`);
+                }
+            }
+        }
+    }
+    assert.ok(casos > 8000, `se esperaban miles de casos, se probaron ${casos}`);
+});

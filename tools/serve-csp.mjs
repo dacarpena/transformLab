@@ -54,6 +54,14 @@ for (const [k, v] of Object.entries(HEADERS)) console.log(`  ${k}: ${v.slice(0, 
 
 createServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+
+    // Cloudflare Pages responde 308 a /index.html y redirige a /. Se imita
+    // aquí porque esa redirección es la que rompe el service worker: una
+    // respuesta redirigida devuelta a una navegación la rechaza el navegador.
+    if (url.pathname === '/index.html') {
+        res.writeHead(308, { ...HEADERS, Location: '/' }).end();
+        return;
+    }
     // normalize + prefijo: nadie sale de ROOT con ../
     let filePath = join(ROOT, normalize(decodeURIComponent(url.pathname)));
     if (!filePath.startsWith(ROOT)) {
