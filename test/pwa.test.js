@@ -149,3 +149,18 @@ test('index.html enlaza el manifiesto y los iconos que el manifiesto declara', (
     assert.ok(themeColor);
     assert.equal(themeColor[1], manifest.theme_color);
 });
+
+test('Open Graph usa URLs absolutas y apunta a una imagen que existe', () => {
+    // La especificación de Open Graph exige URL absoluta, y los rastreadores
+    // de WhatsApp, LinkedIn y Facebook no resuelven una ruta relativa: con una
+    // relativa, el enlace se comparte sin imagen.
+    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+    for (const prop of ['og:url', 'og:image']) {
+        const m = html.match(new RegExp(`<meta property="${prop}" content="([^"]+)"`));
+        assert.ok(m, `falta ${prop}`);
+        assert.match(m[1], /^https:\/\//, `${prop} tiene que ser una URL absoluta: ${m[1]}`);
+    }
+    const image = html.match(/<meta property="og:image" content="[^"]*\/([^"/]+)"/);
+    assert.ok(image);
+    assert.ok(existsSync(join(ROOT, 'icons', image[1])), `la imagen de Open Graph no existe: ${image[1]}`);
+});

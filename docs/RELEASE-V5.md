@@ -47,34 +47,31 @@ Para el mismo perfil A, la v4.0 publicada devolvía **50,9 kg** (IMC 15,7).
 
 ---
 
-## 2. Dominio (M6-7)
+## 2. Dominio (M6-7) — HECHO
 
-**Pasos en el panel de Cloudflare.** El repositorio no necesita ningún cambio:
-ya trae `_headers` con la CSP y las cabeceras de seguridad, y Cloudflare Pages
-lo aplica solo.
+`https://motifyer.com` ya está conectado al proyecto de Pages y verificado el
+2026-08-07:
 
-1. Cloudflare Dashboard → **Workers & Pages** → tu proyecto `transformlab`.
-2. Pestaña **Custom domains** → *Set up a domain*.
-3. Escribe el dominio (o subdominio). Si el DNS ya está en Cloudflare, el
-   registro se crea solo; si no, te dará el CNAME que hay que añadir donde
-   tengas el DNS.
-4. Espera al certificado (suele ser minutos; el estado pasa a *Active*).
-5. Comprueba, y anota el resultado:
+- [x] Responde 200 por HTTPS
+- [x] `Content-Security-Policy` con `default-src 'self'`, y las seis cabeceras
+      de seguridad
+- [x] `http://motifyer.com` → 301 → `https://motifyer.com/`
+- [x] `https://transformlab.pages.dev` sigue funcionando
+- [x] Lighthouse: móvil **99 / 100 / 100 / 100** · escritorio **100 / 100 / 100 / 100**
+- [x] Modo avión sobre el dominio: precache de 54 entradas, la app abre, las
+      nueve secciones cargan y un check-in guardado sin red persiste
 
-   ```bash
-   curl -sI https://TU-DOMINIO/ | grep -iE 'content-security-policy|x-content-type|referrer-policy|strict-transport'
-   ```
+**Lo único pendiente aquí, y es decisión tuya:** `www.motifyer.com` no
+resuelve. No lo he creado porque es un registro DNS de tu cuenta y hay quien
+prefiere el dominio desnudo. Si lo quieres:
 
-   - [ ] Responde 200 por HTTPS
-   - [ ] `Content-Security-Policy` presente y con `default-src 'self'`
-   - [ ] `X-Content-Type-Options: nosniff`
-   - [ ] `Referrer-Policy: strict-origin-when-cross-origin`
-   - [ ] `http://TU-DOMINIO` redirige a `https://`
-   - [ ] `https://transformlab.pages.dev` sigue funcionando o redirige
+> Cloudflare Dashboard → **DNS** de `motifyer.com` → *Add record* →
+> tipo `CNAME`, nombre `www`, destino `motifyer.com`, proxy activado.
+> Después, en **Workers & Pages → transformlab → Custom domains**, añade
+> `www.motifyer.com` para que Pages lo sirva.
 
-   > Si la CSP **no** aparece, el `_headers` se está ignorando entero. En ese
-   > caso la aplicación se estaría sirviendo sin ninguna cabecera de
-   > seguridad: no sigas, avísame y lo arreglo.
+Y si el nombre definitivo del dominio va a ser otro, lo único que hay que
+cambiar en el código son las etiquetas `og:url` y `og:image` de `index.html`.
 
 ---
 

@@ -323,7 +323,7 @@ Los tests que cierran cada uno llevan escrito el fallo que evitan.
 - [x] M6-4 · Accesibilidad AA (F7): pasada completa con lista — foco visible en todo, focus-trap en todos los modales, contraste ≥ 4,5:1 medido en pares reales, `prefers-reduced-motion` cubriendo toda animación, canvas con alternativa, zoom 200 %, 320 px. Registrar resultados.
 - [x] M6-5 · Rendimiento: Lighthouse ≥ 90 en las cuatro categorías sobre staging; corregir lo que baje de ahí.
 - [x] M6-6 · Legales y meta: aviso de privacidad visible (C6), disclaimer «no es consejo médico», Open Graph completo, `robots.txt` real, título/descripciones i18n.
-- [ ] M6-7 · Dominio propio en Cloudflare Pages + HTTPS; redirecciones limpias.
+- [x] M6-7 · Dominio propio en Cloudflare Pages + HTTPS; redirecciones limpias.
 - [ ] M6-8 · **Checklist de release** (F8) ejecutada y pegada en la bitácora con fecha: CI verde · typecheck limpio · E2E verde · Lighthouse ≥90×4 · guion de humo manual pasado (adaptación del de `docs/VERIFICACION-MANUAL.md` a v5) · migración v4 probada con datos reales · backup/restore probado · dominio y PWA instalable verificados en un móvil real.
 
 ### Criterios de cierre
@@ -427,11 +427,39 @@ verlos; hicieron falta un navegador real, el modo avión y un dedo simulado.
     roto, conserva los check-ins, archiva los datos v4, idempotente
 [x] Backup → borrar perfil → restore, y un backup hostil que no ejecuta nada
 [x] CSP activa sin violaciones en las diez vistas
+[x] Dominio propio + HTTPS operativos: https://motifyer.com
 [ ] Migración con los datos REALES del dispositivo principal   ← usuario
 [ ] PWA instalada y abierta sin red en un móvil real           ← usuario
 [ ] Guion de humo manual en el móvil                           ← usuario
-[ ] Dominio propio + HTTPS                                     ← usuario
 ```
+
+**M6-7 cerrada (2026-08-07).** El dominio ya estaba conectado al proyecto de
+Pages; lo que faltaba era verificarlo. Sobre `https://motifyer.com`:
+
+```
+HTTPS 200 · http → 301 → https · CSP y las seis cabeceras de seguridad
+sw.js, manifest, robots.txt, llms.txt, iconos, vendor y src: 200
+/index.html → 308 → /  (la redirección que tumbaba el precache; ya no le afecta)
+
+Lighthouse   móvil       99 / 100 / 100 / 100  (+ Agentic Browsing 100)
+             escritorio 100 / 100 / 100 / 100  (+ Agentic Browsing 100)
+
+Modo avión sobre el dominio: precache de 54 entradas, abre, las nueve
+secciones cargan, la gráfica dibuja y un check-in guardado sin red persiste.
+```
+
+Dos cosas que salieron al verificar:
+
+- `og:image` era una ruta relativa. Open Graph exige URL absoluta y los
+  rastreadores de WhatsApp, LinkedIn y Facebook no la resuelven: el enlace se
+  compartía sin imagen. Corregido junto con `og:url`, con test que lo fija.
+- **`www.motifyer.com` no resuelve.** No lo he creado: es un registro DNS en
+  la cuenta del usuario y una decisión suya (hay quien prefiere el dominio
+  desnudo). Si lo quiere, es un CNAME `www` → `motifyer.com` en Cloudflare DNS.
+- El dominio se llama `motifyer.com` y la aplicación TransformLab. Puede ser
+  deliberado (un dominio que ya tenía) o un descuido; no lo doy por supuesto.
+  Si el nombre definitivo es otro, lo único que hay que tocar en el código son
+  las dos etiquetas Open Graph de `index.html`.
 
 El rendimiento móvil sobre el dominio salió primero en **64**, no en los 96 de
 local: el service worker precacheaba las 55 piezas dentro de la ventana de
