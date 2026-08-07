@@ -215,6 +215,32 @@ export const MILESTONE_CATEGORIES = Object.freeze({
 export const ABSOLUTE_MAX_FAT_PCT = 60;
 
 /**
+ * Cuánto puede crecer el músculo ESQUELÉTICO de un objetivo respecto al de
+ * partida, en % sobre la cifra inicial. Por encima de `implausiblePct` es
+ * error; entre `ambitiousPct` e `implausiblePct`, aviso.
+ *
+ * Convención de producto, no medición — igual que `PLAN_LIMITS.maxTotalDays`,
+ * y conviene decirlo: el modelo físico admite bastante más. Con las tasas de
+ * `MUSCLE_GAIN_RATES_PCT_BW_MONTH` (intermedio, ~0,9 kg/mes a 80 kg), un +40 %
+ * sobre unos 30 kg de músculo esquelético son ~12 kg, o algo más de un año de
+ * plan; el tope duro de 1 095 días daría para casi el triple. Se elige el más
+ * estrecho de los dos guardas a propósito: un objetivo que exija tres años
+ * seguidos de superávit no es un plan, y es mejor decirlo al fijarlo que
+ * después de proyectarlo.
+ *
+ * OJO con las unidades: estos umbrales se aplican a músculo esquelético, que
+ * NO es la «masa muscular» de una báscula de bioimpedancia (ver `scale.js`).
+ * Un +40 % en esquelético son solo ~+21 % en unidades de báscula, porque el
+ * offset entre ambas no crece. Comparar cifras de báscula contra este umbral
+ * es exactamente el defecto que hundió la v4.0.
+ * @type {Readonly<{ambitiousPct: number, implausiblePct: number}>}
+ */
+export const TARGET_MUSCLE_GAIN_LIMITS = Object.freeze({
+    ambitiousPct: 20,
+    implausiblePct: 40
+});
+
+/**
  * Suelo de ruido para juzgar una desviación, como fracción del peso corporal.
  * Fuente: la variabilidad intrasemanal del peso ronda el 1 % por agua,
  * glucógeno y contenido intestinal (Bhutani et al. 2017); se toma 1,3 % para

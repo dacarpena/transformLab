@@ -16,6 +16,8 @@ import { MEASURE_KEYS, SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
 import * as plans from '../plan-state.js';
+import { muscleUnitsOf } from '../muscle-units.js';
+import { fromBioimpedance } from '../../core/scale.js';
 import { evaluateCheckin, toleranceAt } from '../../core/tracking.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
@@ -42,6 +44,11 @@ function num(n, d = 1) {
 /** Formulario de alta o edición. */
 function renderForm(existing, dateISO) {
     const measures = activeMeasures();
+    const data = plans.get();
+    const muscle = muscleUnitsOf(data);
+    // El hueso apenas se mueve de una semana a otra, así que se prellena con
+    // el del perfil: el usuario solo teclea lo que de verdad cambia.
+    const defaultBone = data?.profile?.initial?.boneKg ?? null;
     return html`
         <form class="card" data-form novalidate>
             <h2 class="card__title">${t(existing ? 'checkin.edit' : 'checkin.new')}</h2>
@@ -64,6 +71,27 @@ function renderForm(existing, dateISO) {
                            placeholder="${t('checkin.field.optional')}">
                 </label>
             </div>
+
+            ${muscle.isScale ? html`
+                <div class="field-grid">
+                    <label class="field">
+                        <span class="field__label">${t('checkin.field.scaleMuscle')}</span>
+                        <input class="input" type="number" inputmode="decimal" step="0.01"
+                               data-field="scaleMuscleKg"
+                               value="${existing && existing.scaleMuscleKg !== null ? existing.scaleMuscleKg : ''}"
+                               placeholder="${t('checkin.field.optional')}">
+                    </label>
+                    <label class="field">
+                        <span class="field__label">${t('checkin.field.bone')}</span>
+                        <input class="input" type="number" inputmode="decimal" step="0.01"
+                               data-field="boneKg"
+                               value="${existing && existing.boneKg !== null ? existing.boneKg
+                                        : (defaultBone === null ? '' : defaultBone)}"
+                               placeholder="${t('checkin.field.optional')}">
+                    </label>
+                </div>
+                <p class="field__hint">${t('checkin.field.scaleHint')}</p>
+            ` : ''}
 
             <h3 class="card__title">${t('checkin.section.measures')}</h3>
             <div class="field-grid">
@@ -161,12 +189,18 @@ function readForm(root) {
         if (key && Number.isFinite(value)) subjective[key] = value;
     }
     const field = (name) => /** @type {HTMLInputElement | null} */ (root.querySelector(`[data-field="${name}"]`))?.value ?? '';
-    const fat = field('fatPct').trim();
+    /** Campo numérico opcional: vacío es null, no 0. */
+    const optionalNumber = (name) => {
+        const raw = field(name).trim();
+        return raw === '' ? null : Number(raw);
+    };
 
     return {
         dateISO: field('dateISO'),
         weightKg: field('weightKg').trim() === '' ? NaN : Number(field('weightKg')),
-        fatPct: fat === '' ? null : Number(fat),
+        fatPct: optionalNumber('fatPct'),
+        scaleMuscleKg: optionalNumber('scaleMuscleKg'),
+        boneKg: optionalNumber('boneKg'),
         measuresCm,
         subjective,
         notes: field('notes')
@@ -220,6 +254,34 @@ export function mount(container) {
         if (!Number.isFinite(input.weightKg) || input.weightKg <= 0) {
             if (messages) render(messages, html`<p class="field__error">${t('checkin.weightRequired')}</p>`);
             return;
+        }
+        // Si ha copiado las cifras de la báscula, se comprueba que cuadran
+        // entre sí antes de guardarlas: `peso = grasa + músculo + hueso`. Es
+        // el mismo cruce del asistente, y caza un dedo torpe (65,56 en vez de
+        // 56,56) mientras el usuario todavía tiene la pantalla de la báscula
+        // delante.
+        //
+        // Si no anotó el %grasa, se DEDUCE de músculo + hueso en lugar de
+        // saltarse la comprobación: el cruce de esas dos cifras se vuelve
+        // trivial, pero siguen aplicándose los límites de hueso y de
+        // composición, que son los que impiden guardar 190 kg de músculo en
+        // un cuerpo de 80.
+        if (input.scaleMuscleKg !== null && input.boneKg !== null) {
+            const leanKg = input.scaleMuscleKg + input.boneKg;
+            const fatPct = input.fatPct !== null
+                ? input.fatPct
+                : ((input.weightKg - leanKg) / input.weightKg) * 100;
+            const read = fromBioimpedance({
+                weightKg: input.weightKg,
+                fatPct,
+                muscleKg: input.scaleMuscleKg,
+                boneKg: input.boneKg,
+                sex: data?.profile?.user?.sex
+            });
+            if (!read.ok) {
+                if (messages) render(messages, html`<p class="field__error">${plans.issueText(read.errors[0])}</p>`);
+                return;
+            }
         }
         // La fecha debe caer dentro del plan: fuera de él no hay nada contra
         // lo que comparar, así que se avisa en vez de guardar un dato inerte.

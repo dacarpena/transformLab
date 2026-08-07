@@ -116,14 +116,33 @@ test('validación de campos: tipos, rangos y enums del perfil', () => {
     assert.equal(bad({ target: { fatPct: 15 } }).ok, false, 'target sin muscleKg');
 });
 
-test('A3: muscleSource es obligatorio en initial y solo admite measured|estimated', () => {
+test('A3: muscleSource es obligatorio en initial y solo admite measured|estimated|derived', () => {
     const { muscleSource, ...sinFuente } = PROFILE_OK.initial;
     void muscleSource;
     assert.equal(validateProfile({ ...PROFILE_OK, initial: sinFuente }).ok, false);
-    for (const src of ['measured', 'estimated']) {
-        const r = validateProfile({ ...PROFILE_OK, initial: { ...PROFILE_OK.initial, muscleSource: src, muscleKg: src === 'measured' ? 33 : null } });
+    for (const src of ['measured', 'estimated', 'derived']) {
+        const r = validateProfile({ ...PROFILE_OK, initial: { ...PROFILE_OK.initial, muscleSource: src, muscleKg: src === 'estimated' ? null : 33 } });
         assert.ok(r.ok, `${src}: ${JSON.stringify(!r.ok && r.errors)}`);
     }
+});
+
+test('E10/E11: las cifras de báscula del perfil son opcionales y se guardan tal cual', () => {
+    const conBascula = {
+        ...PROFILE_OK,
+        initial: { ...PROFILE_OK.initial, muscleSource: 'derived', muscleKg: 29.24, scaleMuscleKg: 56.56, boneKg: 3.12 },
+        target: { fatPct: 15, muscleKg: 32.68, scaleMuscleKg: 60 }
+    };
+    const r = validateProfile(conBascula);
+    assert.ok(r.ok, JSON.stringify(!r.ok && r.errors));
+    assert.equal(r.value.initial.scaleMuscleKg, 56.56);
+    assert.equal(r.value.initial.boneKg, 3.12);
+    assert.equal(r.value.target.scaleMuscleKg, 60);
+
+    // Y un perfil de antes de E11, sin la meta en unidades de báscula, sigue
+    // validando: el campo llega como null, no rompe el registro.
+    const r2 = validateProfile(PROFILE_OK);
+    assert.ok(r2.ok, JSON.stringify(!r2.ok && r2.errors));
+    assert.equal(r2.value.target.scaleMuscleKg, null);
 });
 
 test('check-ins: peso obligatorio, resto opcional, subjetivas 1-10, medidas configurables', () => {
@@ -153,6 +172,36 @@ test('check-ins: peso obligatorio, resto opcional, subjetivas 1-10, medidas conf
     const conExtra = validateCheckins({ ...base, items: [{ ...base.items[0], measuresCm: { waist: 88, tentacle: 12 } }] });
     assert.ok(conExtra.ok);
     assert.ok(!('tentacle' in conExtra.value.items[0].measuresCm));
+});
+
+test('E11: el check-in admite músculo y hueso de báscula, y los de antes siguen valiendo', () => {
+    const base = {
+        schemaVersion: 5,
+        items: [{
+            id: 'ci_1', dateISO: '2026-08-10', weightKg: 80.4, fatPct: 25.8,
+            scaleMuscleKg: 56.9, boneKg: 3.12,
+            measuresCm: {}, subjective: {}, createdAtISO: '2026-08-10T08:00:00.000Z'
+        }]
+    };
+    const r = validateCheckins(base);
+    assert.ok(r.ok, JSON.stringify(!r.ok && r.errors));
+    assert.equal(r.value.items[0].scaleMuscleKg, 56.9);
+    assert.equal(r.value.items[0].boneKg, 3.12);
+
+    // Un check-in guardado antes de E11 no tiene esos campos. Tiene que
+    // seguir validando: si no, el import de un backup antiguo perdería la
+    // colección ENTERA sin decir nada.
+    const { scaleMuscleKg, boneKg, ...antiguo } = base.items[0];
+    void scaleMuscleKg; void boneKg;
+    const r2 = validateCheckins({ ...base, items: [antiguo] });
+    assert.ok(r2.ok, JSON.stringify(!r2.ok && r2.errors));
+    assert.equal(r2.value.items[0].scaleMuscleKg, null);
+    assert.equal(r2.value.items[0].boneKg, null);
+
+    // Y una cifra imposible se rechaza, no se recorta.
+    for (const patch of [{ scaleMuscleKg: 0 }, { scaleMuscleKg: 500 }, { boneKg: 0.1 }, { boneKg: 40 }, { scaleMuscleKg: 'mucho' }]) {
+        assert.equal(validateCheckins({ ...base, items: [{ ...base.items[0], ...patch }] }).ok, false, JSON.stringify(patch));
+    }
 });
 
 test('plan: current opcional (aún sin plan) e historial de recalibraciones (E1)', () => {

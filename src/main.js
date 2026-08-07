@@ -142,21 +142,35 @@ async function startOnboarding(roots, seed) {
  */
 function editProfile(roots) {
     const data = plans.get();
-    startOnboarding(roots, data ? {
+    if (!data) {
+        startOnboarding(roots);
+        return;
+    }
+    // El asistente habla en la unidad del usuario, así que hay que devolverle
+    // SUS cifras, no las internas: si vino de una báscula, el campo de músculo
+    // lleva la de la báscula y el hueso vuelve a su sitio. Sin esto, reeditar
+    // el perfil lo degradaba en silencio de «derivado» a «medido» y su músculo
+    // se desplomaba de 56,56 a 29,24 delante de él.
+    const { initial, target } = data.profile;
+    const isScale = Number.isFinite(initial.scaleMuscleKg) && Number.isFinite(initial.boneKg);
+    startOnboarding(roots, {
         name: data.profile.name,
         sex: data.profile.user.sex,
         age: data.profile.user.age,
         heightCm: data.profile.user.heightCm,
         activityLevel: data.profile.user.activityLevel,
         trainingStatus: data.profile.user.trainingStatus,
-        weightKg: data.profile.initial.weightKg,
-        fatPct: data.profile.initial.fatPct,
-        muscleKg: data.profile.initial.muscleKg,
-        targetFatPct: data.profile.target.fatPct,
-        targetMuscleKg: data.profile.target.muscleKg,
+        weightKg: initial.weightKg,
+        fatPct: initial.fatPct,
+        muscleKg: isScale ? initial.scaleMuscleKg : initial.muscleKg,
+        boneKg: isScale ? initial.boneKg : null,
+        targetFatPct: target.fatPct,
+        targetMuscleKg: isScale && Number.isFinite(target.scaleMuscleKg)
+            ? target.scaleMuscleKg
+            : target.muscleKg,
         startDateISO: data.profile.startDateISO,
         intensity: data.profile.intensity
-    } : undefined);
+    });
 }
 
 /**

@@ -415,6 +415,15 @@ ul { margin: 0; padding: 0; list-style: none; }
     color: var(--color-text-muted);
 }
 
+/* La cifra equivalente en la otra unidad de músculo (E11). Va debajo del
+   valor, en pequeño: no compite con él, pero está siempre a la vista para
+   que nadie confunda lo que mide su báscula con músculo esquelético. */
+.metric__note {
+    font-size: var(--text-xs);
+    line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
+}
+
 /* Aviso de que las cifras son PROYECTADAS, no medidas: la corrección de
    producto de la ficha H-2 (métricas sintéticas presentadas como datos).
    El énfasis lo lleva la etiqueta, no una franja de color. */

@@ -14,6 +14,7 @@ import { t } from '../../i18n/i18n.js';
 import { SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as plans from '../plan-state.js';
+import { muscleUnitsOf } from '../muscle-units.js';
 import { evaluateSeries, streakOf, adherenceCalendar } from '../../core/tracking.js';
 import { empty } from '../components/state.js';
 
@@ -82,6 +83,53 @@ function renderDeviation(evaluations) {
             })}</p>
             <p class="secondary">${t(`deviation.explain${last.signal.charAt(0).toUpperCase()}${last.signal.slice(1)}`)}</p>
             <p class="muted">${t('deviation.toleranceNote')}</p>
+        </section>
+    `;
+}
+
+/**
+ * Músculo medido frente al proyectado (E11).
+ *
+ * Solo aparece si el usuario ha llegado a copiar el músculo de su báscula en
+ * algún check-in. Las dos columnas están en LA MISMA unidad —la suya—, que es
+ * la única forma de que la comparación signifique algo.
+ *
+ * Aquí no se recalcula ningún factor de conversión con estos datos, y es
+ * deliberado: hacerlo movería el objetivo del usuario bajo sus pies cada
+ * semana. Lo medido se guarda, se enseña y se compara; nada más.
+ * @param {import('../plan-state.js').PlanBundle} data
+ * @param {*[]} evaluations
+ */
+function renderMuscle(data, evaluations) {
+    const muscle = muscleUnitsOf(data);
+    const rows = evaluations
+        .map((e) => ({ e, item: checkins.findByDate(e.dateISO) }))
+        .filter((r) => r.item && Number.isFinite(r.item.scaleMuscleKg))
+        .map((r) => {
+            const point = data.projection.daily[r.e.dayIndex];
+            const expected = point ? muscle.toDisplay(point.muscleKg) : NaN;
+            return { dateISO: r.e.dateISO, actual: r.item.scaleMuscleKg, expected };
+        });
+    if (rows.length === 0) return '';
+
+    return html`
+        <section class="card" aria-labelledby="muscle-title">
+            <h2 id="muscle-title" class="card__title">${t('progress.muscle.title')}</h2>
+            <p class="muted">${t('progress.muscle.note')}</p>
+            <ul class="profile-list">
+                ${[...rows].reverse().map((r) => html`
+                    <li class="profile-item">
+                        <span>
+                            <strong class="numeric">${num(r.actual)} ${t('today.unit.kg')}</strong>
+                            <span class="muted"> · ${r.dateISO}</span>
+                        </span>
+                        <span class="muted numeric">
+                            ${t('progress.muscle.expected', { value: num(r.expected) })}
+                            · ${signed(r.actual - r.expected)} ${t('today.unit.kg')}
+                        </span>
+                    </li>
+                `)}
+            </ul>
         </section>
     `;
 }
@@ -175,6 +223,7 @@ function draw(container) {
     render(container, html`
         <h1 class="card__title">${t('progress.title')}</h1>
         ${evaluations.length > 0 ? renderDeviation(evaluations) : ''}
+        ${evaluations.length > 0 ? renderMuscle(data, evaluations) : ''}
         ${renderStreak(items, data.startDateISO)}
         ${renderSubjective(items)}
         ${evaluations.length > 0 ? renderHistory(evaluations) : ''}

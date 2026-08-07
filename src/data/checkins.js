@@ -19,6 +19,8 @@ import { SCHEMA_VERSION, validateCollection, sanitizeText, MEASURE_KEYS, SUBJECT
  * @property {string} dateISO
  * @property {number} weightKg
  * @property {number | null} [fatPct]
+ * @property {number | null} [scaleMuscleKg] músculo tal cual lo da la báscula (E11)
+ * @property {number | null} [boneKg] masa ósea tal cual la da la báscula (E11)
  * @property {Record<string, number>} [measuresCm]
  * @property {Record<string, number>} [subjective]
  * @property {string} [notes]
@@ -95,6 +97,12 @@ export function save(input, context) {
         dateISO: input?.dateISO ?? '',
         weightKg: input?.weightKg,
         fatPct: typeof input?.fatPct === 'number' && Number.isFinite(input.fatPct) ? input.fatPct : null,
+        // Cifras de báscula del día, tal cual las dio la báscula (E11). No se
+        // traducen aquí: guardar lo medido y traducir al mostrarlo es lo que
+        // permite que un cambio futuro en la conversión no reescriba el
+        // historial del usuario.
+        scaleMuscleKg: typeof input?.scaleMuscleKg === 'number' && Number.isFinite(input.scaleMuscleKg) ? input.scaleMuscleKg : null,
+        boneKg: typeof input?.boneKg === 'number' && Number.isFinite(input.boneKg) ? input.boneKg : null,
         measuresCm: cleanMap(input?.measuresCm, MEASURE_KEYS),
         subjective: cleanMap(input?.subjective, SUBJECTIVE_KEYS),
         notes: sanitizeText(input?.notes ?? ''),

@@ -16,6 +16,7 @@ import * as storage from '../data/storage.js';
 import { SCHEMA_VERSION, validateCollection } from '../data/schema.js';
 import * as checkins from '../data/checkins.js';
 import { evaluateSeries, recalibrationOffer, inferFatPct } from '../core/tracking.js';
+import { muscleOffsetKg } from '../core/scale.js';
 import * as plans from './plan-state.js';
 import * as modal from './components/modal.js';
 import * as toast from './components/toast.js';
@@ -90,6 +91,21 @@ function applyRecalibration(latest) {
     if (!built.ok) {
         const issues = 'issues' in built ? built.issues : [];
         return { ok: false, error: issues.length > 0 ? `ranges.${issues[0].code}` : 'recal.failed' };
+    }
+
+    // Si el usuario trabaja en cifras de báscula, las suyas tienen que seguir
+    // al músculo recalibrado (E11). Lo que se conserva es el OFFSET —lo que su
+    // báscula cuenta de más: órganos, piel, sangre y agua—, no la cifra: si se
+    // dejara la vieja, el offset saltaría y con él el objetivo que se fijó.
+    //
+    // Y hay que reescribir también `muscleKg`: sin eso queda a null (se
+    // re-estima en cada arranque) y el par del que sale el offset se rompe,
+    // devolviendo al usuario a una unidad que no es la suya sin avisar.
+    const previousOffset = muscleOffsetKg(parsed.value.initial);
+    if (previousOffset !== null) {
+        const nextMuscleKg = built.value.composition.muscleKg;
+        nextProfile.initial.muscleKg = nextMuscleKg;
+        nextProfile.initial.scaleMuscleKg = Math.round((nextMuscleKg + previousOffset) * 100) / 100;
     }
 
     // 1 · archivar el plan vigente ANTES de sobrescribir nada

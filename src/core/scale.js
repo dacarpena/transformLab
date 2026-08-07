@@ -183,3 +183,64 @@ export function fromBioimpedance(input) {
         warnings
     };
 }
+
+/* ------------------------------------------------------------------------ *
+ * Conversión entre las dos unidades de «músculo» (decisión E11)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * La distancia entre las dos cifras, en kg:
+ *
+ *     musculoBascula = musculoEsqueletico + (otraMagra − hueso)
+ *                      \_______________/    \________________/
+ *                        lo que usa el       órganos, piel, sangre, agua
+ *                        motor (Janssen)     — el «offset»
+ *
+ * Ese paréntesis es **constante durante todo el plan**, y no por casualidad:
+ * el motor conserva `otherLeanKg` (premisa declarada de `engine.targetWeightKg`,
+ * fijada en `generator.js` y protegida por el invariante `conservacion`), y la
+ * masa ósea de un adulto tampoco se mueve en los meses de una transformación.
+ *
+ * De ahí la propiedad que hace manejable todo esto: **los INCREMENTOS son
+ * iguales en ambas unidades**. «Ganar 3,4 kg» significa lo mismo en la báscula
+ * y en el motor. Solo hay que traducir NIVELES absolutos.
+ *
+ * El offset no se guarda en ninguna parte: se calcula restando dos cifras que
+ * ya viven juntas en el mismo registro del perfil, así que no puede
+ * desincronizarse de ellas.
+ *
+ * @param {{ scaleMuscleKg?: number | null, muscleKg?: number | null }} composition
+ * @returns {number | null} kg de offset, o `null` si esta composición no viene
+ *   de una báscula (y entonces no hay nada que traducir).
+ */
+export function muscleOffsetKg(composition) {
+    if (composition === null || typeof composition !== 'object') return null;
+    const { scaleMuscleKg, muscleKg } = composition;
+    if (!isFiniteNumber(scaleMuscleKg) || !isFiniteNumber(muscleKg)) return null;
+    if (scaleMuscleKg <= 0 || muscleKg <= 0) return null;
+    // Una báscula siempre da MÁS que el esquelético: su «músculo» es casi toda
+    // la magra. Un offset negativo significa que las cifras no son lo que
+    // dicen ser, y traducir con él desplazaría todo en la dirección contraria.
+    const offset = scaleMuscleKg - muscleKg;
+    return offset > 0 ? offset : null;
+}
+
+/**
+ * Músculo esquelético → la cifra que muestra la báscula del usuario.
+ * @param {number} skeletalMuscleKg
+ * @param {number} offsetKg
+ * @returns {number}
+ */
+export function toScaleMuscle(skeletalMuscleKg, offsetKg) {
+    return skeletalMuscleKg + offsetKg;
+}
+
+/**
+ * La cifra de la báscula → el músculo esquelético que entiende el motor.
+ * @param {number} scaleMuscleKg
+ * @param {number} offsetKg
+ * @returns {number}
+ */
+export function toSkeletalMuscle(scaleMuscleKg, offsetKg) {
+    return scaleMuscleKg - offsetKg;
+}

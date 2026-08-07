@@ -20,6 +20,7 @@ import { html, render, on } from '../dom.js';
 import { t, getLocale, setLocale, availableLocales } from '../../i18n/i18n.js';
 import { checkProfile, checkComposition, checkTarget, LIMITS } from '../../core/ranges.js';
 import { fromBioimpedance } from '../../core/scale.js';
+import { muscleUnitsFor } from '../muscle-units.js';
 import { makeComposition } from '../../core/engine.js';
 import { SCHEMA_VERSION, MEASURE_KEYS } from '../../data/schema.js';
 import * as storage from '../../data/storage.js';
@@ -103,11 +104,41 @@ function muscleSourceKey() {
     return draft.muscleKg === null ? 'onboarding.muscleSource.estimated' : 'onboarding.muscleSource.measured';
 }
 
-/** Objetivo de músculo efectivo: el tecleado o, si no hay, el actual. */
+/**
+ * En qué unidad se le habla de músculo a este usuario (E11).
+ *
+ * Si ha rellenado músculo Y hueso, sus cifras son de báscula y toda la
+ * interfaz debe hablar en esa unidad: es la que él puede comparar con la
+ * pantalla de su báscula. `draft.muscleKg` es entonces la cifra de báscula y
+ * `composition.muscleKg` la esquelética, que es justo el par que necesita la
+ * aduana.
+ */
+function draftUnits() {
+    if (draft.muscleKg === null || draft.boneKg === null) return muscleUnitsFor(null);
+    const { composition } = currentComposition();
+    if (!composition) return muscleUnitsFor(null);
+    return muscleUnitsFor({ scaleMuscleKg: draft.muscleKg, muscleKg: composition.muscleKg });
+}
+
+/**
+ * Objetivo de músculo efectivo **en la unidad que ve el usuario**: el tecleado
+ * o, si aún no ha tecleado nada, su cifra actual.
+ *
+ * OJO: esto NO es lo que consume el motor. Para eso está `targetMuscleSkeletal`.
+ * Mezclarlas es exactamente lo que hacía que escribir «60» —el número natural
+ * viniendo de 56,56 en su báscula— respondiera «ganar 30,8 kg no es alcanzable».
+ */
 function effectiveTargetMuscle() {
     if (draft.targetMuscleKg !== null) return draft.targetMuscleKg;
     const { composition } = currentComposition();
-    return composition ? Math.round(composition.muscleKg * 10) / 10 : null;
+    if (!composition) return null;
+    return Math.round(draftUnits().toDisplay(composition.muscleKg) * 10) / 10;
+}
+
+/** El mismo objetivo, ya traducido a músculo esquelético para el motor. */
+function targetMuscleSkeletal() {
+    const shown = effectiveTargetMuscle();
+    return shown === null ? null : draftUnits().fromInput(shown);
 }
 
 /** Registro de perfil v5 a partir del borrador. */
@@ -139,7 +170,15 @@ function toProfileRecord(nowISO) {
             scaleMuscleKg: draft.boneKg === null ? null : draft.muscleKg,
             boneKg: draft.boneKg
         },
-        target: { fatPct: draft.targetFatPct, muscleKg: effectiveTargetMuscle() ?? 0 },
+        target: {
+            fatPct: draft.targetFatPct,
+            // Al motor siempre esquelético...
+            muscleKg: targetMuscleSkeletal() ?? 0,
+            // ...y aparte, la meta tal y como el usuario la escribió. Es la
+            // cifra que él se fijó, y no puede moverse porque una
+            // recalibración cambie una estimación interna nuestra.
+            scaleMuscleKg: draftUnits().isScale ? effectiveTargetMuscle() : null
+        },
         startDateISO: draft.startDateISO,
         intensity: draft.intensity
     };
@@ -174,7 +213,10 @@ function validateStep() {
     if (step === 'target') {
         const { composition } = currentComposition();
         if (!composition) return { errors: [{ code: 'target.initialInvalid', path: '' }], warnings: [] };
-        const targetMuscle = effectiveTargetMuscle();
+        // Traducido: `checkTarget` compara contra `composition.muscleKg`, que
+        // es esquelético. Pasarle la cifra de báscula del usuario daba un
+        // delta absurdo y bloqueaba objetivos perfectamente alcanzables (E11).
+        const targetMuscle = targetMuscleSkeletal();
         const base = checkTarget(
             { weightKg: composition.weightKg, fatPct: composition.fatPct, muscleKg: composition.muscleKg, leanKg: composition.leanKg },
             { fatPct: draft.targetFatPct, muscleKg: targetMuscle ?? undefined },
@@ -220,6 +262,16 @@ function refreshSideEffects(root) {
             : draft.muscleKg === null
             ? 'onboarding.muscleSource.estimated'
             : 'onboarding.muscleSource.measured');
+    }
+
+    // Y si está trabajando en cifras de báscula, debajo del objetivo va SIEMPRE
+    // el músculo esquelético que implica: la conversión usa una proporción de
+    // población, no una medición suya, y eso se dice, no se esconde.
+    const targetNote = root.querySelector('[data-target-muscle-note]');
+    if (targetNote) {
+        const units = draftUnits();
+        const skeletal = targetMuscleSkeletal();
+        targetNote.textContent = units.isScale && skeletal !== null ? units.secondary(skeletal) : '';
     }
 }
 
@@ -343,6 +395,7 @@ function renderStepFields(step) {
 
     if (step === 'target') {
         const suggested = effectiveTargetMuscle();
+        const units = draftUnits();
         return html`
             <div class="field-grid">
                 <label class="field">
@@ -351,9 +404,11 @@ function renderStepFields(step) {
                            min="0" max="60" value="${draft.targetFatPct}">
                 </label>
                 <label class="field">
-                    <span class="field__label">${t('onboarding.field.targetMuscle')}</span>
+                    <span class="field__label">${units.isScale ? t('onboarding.field.targetMuscle.scale') : t('onboarding.field.targetMuscle')}</span>
                     <input class="input" type="number" inputmode="decimal" step="0.1" data-field="targetMuscleKg"
+                           aria-describedby="target-muscle-note"
                            value="${draft.targetMuscleKg === null ? (suggested ?? '') : draft.targetMuscleKg}">
+                    <span class="field__hint" id="target-muscle-note" data-target-muscle-note></span>
                 </label>
                 <label class="field">
                     <span class="field__label">${t('onboarding.field.startDate')}</span>
@@ -373,6 +428,8 @@ function renderStepFields(step) {
 
     // confirmar
     const { composition } = currentComposition();
+    const confirmUnits = draftUnits();
+    const targetSkeletal = targetMuscleSkeletal();
     return html`
         <div class="preview">
             <div class="preview__row">
@@ -382,16 +439,18 @@ function renderStepFields(step) {
                 </span>
             </div>
             <div class="preview__row">
-                <span>${t('onboarding.field.muscle')}</span>
+                <span>${confirmUnits.label()}</span>
                 <span class="preview__value">
-                    ${composition ? composition.muscleKg.toFixed(1) : '—'} ${t('today.unit.kg')}
+                    ${composition ? confirmUnits.toDisplay(composition.muscleKg).toFixed(1) : '—'} ${t('today.unit.kg')}
                     · ${t(muscleSourceKey())}
+                    ${composition && confirmUnits.isScale ? html`<span class="muted"> · ${confirmUnits.secondary(composition.muscleKg)}</span>` : ''}
                 </span>
             </div>
             <div class="preview__row">
                 <span>${t('onboarding.summary.to')}</span>
                 <span class="preview__value">
                     ${effectiveTargetMuscle() ?? '—'} ${t('today.unit.kg')} · ${draft.targetFatPct} ${t('today.unit.pct')}
+                    ${confirmUnits.isScale && targetSkeletal !== null ? html`<span class="muted"> · ${confirmUnits.secondary(targetSkeletal)}</span>` : ''}
                 </span>
             </div>
         </div>

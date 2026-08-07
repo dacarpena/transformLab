@@ -88,6 +88,7 @@ export const es = {
     'onboarding.field.muscle.explain': 'Si dejas los dos vacíos, estimamos tu músculo a partir de tu masa magra. Si pones solo el músculo, lo tratamos como una medición tuya de músculo esquelético (DEXA, InBody) y no lo tocamos. Si pones músculo Y hueso, entendemos que vienen de una báscula de bioimpedancia y los traducimos.',
     'onboarding.field.targetFat': 'Grasa corporal objetivo (%)',
     'onboarding.field.targetMuscle': 'Masa muscular objetivo (kg)',
+    'onboarding.field.targetMuscle.scale': 'Masa muscular objetivo (kg, como la mide tu báscula)',
     'onboarding.field.startDate': 'Fecha de inicio',
     'onboarding.field.intensity': 'Ritmo',
     'onboarding.field.intensity.conservative': 'Conservador (0,5 % del peso por semana)',
@@ -172,6 +173,9 @@ export const es = {
     'progress.title': 'Progreso',
     'progress.emptyTitle': 'Aún no hay check-ins',
     'progress.emptyBody': 'Cuando registres tu peso real, aquí verás cómo va tu progreso frente al plan.',
+    'progress.muscle.title': 'Músculo: medido frente al plan',
+    'progress.muscle.note': 'Las dos cifras están en la unidad de tu báscula, para que puedas compararlas directamente. Recuerda que una báscula de bioimpedancia estima, y su lectura se mueve con la hidratación y la hora del día: mira la tendencia, no el dato suelto.',
+    'progress.muscle.expected': 'plan: {value} kg',
 
     // Ajustes
     'settings.title': 'Ajustes',
@@ -230,6 +234,12 @@ export const es = {
     'ranges.composition.muscleExceedsLean': 'Tu músculo no puede superar tu masa magra ({leanKg} kg).',
     'ranges.composition.muscleShareImplausible': 'Ese músculo es el {sharePct} % de tu masa magra. Si esa cifra viene de una báscula de bioimpedancia, rellena también la masa ósea: esas básculas miden otra cosa y así la traducimos bien.',
 
+    // Unidad en la que se habla del músculo (E11)
+    'muscleUnits.label.skeletal': 'Músculo',
+    'muscleUnits.label.scale': 'Músculo (báscula)',
+    'muscleUnits.secondary': '≈ {value} kg de músculo esquelético',
+    'muscleUnits.explain': 'Estás usando las cifras de tu báscula. Tu báscula llama «masa muscular» a todo lo que no es grasa ni hueso, así que hablamos en esa misma unidad para que puedas comparar directamente con lo que ves en su pantalla. Debajo te enseñamos el músculo esquelético estimado, que es con lo que trabaja el motor por dentro.',
+
     // Lectura de báscula de bioimpedancia (E10)
     'ranges.scale.inputInvalid': 'No se ha podido leer la medición.',
     'ranges.scale.weightKgInvalid': 'El peso de la báscula no es válido.',
@@ -273,6 +283,9 @@ export const es = {
     'checkin.field.weightHint': 'Es el único dato obligatorio. Pésate siempre en las mismas condiciones.',
     'checkin.field.fatPct': 'Grasa corporal (%)',
     'checkin.field.optional': 'Opcional',
+    'checkin.field.scaleMuscle': 'Masa muscular (kg, de tu báscula)',
+    'checkin.field.bone': 'Masa ósea (kg)',
+    'checkin.field.scaleHint': 'Copia las cifras tal cual las da tu báscula. Comprobamos que cuadren entre sí antes de guardarlas; el hueso viene prellenado con el tuyo porque casi no cambia de una semana a otra.',
     'checkin.section.measures': 'Medidas',
     'checkin.section.subjective': 'Cómo te has sentido',
     'checkin.section.notes': 'Notas',

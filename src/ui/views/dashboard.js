@@ -14,6 +14,7 @@
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
+import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
 import * as modal from '../components/modal.js';
 import * as storage from '../../data/storage.js';
@@ -41,6 +42,7 @@ function num(value, digits = 1) {
  * @param {{ dayIndex: number, state: 'before'|'during'|'after' }} today
  */
 function renderToday(data, today, evaluations) {
+    const muscle = muscleUnitsOf(data);
     const hasCheckins = evaluations.length > 0;
     const latest = hasCheckins ? evaluations[evaluations.length - 1] : null;
     const point = data.projection.daily[today.dayIndex];
@@ -79,8 +81,9 @@ function renderToday(data, today, evaluations) {
                     <span class="metric__label">${t('today.metric.fatPct')}</span>
                 </div>
                 <div class="metric">
-                    <span class="metric__value">${num(point.muscleKg)} <span class="muted">${t('today.unit.kg')}</span></span>
-                    <span class="metric__label">${t('today.metric.muscle')}</span>
+                    <span class="metric__value">${num(muscle.toDisplay(point.muscleKg))} <span class="muted">${t('today.unit.kg')}</span></span>
+                    <span class="metric__label">${muscle.isScale ? muscle.label() : t('today.metric.muscle')}</span>
+                    ${muscle.isScale ? html`<span class="metric__note muted">${muscle.secondary(point.muscleKg)}</span>` : ''}
                 </div>
                 <div class="metric">
                     <span class="metric__value">${point.kcal.targetKcal} <span class="muted">${t('today.unit.kcal')}</span></span>
@@ -121,6 +124,14 @@ function renderPlan(data) {
     const { plan, composition } = data;
     const total = plan.totalDays;
     const warnings = plan.warnings ?? [];
+    // Los dos extremos de la tarjeta, en la unidad del usuario. El OBJETIVO se
+    // muestra tal y como él lo escribió (`target.scaleMuscleKg`) siempre que
+    // esté guardado: así, si una recalibración mueve la estimación interna, la
+    // meta que se fijó sigue siendo la misma cifra en pantalla.
+    const muscle = muscleUnitsOf(data);
+    const targetMuscleShown = muscle.isScale && Number.isFinite(data.profile.target.scaleMuscleKg)
+        ? data.profile.target.scaleMuscleKg
+        : muscle.toDisplay(data.profile.target.muscleKg);
 
     return html`
         <section class="card" aria-labelledby="plan-title">
@@ -129,13 +140,13 @@ function renderPlan(data) {
             <div class="plan-summary">
                 <div class="plan-summary__side">
                     <span class="plan-summary__weight">${num(composition.weightKg)} ${t('today.unit.kg')}</span>
-                    <span class="muted">${num(composition.fatPct)} ${t('today.unit.pct')} · ${t('today.plan.muscleLabel', { value: num(composition.muscleKg) })}</span>
+                    <span class="muted">${num(composition.fatPct)} ${t('today.unit.pct')} · ${t('today.plan.muscleLabel', { value: num(muscle.toDisplay(composition.muscleKg)) })}</span>
                     <span class="muted">${t('today.plan.start')}</span>
                 </div>
                 <span class="plan-summary__arrow" aria-hidden="true">→</span>
                 <div class="plan-summary__side">
                     <span class="plan-summary__weight">${num(plan.summary.targetWeightKg)} ${t('today.unit.kg')}</span>
-                    <span class="muted">${num(data.profile.target.fatPct)} ${t('today.unit.pct')} · ${t('today.plan.muscleLabel', { value: num(data.profile.target.muscleKg) })}</span>
+                    <span class="muted">${num(data.profile.target.fatPct)} ${t('today.unit.pct')} · ${t('today.plan.muscleLabel', { value: num(targetMuscleShown) })}</span>
                     <span class="muted">${t('today.plan.goal')}</span>
                 </div>
             </div>
@@ -169,6 +180,7 @@ function renderPlan(data) {
 
 /** Sección de la gráfica. */
 function renderChartSection(data) {
+    const muscle = muscleUnitsOf(data);
     return html`
         <section class="card" aria-labelledby="chart-title">
             <div class="card__header">
@@ -176,7 +188,7 @@ function renderChartSection(data) {
                 <div class="chart-toolbar">
                     ${(['weight', 'fatPct', 'muscle']).map((m) => html`
                         <button type="button" class="btn btn--sm ${m === metric ? 'btn--primary' : ''}" data-metric="${m}">
-                            ${t(`chart.metric.${m}`)}
+                            ${m === 'muscle' && muscle.isScale ? muscle.label() : t(`chart.metric.${m}`)}
                         </button>
                     `)}
                     <button type="button" class="btn btn--sm" data-png>${t('action.downloadPng')}</button>
@@ -236,6 +248,7 @@ async function redraw(container) {
         readout,
         projection: data.projection,
         metric,
+        muscle: muscleUnitsOf(data),
         todayIndex: today.dayIndex,
         range: { from: 0, to: rangeTo },
         checkins: evaluations.map((e) => ({
@@ -249,7 +262,7 @@ async function redraw(container) {
                 titleKey: 'chart.milestoneModalTitle',
                 size: 'sm',
                 body: html`
-                    <p>${chart.milestoneLabel(m)}</p>
+                    <p>${chart.milestoneLabel(m, muscleUnitsOf(data))}</p>
                     <p class="muted">${t('chart.milestoneDay', { day: m.dayIndex, date: m.dateISO })}</p>
                 `
             });

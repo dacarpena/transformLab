@@ -21,7 +21,8 @@ import {
     MAX_FAT_PCT,
     ABSOLUTE_MAX_FAT_PCT,
     ACTIVITY_MULTIPLIERS,
-    MUSCLE_GAIN_RATES_PCT_BW_MONTH
+    MUSCLE_GAIN_RATES_PCT_BW_MONTH,
+    TARGET_MUSCLE_GAIN_LIMITS
 } from './constants.js';
 
 /**
@@ -204,11 +205,16 @@ export function checkTarget(initial, target, sex) {
     if (!isFiniteNumber(muscleKg) || muscleKg <= 0) {
         errors.push({ code: 'target.muscleMissing' });
     } else {
+        // AMBAS cifras son músculo esquelético. Si el usuario introdujo un
+        // objetivo en unidades de su báscula, la UI ya lo tradujo antes de
+        // llegar aquí (`src/ui/muscle-units.js`); comparar una cifra de
+        // báscula con `initial.muscleKg` daría un delta absurdo — es el fallo
+        // que bloqueó un objetivo perfectamente alcanzable (E11).
         const deltaKg = muscleKg - initial.muscleKg;
         const deltaPct = (deltaKg / initial.muscleKg) * 100;
-        if (deltaPct > 40) {
+        if (deltaPct > TARGET_MUSCLE_GAIN_LIMITS.implausiblePct) {
             errors.push({ code: 'target.muscleGainImplausible', params: { deltaKg: round1(deltaKg) } });
-        } else if (deltaPct > 20) {
+        } else if (deltaPct > TARGET_MUSCLE_GAIN_LIMITS.ambitiousPct) {
             warnings.push({ code: 'target.muscleGainAmbitious', params: { deltaKg: round1(deltaKg) } });
         } else if (deltaKg < 0) {
             warnings.push({ code: 'target.muscleLoss', params: { deltaKg: round1(Math.abs(deltaKg)) } });

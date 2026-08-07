@@ -64,7 +64,8 @@ Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (p. ej. 
 
 El defecto crítico del legacy nació de dos definiciones incompatibles de "músculo" (ver `docs/AUDITORIA.md` §1). En v5:
 
-- Todo dato de músculo lleva **`muscleSource: 'measured' | 'estimated'`** (decisión A3) y las dos rutas de cálculo son explícitas. Prohibido cualquier clamp absoluto en kg sobre tejido magro; los límites son **relativos a la masa magra** y generan **aviso al usuario**, nunca corrección silenciosa (B9).
+- Todo dato de músculo lleva **`muscleSource: 'measured' | 'estimated' | 'derived'`** (decisión A3; `derived` lo añadió E10 para las básculas de bioimpedancia) y las tres rutas de cálculo son explícitas. Prohibido cualquier clamp absoluto en kg sobre tejido magro; los límites son **relativos a la masa magra** y generan **aviso al usuario**, nunca corrección silenciosa (B9).
+- **El motor solo habla de músculo esquelético** (E11). La «masa muscular» de una báscula doméstica es otra cantidad —la magra menos el hueso, ~95 % de la magra—, y confundirlas es el defecto que hundió la v4.0. La traducción vive en un único sitio, `src/ui/muscle-units.js`, en la frontera de la interfaz: nada convertido cruza hacia `src/core/`. Se traducen NIVELES absolutos; los INCREMENTOS son iguales en ambas unidades y no se tocan.
 - Suelo calórico: `max(BMR, 1200 mujeres / 1500 hombres)`; si el suelo recorta el déficit, la duración de la fase se alarga proporcionalmente (B2).
 - Calorías y composición están conectadas por equivalencia energética explícita (~7 700 kcal/kg de grasa): el déficit de cada fase se deriva de su pérdida esperada (B3).
 - TDEE se recalcula semanalmente sobre el peso proyectado, con factor de adaptación metabólica documentado (B4, referencia Trexler).

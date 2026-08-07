@@ -518,6 +518,76 @@ báscula en el motor.
 
 ---
 
+## E11 · El músculo, en la unidad de tu báscula, en toda la app (2026-08-07)
+
+**El problema.** E10 arregló la ENTRADA del estado actual y se quedó ahí. Al
+fijar el objetivo, el usuario escribió `60` —el número natural viniendo de
+56,56 en su báscula— y la app contestó **«Ganar 30,8 kg de músculo no es
+alcanzable»**: ese campo se leía como músculo esquelético, y el suyo es 29,24.
+El mismo defecto una capa más arriba, y en más sitios: la gráfica, la tarjeta
+del plan y los hitos seguían hablando en esquelético. Peor, `scaleMuscleKg` y
+`boneKg` se guardaban desde E10 y **no los leía nadie**.
+
+**Decisiones del usuario:** (1) la cifra principal en la unidad de su báscula,
+con la esquelética estimada al lado; (2) el check-in semanal pide músculo y
+hueso; (3) tiene que servir a cualquiera y ser realista, no un apaño para
+Xiaomi.
+
+**El modelo.** `musculoBáscula = musculoEsquelético + (otraMagra − hueso)`. Ese
+paréntesis —órganos, piel, sangre, agua— vale 27,32 kg para él y es
+**constante**, porque el motor conserva `otherLeanKg` (invariante
+`conservacion`) y el hueso de un adulto no se mueve en unos meses. Verificado
+con un test: no varía ni un gramo a lo largo de la proyección entera.
+Consecuencia que simplifica todo: **los incrementos son iguales en ambas
+unidades; solo hay que traducir niveles.** Por eso los hitos del catálogo, las
+tasas de ganancia y los mensajes «ganar X kg» no se tocaron.
+
+**Cómo quedó.**
+
+- El offset se calcula como `initial.scaleMuscleKg − initial.muscleKg`, dos
+  cifras que ya viven juntas en el mismo registro. **No hay campo de offset**:
+  un valor guardado aparte podría desincronizarse; una resta no.
+- Un perfil está «en unidad de báscula» si y solo si `initial.scaleMuscleKg` es
+  finito. Sin selector, coherente con E10.
+- `src/ui/muscle-units.js` es la única aduana, y vive en la UI a propósito:
+  **el motor no se tocó**, así que los siete invariantes con nombre siguen
+  valiendo por construcción.
+- `target.scaleMuscleKg` guarda la meta tal y como el usuario la escribió (60).
+  Sin eso, una recalibración movería el offset y su objetivo se desplazaría
+  solo a 59,78. El objetivo del usuario no puede moverse porque cambie una
+  estimación interna nuestra.
+- Al recalibrar se conserva el OFFSET, no la cifra, y se reescribe también
+  `initial.muscleKg`: sin eso quedaba a null y el par del que sale el offset se
+  rompía, devolviendo al usuario a una unidad que no es la suya.
+- El check-in acepta `scaleMuscleKg` y `boneKg`, **opcionales por obligación**:
+  un campo requerido nuevo haría que todo backup anterior perdiera la colección
+  en silencio. Se guarda lo medido sin traducir; traducir al mostrar es lo que
+  permite que un cambio futuro en la conversión no reescriba el historial.
+- **El offset NO se recalcula desde los check-ins**, y está documentado en el
+  código: hacerlo movería el objetivo del usuario bajo sus pies cada semana.
+
+**Honestidad, escrita en la interfaz.** Junto a cada cifra de báscula aparece
+el esquelético estimado. Lo medido es la magra y el hueso; el reparto entre
+músculo esquelético y «todo lo demás» usa una proporción de población
+(Janssen 2000), no una medición. Ninguna báscula doméstica mide músculo
+esquelético, y la app no finge que sí.
+
+**Cuatro defectos corregidos por el camino:** el asistente no resembraba
+`boneKg`/`scaleMuscleKg` al reeditar el perfil (fallo introducido en E10: un
+perfil `derived` volvía etiquetado como `measured` y su músculo se desplomaba
+de 56,56 a 29,24 delante de él); el umbral del 40 % que produjo el mensaje
+bloqueante estaba incrustado sin nombre ni fuente y ahora es
+`TARGET_MUSCLE_GAIN_LIMITS` en `constants.js`, con su justificación y sin
+cambiar el valor; `CLAUDE.md` §4 seguía diciendo `'measured' | 'estimated'`;
+y el título de un test del esquema no cubría `derived`.
+
+**Verificado:** 346 tests unitarios y 62 E2E en verde, typecheck limpio, y en
+navegador con sus cifras reales — objetivo 60 aceptado, plan de 377 días,
+dashboard 56,6 → 60,0 con «≈ 29,2 kg de músculo esquelético» debajo, eje de la
+gráfica y lectura accesible en la misma unidad, y sin desbordes a 320 px.
+
+---
+
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.

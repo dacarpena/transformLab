@@ -18,15 +18,28 @@
 
 import { html, render } from './dom.js';
 import { t } from '../i18n/i18n.js';
+import { muscleUnitsFor } from './muscle-units.js';
 
 /** @typedef {import('../core/generator.js').Projection} Projection */
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
+/** @typedef {import('./muscle-units.js').MuscleUnits} MuscleUnits */
 
 /** @type {*} */
 let chartInstance = null;
 
 /** Índice del punto activo para el recorrido con teclado. */
 let cursor = 0;
+
+/**
+ * Unidad de músculo con la que se dibujó la última vez (E11).
+ *
+ * Vive en el módulo, como `cursor`, porque el recorrido con teclado ocurre
+ * mucho después del `draw()` y tiene que anunciar la MISMA cifra que se ve en
+ * la gráfica. Un lector de pantalla que dijera 29,2 mientras el eje marca 56,6
+ * estaría describiendo otra gráfica.
+ * @type {MuscleUnits}
+ */
+let muscleUnits = muscleUnitsFor(null);
 
 /** @returns {*} el global Chart, o null si el vendor no cargó */
 function getChartLib() {
@@ -143,9 +156,20 @@ function todayLinePlugin(getTodayIndex) {
 
 /**
  * Etiqueta legible de un hito.
+ *
+ * El umbral de los hitos de músculo es un NIVEL absoluto de músculo
+ * esquelético, así que hay que traducirlo como cualquier otro nivel: si el
+ * usuario lee su gráfica en cifras de báscula, el hito que se marca en la
+ * línea tiene que decir esa misma cifra. Deja de ser un número redondo, y es
+ * el precio correcto: la alternativa es un punto cuya etiqueta no coincide con
+ * el eje sobre el que está dibujado.
  * @param {import('../core/generator.js').Milestone} milestone
+ * @param {MuscleUnits} [muscle]
  */
-export function milestoneLabel(milestone) {
+export function milestoneLabel(milestone, muscle = muscleUnits) {
+    if (milestone.category === 'muscleKg' && muscle.isScale && typeof milestone.threshold === 'number') {
+        return t('milestone.muscleKg', { threshold: muscle.toDisplay(milestone.threshold).toFixed(1) });
+    }
     const threshold = milestone.category === 'phase'
         ? t(`phase.${milestone.threshold}`)
         : milestone.threshold;
@@ -165,7 +189,7 @@ export function destroy() {
 
 /**
  * Dibuja la gráfica.
- * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}> }} options
+ * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}>, muscle?: MuscleUnits }} options
  * @returns {boolean} false si Chart.js no está disponible
  */
 export function draw(options) {
@@ -174,13 +198,17 @@ export function draw(options) {
     destroy();
 
     const { projection, metric, range } = options;
+    muscleUnits = options.muscle ?? muscleUnitsFor(null);
     const slice = projection.daily.slice(range.from, range.to + 1);
     const labels = slice.map((d) => d.dayIndex);
 
+    // Único punto donde la serie se convierte en coordenadas: hitos, tooltip y
+    // banda pasan por aquí, así que el eje de músculo queda en la unidad del
+    // usuario sin que ningún otro sitio tenga que acordarse (E11).
     /** @param {import('../core/generator.js').DailyPoint} d */
     const pick = (d) => {
         if (metric === 'fatPct') return d.fatPct;
-        if (metric === 'muscle') return d.muscleKg;
+        if (metric === 'muscle') return muscleUnits.toDisplay(d.muscleKg);
         return d.weightKg + d.fluctuationKg;
     };
 
@@ -214,7 +242,7 @@ export function draw(options) {
     }
 
     datasets.push({
-        label: t(`chart.metric.${metric}`),
+        label: metric === 'muscle' && muscleUnits.isScale ? muscleUnits.label() : t(`chart.metric.${metric}`),
         data: slice.map(pick),
         borderColor: accent,
         backgroundColor: accent,
@@ -345,7 +373,7 @@ export function announce(readout, projection, index) {
         date: point.dateISO,
         weight: (point.weightKg + point.fluctuationKg).toFixed(1),
         fat: point.fatPct.toFixed(1),
-        muscle: point.muscleKg.toFixed(1),
+        muscle: muscleUnits.toDisplay(point.muscleKg).toFixed(1),
         phase: t(`phase.${point.phaseType}`)
     });
 }

@@ -18,9 +18,18 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fromBioimpedance, BONE_SHARE_OF_LEAN } from '../src/core/scale.js';
+import {
+    fromBioimpedance,
+    BONE_SHARE_OF_LEAN,
+    muscleOffsetKg,
+    toScaleMuscle,
+    toSkeletalMuscle
+} from '../src/core/scale.js';
 import { makeComposition } from '../src/core/engine.js';
 import { SMM_OF_LEAN_RATIO } from '../src/core/constants.js';
+import { planPhases } from '../src/core/engine.js';
+import { generateProjection } from '../src/core/generator.js';
+import { checkTarget } from '../src/core/ranges.js';
 
 /** La lectura real que motivó esto: Xiaomi miScale, varón. */
 const XIAOMI = { weightKg: 81.20, fatPct: 26.5, muscleKg: 56.56, boneKg: 3.12, sex: /** @type {const} */ ('male') };
@@ -114,6 +123,106 @@ test('degrada con basura sin lanzar, como todo el motor', () => {
         assert.equal(r.ok, false);
         assert.ok(Array.isArray(r.errors) && r.errors.length > 0);
     }
+});
+
+/* ---------------------------------------------------------------------- *
+ * Conversión entre unidades de músculo (E11)
+ * ---------------------------------------------------------------------- */
+
+const PROFILE = {
+    sex: /** @type {const} */ ('male'), age: 30, heightCm: 180,
+    activityLevel: /** @type {const} */ ('moderate'),
+    trainingStatus: /** @type {const} */ ('intermediate')
+};
+
+test('el offset es la distancia entre las dos cifras, y sale de los datos del perfil', () => {
+    const r = fromBioimpedance(XIAOMI);
+    assert.ok(r.ok);
+    const offset = muscleOffsetKg({ scaleMuscleKg: r.value.scaleMuscleKg, muscleKg: r.value.skeletalMuscleKg });
+    assert.ok(offset !== null);
+    assert.ok(Math.abs(offset - (56.56 - r.value.skeletalMuscleKg)) < 1e-9);
+    // órganos, piel, sangre y agua menos el hueso: decenas de kg, no gramos
+    assert.ok(offset > 20 && offset < 35, `offset implausible: ${offset}`);
+});
+
+test('sin cifras de báscula no hay offset: un perfil normal no traduce nada', () => {
+    for (const bad of [null, undefined, {}, { muscleKg: 29 }, { scaleMuscleKg: 56 },
+        { scaleMuscleKg: 56, muscleKg: null }, { scaleMuscleKg: NaN, muscleKg: 29 },
+        { scaleMuscleKg: 0, muscleKg: 29 }]) {
+        assert.equal(muscleOffsetKg(/** @type {*} */ (bad)), null, JSON.stringify(bad));
+    }
+});
+
+test('un offset negativo se descarta: traduciría en la dirección contraria', () => {
+    // La «masa muscular» de una báscula SIEMPRE supera al esquelético, porque
+    // es casi toda la magra. Si no lo hace, las cifras no son lo que dicen.
+    assert.equal(muscleOffsetKg({ scaleMuscleKg: 25, muscleKg: 29.24 }), null);
+    assert.equal(muscleOffsetKg({ scaleMuscleKg: 29.24, muscleKg: 29.24 }), null);
+});
+
+test('la conversión va y vuelve exacta en ambos sentidos', () => {
+    const offset = 27.32;
+    for (const smm of [10, 29.2432, 32.68, 45, 60.5]) {
+        assert.ok(Math.abs(toSkeletalMuscle(toScaleMuscle(smm, offset), offset) - smm) < 1e-9);
+    }
+    for (const scale of [40, 56.56, 60, 75.25]) {
+        assert.ok(Math.abs(toScaleMuscle(toSkeletalMuscle(scale, offset), offset) - scale) < 1e-9);
+    }
+});
+
+test('los INCREMENTOS son iguales en ambas unidades: solo hay que traducir niveles', () => {
+    // Es la propiedad que permite no tocar hitos, tasas ni mensajes «ganar X kg».
+    const offset = 27.32;
+    const a = 29.24, b = 32.68;
+    const deltaSmm = b - a;
+    const deltaScale = toScaleMuscle(b, offset) - toScaleMuscle(a, offset);
+    assert.ok(Math.abs(deltaSmm - deltaScale) < 1e-9);
+});
+
+test('el offset NO se mueve ni un gramo en toda una proyección', () => {
+    // Es lo que hace legítimo tratarlo como constante: el motor conserva
+    // `otherLeanKg` (invariante `conservacion`) y el hueso de un adulto no
+    // cambia en unos meses. Si algún día esto se rompiera, la cifra de la
+    // báscula que ve el usuario derivaría en silencio.
+    const r = fromBioimpedance(XIAOMI);
+    assert.ok(r.ok);
+    const initial = {
+        weightKg: r.value.weightKg, fatPct: r.value.fatPct, fatKg: r.value.fatKg,
+        leanKg: r.value.leanKg, muscleKg: r.value.skeletalMuscleKg,
+        otherLeanKg: r.value.leanKg - r.value.skeletalMuscleKg,
+        muscleSource: /** @type {const} */ ('derived')
+    };
+    const target = { fatPct: 15, muscleKg: toSkeletalMuscle(60, 56.56 - r.value.skeletalMuscleKg) };
+    const plan = planPhases(initial, target, PROFILE);
+    assert.ok(plan.ok, JSON.stringify(!plan.ok && plan.errors));
+    const proj = generateProjection(plan.value, initial, PROFILE, { startDateISO: '2026-08-03', seed: 1, fluctuation: false });
+    assert.ok(proj.ok, JSON.stringify(!proj.ok && proj.errors));
+
+    const base = initial.otherLeanKg;
+    let maxDrift = 0;
+    for (const day of proj.value.daily) {
+        maxDrift = Math.max(maxDrift, Math.abs(day.otherLeanKg - base));
+    }
+    assert.ok(maxDrift < 1e-9, `el offset derivó ${maxDrift} kg a lo largo del plan`);
+    assert.ok(proj.value.daily.length > 100, 'el plan es demasiado corto para probar nada');
+});
+
+test('el objetivo real que bloqueaba la app se acepta al traducirlo, y se rechaza sin traducir', () => {
+    // El fallo reportado: escribir 60 (natural viniendo de 56,56 en la báscula)
+    // y recibir «ganar 30,8 kg de músculo no es alcanzable».
+    const r = fromBioimpedance(XIAOMI);
+    assert.ok(r.ok);
+    const initial = { muscleKg: r.value.skeletalMuscleKg };
+    const offset = 56.56 - r.value.skeletalMuscleKg;
+
+    const sinTraducir = checkTarget(initial, { fatPct: 15, muscleKg: 60 }, 'male');
+    assert.ok(sinTraducir.errors.some((e) => e.code === 'target.muscleGainImplausible'),
+        'sin traducir debería seguir siendo un objetivo imposible: son 60 kg de esquelético');
+
+    const traducido = checkTarget(initial, { fatPct: 15, muscleKg: toSkeletalMuscle(60, offset) }, 'male');
+    assert.deepEqual(traducido.errors, [], JSON.stringify(traducido.errors));
+    assert.ok(!traducido.warnings.some((w) => w.code === 'target.muscleGainAmbitious'),
+        'un +11,8 % no debería ni avisar');
 });
 
 test('la proporción de hueso usada como referencia es plausible', () => {

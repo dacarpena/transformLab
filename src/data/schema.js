@@ -339,7 +339,13 @@ export const validateProfile = rootValidator({
     }),
     target: objectOf({
         fatPct: num({ min: 0, max: 100 }),
-        muscleKg: num({ min: 1, max: 200 })
+        // Siempre músculo ESQUELÉTICO: es lo que consume el motor.
+        muscleKg: num({ min: 1, max: 200 }),
+        // La misma meta, en la unidad que el usuario escribió si venía de una
+        // báscula (E11). `muscleKg` se DERIVA de ésta, no al revés: así una
+        // recalibración que mueva la estimación interna no desplaza sola la
+        // cifra que el usuario se fijó.
+        scaleMuscleKg: opt(num({ min: 1, max: 200 }))
     }),
     startDateISO: isoDate,
     intensity: enumOf(INTENSITIES)
@@ -367,6 +373,13 @@ export const validateCheckins = rootValidator({
         dateISO: isoDate,
         weightKg: num({ min: 20, max: 400 }),
         fatPct: opt(num({ min: 0, max: 100 })),
+        // Lo que marcó la báscula esa semana, tal cual (E11). Opcionales por
+        // necesidad, no por comodidad: un campo requerido nuevo haría que todo
+        // backup anterior fallara la validación y perdiera la colección
+        // ENTERA en silencio (`backup.js`). Se guarda la cifra de la báscula
+        // sin traducir; la traducción a esquelético vive en la UI.
+        scaleMuscleKg: opt(num({ min: 1, max: 200 })),
+        boneKg: opt(num({ min: 0.5, max: 10 })),
         measuresCm: partialMap(MEASURE_KEYS, num({ min: 10, max: 300 })),
         subjective: partialMap(SUBJECTIVE_KEYS, num({ min: 1, max: 10, integer: true })),
         notes: opt(str({ maxLength: MAX_TEXT_LENGTH, allowEmpty: true })),

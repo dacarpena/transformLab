@@ -88,6 +88,7 @@ export const en = {
     'onboarding.field.muscle.explain': 'Leave both empty and we estimate your muscle from your lean mass. Enter muscle only and we treat it as your own skeletal-muscle measurement (DEXA, InBody) and never adjust it. Enter muscle AND bone and we read them as a bioimpedance scale reading and translate them.',
     'onboarding.field.targetFat': 'Target body fat (%)',
     'onboarding.field.targetMuscle': 'Target muscle mass (kg)',
+    'onboarding.field.targetMuscle.scale': 'Target muscle mass (kg, as your scale measures it)',
     'onboarding.field.startDate': 'Start date',
     'onboarding.field.intensity': 'Pace',
     'onboarding.field.intensity.conservative': 'Conservative (0.5 % of body weight per week)',
@@ -172,6 +173,9 @@ export const en = {
     'progress.title': 'Progress',
     'progress.emptyTitle': 'No check-ins yet',
     'progress.emptyBody': 'Once you log your real weight, this is where you’ll see how you’re tracking against the plan.',
+    'progress.muscle.title': 'Muscle: measured vs plan',
+    'progress.muscle.note': 'Both figures are in your scale’s unit so you can compare them directly. Remember a bioimpedance scale estimates, and its reading moves with hydration and time of day: watch the trend, not a single reading.',
+    'progress.muscle.expected': 'plan: {value} kg',
 
     // Settings
     'settings.title': 'Settings',
@@ -230,6 +234,12 @@ export const en = {
     'ranges.composition.muscleExceedsLean': 'Your muscle cannot exceed your lean mass ({leanKg} kg).',
     'ranges.composition.muscleShareImplausible': 'That muscle is {sharePct} % of your lean mass. If it comes from a bioimpedance scale, fill in the bone mass too: those scales measure something different and we can translate it properly.',
 
+    // Which unit muscle is spoken in (E11)
+    'muscleUnits.label.skeletal': 'Muscle',
+    'muscleUnits.label.scale': 'Muscle (scale)',
+    'muscleUnits.secondary': '≈ {value} kg of skeletal muscle',
+    'muscleUnits.explain': 'You are using your scale’s figures. Your scale calls «muscle mass» everything that is neither fat nor bone, so we speak in that same unit and you can compare directly with what its display shows. Below we show the estimated skeletal muscle, which is what the engine works with internally.',
+
     // Bioimpedance scale reading (E10)
     'ranges.scale.inputInvalid': 'The reading could not be understood.',
     'ranges.scale.weightKgInvalid': 'The weight from the scale is not valid.',
@@ -273,6 +283,9 @@ export const en = {
     'checkin.field.weightHint': 'The only required field. Always weigh yourself under the same conditions.',
     'checkin.field.fatPct': 'Body fat (%)',
     'checkin.field.optional': 'Optional',
+    'checkin.field.scaleMuscle': 'Muscle mass (kg, from your scale)',
+    'checkin.field.bone': 'Bone mass (kg)',
+    'checkin.field.scaleHint': 'Copy the figures exactly as your scale gives them. We check they add up before saving; bone comes pre-filled with yours because it barely changes from week to week.',
     'checkin.section.measures': 'Measurements',
     'checkin.section.subjective': 'How you have felt',
     'checkin.section.notes': 'Notes',
