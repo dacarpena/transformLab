@@ -42,6 +42,14 @@ let cursor = 0;
  */
 let muscleUnits = muscleUnitsFor(null);
 
+/**
+ * Métrica con la que se dibujó la última vez, por la misma razón que
+ * `muscleUnits`: si el lienzo muestra calorías y la región `aria-live` recita
+ * kilos, el lector de pantalla está describiendo otra gráfica (E12).
+ * @type {'weight'|'fatPct'|'muscle'|'kcal'}
+ */
+let announceMetric = 'weight';
+
 /** @returns {*} el global Chart, o null si el vendor no cargó */
 function getChartLib() {
     return /** @type {*} */ (globalThis).Chart ?? null;
@@ -217,7 +225,9 @@ export function destroy() {
     // El cursor pertenece a la gráfica que acaba de morir. Sin esto, la
     // siguiente vista arranca con el índice de la anterior hasta su primer
     // `draw()`, y con rangos distintos ese índice puede caer fuera del suyo.
+    // La métrica de anuncio, por lo mismo.
     cursor = 0;
+    announceMetric = 'weight';
 }
 
 /**
@@ -280,7 +290,7 @@ export function setWindow(from, to) {
 
 /**
  * Dibuja la gráfica.
- * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month' }} options
+ * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle'|'kcal', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month' }} options
  * @returns {boolean} false si Chart.js no está disponible
  */
 export function draw(options) {
@@ -296,6 +306,7 @@ export function draw(options) {
 
     const { projection, metric, range } = options;
     muscleUnits = options.muscle ?? muscleUnitsFor(null);
+    announceMetric = metric;
 
     // La serie va ENTERA. El recorte lo hace la escala, no un `slice`.
     const anchors = seriesAnchors(projection, options.grain ?? 'day');
@@ -344,19 +355,62 @@ export function draw(options) {
         });
     }
 
-    datasets.push({
-        label: metric === 'muscle' && muscleUnits.isScale ? muscleUnits.label() : t(`chart.metric.${metric}`),
-        data: points.map((d) => xy(d, pick)),
-        borderColor: accent,
-        backgroundColor: accent,
-        borderWidth: 2,
-        // Con granularidad semanal o mensual hay pocos puntos y merecen verse;
-        // con 378 puntos diarios, marcarlos sería tinta, no información.
-        pointRadius: options.grain && options.grain !== 'day' ? 3 : 0,
-        pointHoverRadius: 5,
-        tension: 0.15,
-        order: 1
-    });
+    // Con granularidad semanal o mensual hay pocos puntos y merecen verse;
+    // con 378 puntos diarios, marcarlos sería tinta, no información.
+    const dotRadius = options.grain && options.grain !== 'day' ? 3 : 0;
+
+    if (metric === 'kcal') {
+        // Dos líneas cuya DISTANCIA es el déficit, y por eso se sombrea el
+        // hueco entre ambas: no hace falta un tercer trazo para lo que ya
+        // cuenta la geometría. El TDEE viene adaptado día a día del generador
+        // (peso proyectado + adaptación metabólica), así que la curva de
+        // adaptación se ve sola, sin tocar el motor.
+        datasets.push({
+            label: t('chart.kcalTarget'),
+            data: points.map((d) => xy(d, (p) => p.kcal.targetKcal)),
+            borderColor: accent,
+            backgroundColor: accent,
+            borderWidth: 2,
+            pointRadius: dotRadius,
+            pointHoverRadius: 5,
+            tension: 0.15,
+            order: 1,
+            // Los días en que el suelo de seguridad recortó el déficit van en
+            // trazo discontinuo: son los que explican por qué una fase dura
+            // más de lo que uno esperaría.
+            segment: {
+                borderDash: (/** @type {*} */ ctx) => {
+                    const d = projection.daily[Math.round(ctx.p1?.parsed?.x ?? -1)];
+                    return d?.kcal?.flooredBySafety ? [3, 3] : undefined;
+                }
+            }
+        });
+        datasets.push({
+            label: t('chart.kcalTdee'),
+            data: points.map((d) => xy(d, (p) => p.kcal.tdeeKcal)),
+            borderColor: cssVar('--color-warning'),
+            borderWidth: 2,
+            borderDash: [6, 4],
+            pointRadius: dotRadius,
+            pointHoverRadius: 5,
+            tension: 0.15,
+            fill: '-1',
+            backgroundColor: `${accent}22`,
+            order: 2
+        });
+    } else {
+        datasets.push({
+            label: metric === 'muscle' && muscleUnits.isScale ? muscleUnits.label() : t(`chart.metric.${metric}`),
+            data: points.map((d) => xy(d, pick)),
+            borderColor: accent,
+            backgroundColor: accent,
+            borderWidth: 2,
+            pointRadius: dotRadius,
+            pointHoverRadius: 5,
+            tension: 0.15,
+            order: 1
+        });
+    }
 
     // Check-ins reales superpuestos a la proyección (M4-4). Van con estilo
     // propio y en primer plano: lo medido no puede confundirse con lo previsto.
@@ -364,7 +418,7 @@ export function draw(options) {
     const realPoints = (options.checkins ?? []).filter(
         (c) => metric !== 'fatPct' || c.fatPct !== null
     );
-    if (realPoints.length > 0 && metric !== 'muscle') {
+    if (realPoints.length > 0 && metric !== 'muscle' && metric !== 'kcal') {
         datasets.push({
             label: t('checkin.title'),
             data: realPoints.map((c) => ({
@@ -389,21 +443,28 @@ export function draw(options) {
     // Hitos como puntos sobre la línea. Sin filtrar por ventana: recorta la
     // escala. Filtrarlos aquí obligaba a redibujar en cada movimiento y, peor,
     // desalineaba `visibleMilestones` con el índice que devuelve el clic.
+    //
+    // En la métrica de calorías NO se dibujan: sus umbrales son de peso, grasa
+    // y músculo, y `pick` los anclaría con la unidad equivocada — un hito
+    // flotando en mitad de un eje de kcal señala un sitio que no existe.
     const visibleMilestones = projection.milestones;
-    datasets.push({
-        label: t('chart.milestoneModalTitle'),
-        data: visibleMilestones.map((m) => ({
-            x: m.dayIndex,
-            y: pick(projection.daily[m.dayIndex])
-        })),
-        showLine: false,
-        pointRadius: 5,
-        pointHoverRadius: 8,
-        pointBackgroundColor: cssVar('--color-warning'),
-        pointBorderColor: cssVar('--color-bg'),
-        pointBorderWidth: 2,
-        order: 0
-    });
+    if (metric !== 'kcal') {
+        datasets.push({
+            label: t('chart.milestoneModalTitle'),
+            data: visibleMilestones.map((m) => ({
+                x: m.dayIndex,
+                y: pick(projection.daily[m.dayIndex])
+            })),
+            showLine: false,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: cssVar('--color-warning'),
+            pointBorderColor: cssVar('--color-bg'),
+            pointBorderWidth: 2,
+            order: 0
+        });
+    }
+    const milestoneDatasetIndex = metric === 'kcal' ? -1 : datasets.length - 1;
 
     chartInstance = new Chart(options.canvas, {
         type: 'line',
@@ -475,7 +536,8 @@ export function draw(options) {
                 const hits = chart.getElementsAtEventForMode(
                     /** @type {*} */ (event), 'point', { intersect: true }, true
                 );
-                const hit = hits.find((/** @type {*} */ e) => e.datasetIndex === datasets.length - 1);
+                if (milestoneDatasetIndex < 0) return; // en kcal no hay hitos
+                const hit = hits.find((/** @type {*} */ e) => e.datasetIndex === milestoneDatasetIndex);
                 if (!hit) return;
                 const milestone = visibleMilestones[hit.index];
                 if (milestone) options.onMilestone(milestone);
@@ -499,6 +561,21 @@ export function draw(options) {
 export function announce(readout, projection, index) {
     const point = projection.daily[index];
     if (!point) return;
+    if (announceMetric === 'kcal') {
+        const deficit = Math.round(point.kcal.deficitKcal);
+        const balance = deficit >= 1 ? t('chart.kcalDeficit', { value: deficit })
+            : deficit <= -1 ? t('chart.kcalSurplus', { value: -deficit })
+            : t('chart.kcalEven');
+        readout.textContent = t('chart.readoutKcal', {
+            day: point.dayIndex,
+            date: point.dateISO,
+            target: point.kcal.targetKcal,
+            tdee: point.kcal.tdeeKcal,
+            balance,
+            phase: t(`phase.${point.phaseType}`)
+        });
+        return;
+    }
     readout.textContent = t('chart.readout', {
         day: point.dayIndex,
         date: point.dateISO,

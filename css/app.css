@@ -580,6 +580,17 @@ ul { margin: 0; padding: 0; list-style: none; }
     height: 340px;
 }
 
+/* Puntos de la leyenda de series (E12). El color nunca es la única señal:
+   cada punto va acompañado de su etiqueta de texto, y las líneas del lienzo
+   se distinguen además por el trazo (continua, discontinua, rombos). */
+.dot--accent { background: var(--color-accent); }
+.dot--warning { background: var(--color-warning); }
+.dot--real { background: var(--color-success); }
+.dot--band {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border: 1px solid var(--color-accent);
+}
+
 .chart-readout {
     font-size: var(--text-sm);
     color: var(--color-text-secondary);

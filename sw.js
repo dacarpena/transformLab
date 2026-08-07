@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0015';
+const CACHE_VERSION = 'tl-v5-0016';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo

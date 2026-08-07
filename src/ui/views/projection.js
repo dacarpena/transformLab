@@ -35,7 +35,7 @@ import { buildTimeline } from '../../core/timeline.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { empty, error as errorState } from '../components/state.js';
 
-/** @typedef {'weight'|'fatPct'|'muscle'} Metric */
+/** @typedef {'weight'|'fatPct'|'muscle'|'kcal'} Metric */
 /** @typedef {'day'|'week'|'month'} Grain */
 /** @typedef {'all'|'phase'|'90'|'30'} WindowPreset */
 
@@ -222,7 +222,8 @@ function renderChart(data) {
                 ${segmented('projection.metric.label', 'data-metric', [
                     { value: 'weight', labelKey: 'chart.metric.weight' },
                     { value: 'fatPct', labelKey: 'chart.metric.fatPct' },
-                    { value: 'muscle', labelKey: muscle.isScale ? 'muscleUnits.label.scale' : 'chart.metric.muscle' }
+                    { value: 'muscle', labelKey: muscle.isScale ? 'muscleUnits.label.scale' : 'chart.metric.muscle' },
+                    { value: 'kcal', labelKey: 'chart.metric.kcal' }
                 ], metric)}
                 ${segmented('projection.grain.label', 'data-grain', [
                     { value: 'day', labelKey: 'projection.grain.day' },
@@ -243,7 +244,107 @@ function renderChart(data) {
                 <canvas data-canvas role="img" tabindex="0"
                         aria-label="${t('projection.chart.title')}. ${t('chart.readoutHint')}"></canvas>
             </div>
+            <!-- La leyenda vive en DOM, no en el lienzo: así usa tokens, la lee
+                 un lector de pantalla y refluye a 320 px. El lienzo dibujaba
+                 hasta cuatro cosas distintas sin decir cuál era cuál. -->
+            <ul class="phase-legend" data-legend aria-label="${t('projection.legend.label')}"></ul>
             <p class="chart-readout" data-readout role="status" aria-live="polite"></p>
+        </section>
+    `;
+}
+
+/**
+ * Qué hay dibujado ahora mismo en el lienzo. Se regenera con cada dibujado
+ * desde el mismo estado que decide los datasets: si divergieran, la leyenda
+ * describiría otra gráfica.
+ * @param {boolean} hasCheckins
+ * @param {import('../muscle-units.js').MuscleUnits} muscle
+ */
+function renderLegend(hasCheckins, muscle) {
+    /** @type {Array<{ dot: string, label: string }>} */
+    const items = [];
+    if (metric === 'kcal') {
+        items.push({ dot: 'dot--accent', label: t('chart.kcalTarget') });
+        items.push({ dot: 'dot--warning', label: t('chart.kcalTdee') });
+        items.push({ dot: 'dot--band', label: t('projection.legend.deficit') });
+    } else {
+        items.push({ dot: 'dot--accent', label: t('chart.expected') });
+        if (metric === 'weight') items.push({ dot: 'dot--band', label: t('chart.band') });
+        if (hasCheckins && metric !== 'muscle') items.push({ dot: 'dot--real', label: t('checkin.title') });
+        items.push({ dot: 'dot--warning', label: t('chart.milestoneModalTitle') });
+    }
+    return html`${items.map((i) => html`
+        <li class="phase-legend__item"><span class="phase-legend__dot ${i.dot}" aria-hidden="true"></span>${i.label}</li>
+    `)}`;
+}
+
+/**
+ * Calorías, TDEE y adaptación: el material que el motor calculaba día a día
+ * desde M1 y del que la interfaz solo enseñaba un número suelto.
+ * @param {import('../plan-state.js').PlanBundle} data
+ * @param {{ dayIndex: number }} today
+ */
+function renderKcal(data, today) {
+    const daily = data.projection.daily;
+    const now = daily[today.dayIndex].kcal;
+    const startTdee = daily[0].kcal.tdeeKcal;
+
+    /** @param {*} k */
+    const balance = (k) => {
+        const d = Math.round(k?.deficitKcal ?? NaN);
+        if (!Number.isFinite(d)) return '—';
+        if (d >= 1) return t('projection.kcal.rowDeficit', { value: d });
+        if (d <= -1) return t('projection.kcal.rowSurplus', { value: -d });
+        return t('projection.kcal.rowEven');
+    };
+    const todayBalance = Math.round(now.deficitKcal);
+    const anyFloored = data.plan.phases.some((p) => p.nominalKcal?.flooredBySafety);
+
+    return html`
+        <section class="card" aria-labelledby="proj-kcal">
+            <h2 id="proj-kcal" class="card__title">${t('projection.kcal.title')}</h2>
+            <div class="metrics">
+                <div class="metric">
+                    <span class="metric__value">${now.targetKcal} <span class="muted">${t('today.unit.kcal')}</span></span>
+                    <span class="metric__label">${t('projection.kcal.targetToday')}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric__value">${now.tdeeKcal} <span class="muted">${t('today.unit.kcal')}</span></span>
+                    <span class="metric__label">${t('projection.kcal.tdeeToday')}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric__value">${todayBalance >= 1 ? '−' : todayBalance <= -1 ? '+' : '±'}${Math.abs(todayBalance)} <span class="muted">${t('today.unit.kcal')}</span></span>
+                    <span class="metric__label">${t('projection.kcal.balanceToday')}</span>
+                </div>
+            </div>
+            <p class="secondary">${t('projection.kcal.note', { start: startTdee })}</p>
+
+            <ul class="profile-list">
+                ${data.plan.phases.map((p) => html`
+                    <li class="profile-item">
+                        <span>
+                            <span class="badge badge--${p.type}">${t(`phase.${p.type}`)}</span>
+                            <span class="muted">${t('projection.days', { days: p.days })}</span>
+                        </span>
+                        <span class="muted numeric">${p.nominalKcal
+                            ? t('projection.kcal.phaseNumbers', {
+                                target: p.nominalKcal.targetKcal,
+                                balance: balance(p.nominalKcal),
+                                tdee: p.nominalKcal.tdeeKcal
+                            })
+                            : '—'}</span>
+                    </li>
+                `)}
+            </ul>
+            ${anyFloored ? html`
+                <p class="notice notice--warning">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <span>${t('today.plan.flooredBySafety')}</span>
+                </p>
+            ` : ''}
+            <div class="btn-row">
+                <button type="button" class="btn btn--sm" data-show-kcal>${t('projection.kcal.showInChart')}</button>
+            </div>
         </section>
     `;
 }
@@ -271,6 +372,7 @@ function draw(container) {
         ${renderSummary(data, today)}
         ${renderNext(data, today)}
         ${renderChart(data)}
+        ${renderKcal(data, today)}
     `);
     void redraw(container);
 }
@@ -319,7 +421,14 @@ async function redraw(container) {
             });
         }
     });
-    if (!ok) chart.renderFallback(/** @type {HTMLElement} */ (host));
+    if (!ok) {
+        chart.renderFallback(/** @type {HTMLElement} */ (host));
+        return;
+    }
+    const legendHost = container.querySelector('[data-legend]');
+    if (legendHost) {
+        render(/** @type {HTMLElement} */ (legendHost), renderLegend(evaluations.length > 0, muscleUnitsOf(data)));
+    }
 }
 
 /**
@@ -377,6 +486,16 @@ export function mount(container) {
             return;
         }
         if (!chart.setWindow(bounds.from, bounds.to)) void redraw(container);
+    });
+
+    on(container, 'click', '[data-show-kcal]', () => {
+        metric = 'kcal';
+        refreshPressed(container, 'data-metric', metric);
+        void redraw(container);
+        container.querySelector('[data-chart-host]')?.scrollIntoView({
+            block: 'nearest',
+            behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+        });
     });
 
     const canvas = container.querySelector('[data-canvas]');
