@@ -19,6 +19,7 @@
 import { html, render } from './dom.js';
 import { t } from '../i18n/i18n.js';
 import { muscleUnitsFor } from './muscle-units.js';
+import { axisLabel } from './dates.js';
 
 /** @typedef {import('../core/generator.js').Projection} Projection */
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
@@ -88,11 +89,26 @@ export function ensureLoaded() {
  * texto secundario en vez de a un hex inventado.
  */
 function cssVar(name) {
+    const hit = tokenCache.get(name);
+    if (hit !== undefined) return hit;
     if (typeof getComputedStyle !== 'function') return '';
     const styles = getComputedStyle(document.documentElement);
-    return styles.getPropertyValue(name).trim()
+    const value = styles.getPropertyValue(name).trim()
         || styles.getPropertyValue('--color-text-secondary').trim();
+    tokenCache.set(name, value);
+    return value;
 }
+
+/**
+ * Tokens ya resueltos del dibujado en curso.
+ *
+ * `getComputedStyle` fuerza un recálculo de estilo, y los dos plugins lo
+ * pedían unas ocho veces por FOTOGRAMA: durante los 250 ms de animación eso
+ * son más de cien recálculos para leer seis colores que no cambian. Se vacía
+ * al empezar cada `draw()`, que es justo cuando el tema podría haber cambiado.
+ * @type {Map<string, string>}
+ */
+const tokenCache = new Map();
 
 /**
  * Plugin de bandas de fase: pinta el fondo por tramos usando el color del
@@ -107,18 +123,27 @@ function phaseBandsPlugin(projection) {
             if (!chartArea || !scales.x) return;
             const daily = projection.daily;
             let start = 0;
+            ctx.save();
+            // RECORTE OBLIGATORIO. Este plugin recorre la serie ENTERA con
+            // índices absolutos, así que en cuanto la ventana deja de empezar
+            // en el día 0 hay fases cuyos píxeles caen fuera del área de
+            // trazado, y `fillRect` no las recorta solo: pintaría el fondo de
+            // color por encima de los rótulos del eje. No se notaba antes
+            // porque la ventana siempre iba de 0 al final (E12).
+            ctx.beginPath();
+            ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+            ctx.clip();
             for (let i = 1; i <= daily.length; i++) {
                 const changed = i === daily.length || daily[i].phaseType !== daily[start].phaseType;
                 if (!changed) continue;
                 const x1 = scales.x.getPixelForValue(start);
                 const x2 = scales.x.getPixelForValue(i - 1);
-                ctx.save();
                 ctx.globalAlpha = 0.10;
                 ctx.fillStyle = cssVar(`--color-phase-${daily[start].phaseType}`);
                 ctx.fillRect(x1, chartArea.top, Math.max(1, x2 - x1), chartArea.bottom - chartArea.top);
-                ctx.restore();
                 start = i;
             }
+            ctx.restore();
         }
     };
 }
@@ -136,6 +161,10 @@ function todayLinePlugin(getTodayIndex) {
             if (!chartArea || !scales.x || index < 0) return;
             const x = scales.x.getPixelForValue(index);
             if (!Number.isFinite(x)) return;
+            // Si HOY cae fuera de la ventana, la línea NO se dibuja. Recortar
+            // no basta: una etiqueta «HOY» cortada por la mitad contra el
+            // borde es peor que ninguna, porque señala un sitio que no es.
+            if (x < chartArea.left || x > chartArea.right) return;
             ctx.save();
             ctx.strokeStyle = cssVar('--color-text');
             ctx.lineWidth = 1;
@@ -192,8 +221,66 @@ export function destroy() {
 }
 
 /**
+ * Los índices de día que se dibujan según la granularidad pedida.
+ *
+ * Se DERIVAN de los agregados que el generador ya produce; no se recalculan
+ * los bloques aquí. Recalcularlos sería duplicar las reglas de GEN-07 (semanas
+ * de siete días desde el día 1) y GEN-11/12 (meses de calendario), y el día que
+ * alguien tocara el generador las dos versiones divergirían en silencio.
+ *
+ * El día 0 se ancla siempre a mano: los agregados arrancan en el día 1, así que
+ * sin él la línea no empezaría en el estado real de partida del usuario.
+ *
+ * @param {Projection} projection
+ * @param {'day'|'week'|'month'} grain
+ * @returns {number[]} índices absolutos, crecientes, empezando en 0
+ */
+export function seriesAnchors(projection, grain) {
+    const daily = projection?.daily;
+    if (!Array.isArray(daily) || daily.length === 0) return [];
+    if (grain === 'day') return daily.map((_, i) => i);
+
+    /** @type {Map<string, number>} */
+    const indexOf = new Map();
+    for (let i = 0; i < daily.length; i++) indexOf.set(daily[i].dateISO, i);
+
+    const blocks = grain === 'week' ? projection.weekly : projection.monthly;
+    const out = [0];
+    for (const b of blocks ?? []) {
+        const i = indexOf.get(b.endISO);
+        if (i !== undefined && i > out[out.length - 1]) out.push(i);
+    }
+    return out;
+}
+
+/**
+ * Mueve la ventana visible sin reconstruir nada.
+ *
+ * La ventana son DOS NÚMEROS DE LA ESCALA, no un recorte de los datos. Antes
+ * `draw()` hacía las dos cosas a la vez —recortaba la serie y además fijaba
+ * `min`/`max` al mismo rango—, y por eso el deslizador solo podía mover el
+ * extremo derecho: mover el izquierdo dejaba el lienzo vacío. Separarlo permite
+ * panorámica y zoom reales, y hace que cambiar de ventana no cueste reconstruir
+ * cinco series.
+ *
+ * @param {number} from índice de día
+ * @param {number} to
+ * @returns {boolean} false si no hay gráfica viva
+ */
+export function setWindow(from, to) {
+    if (!chartInstance) return false;
+    const x = chartInstance.options?.scales?.x;
+    if (!x) return false;
+    x.min = from;
+    x.max = to;
+    // 'none' es a la vez lo rápido y lo que respeta `prefers-reduced-motion`
+    chartInstance.update('none');
+    return true;
+}
+
+/**
  * Dibuja la gráfica.
- * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}>, muscle?: MuscleUnits }} options
+ * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month' }} options
  * @returns {boolean} false si Chart.js no está disponible
  */
 export function draw(options) {
@@ -205,11 +292,14 @@ export function draw(options) {
     // dejaría una instancia viva colgada de un nodo que se va a descartar.
     if (!options.canvas?.isConnected) return false;
     destroy();
+    tokenCache.clear();
 
     const { projection, metric, range } = options;
     muscleUnits = options.muscle ?? muscleUnitsFor(null);
-    const slice = projection.daily.slice(range.from, range.to + 1);
-    const labels = slice.map((d) => d.dayIndex);
+
+    // La serie va ENTERA. El recorte lo hace la escala, no un `slice`.
+    const anchors = seriesAnchors(projection, options.grain ?? 'day');
+    const points = anchors.map((i) => projection.daily[i]).filter(Boolean);
 
     // Único punto donde la serie se convierte en coordenadas: hitos, tooltip y
     // banda pasan por aquí, así que el eje de músculo queda en la unidad del
@@ -220,10 +310,14 @@ export function draw(options) {
         if (metric === 'muscle') return muscleUnits.toDisplay(d.muscleKg);
         return d.weightKg + d.fluctuationKg;
     };
+    /** Un punto de serie: la X es SIEMPRE el índice absoluto de día. */
+    const xy = (/** @type {*} */ d, /** @type {(p: *) => number} */ f) =>
+        ({ x: d.dayIndex, y: f(d) });
 
     const accent = cssVar('--color-accent');
     const muted = cssVar('--color-text-muted');
     const grid = cssVar('--color-border');
+    const spanDays = Math.max(1, range.to - range.from);
 
     /** @type {*[]} */
     const datasets = [];
@@ -233,7 +327,7 @@ export function draw(options) {
     if (metric === 'weight') {
         datasets.push({
             label: t('chart.band'),
-            data: slice.map((d) => d.band.optimistKg),
+            data: points.map((d) => xy(d, (p) => p.band.optimistKg)),
             borderWidth: 0,
             pointRadius: 0,
             fill: '+1',
@@ -242,7 +336,7 @@ export function draw(options) {
         });
         datasets.push({
             label: t('chart.band'),
-            data: slice.map((d) => d.band.pessimistKg),
+            data: points.map((d) => xy(d, (p) => p.band.pessimistKg)),
             borderWidth: 0,
             pointRadius: 0,
             fill: false,
@@ -252,11 +346,13 @@ export function draw(options) {
 
     datasets.push({
         label: metric === 'muscle' && muscleUnits.isScale ? muscleUnits.label() : t(`chart.metric.${metric}`),
-        data: slice.map(pick),
+        data: points.map((d) => xy(d, pick)),
         borderColor: accent,
         backgroundColor: accent,
         borderWidth: 2,
-        pointRadius: 0,
+        // Con granularidad semanal o mensual hay pocos puntos y merecen verse;
+        // con 378 puntos diarios, marcarlos sería tinta, no información.
+        pointRadius: options.grain && options.grain !== 'day' ? 3 : 0,
         pointHoverRadius: 5,
         tension: 0.15,
         order: 1
@@ -264,9 +360,9 @@ export function draw(options) {
 
     // Check-ins reales superpuestos a la proyección (M4-4). Van con estilo
     // propio y en primer plano: lo medido no puede confundirse con lo previsto.
+    // No se filtran por ventana: los recorta la escala, como a todo lo demás.
     const realPoints = (options.checkins ?? []).filter(
-        (c) => c.dayIndex >= range.from && c.dayIndex <= range.to
-            && (metric !== 'fatPct' || c.fatPct !== null)
+        (c) => metric !== 'fatPct' || c.fatPct !== null
     );
     if (realPoints.length > 0 && metric !== 'muscle') {
         datasets.push({
@@ -290,10 +386,10 @@ export function draw(options) {
         });
     }
 
-    // Hitos visibles dentro del rango, como puntos sobre la línea
-    const visibleMilestones = projection.milestones.filter(
-        (m) => m.dayIndex >= range.from && m.dayIndex <= range.to
-    );
+    // Hitos como puntos sobre la línea. Sin filtrar por ventana: recorta la
+    // escala. Filtrarlos aquí obligaba a redibujar en cada movimiento y, peor,
+    // desalineaba `visibleMilestones` con el índice que devuelve el clic.
+    const visibleMilestones = projection.milestones;
     datasets.push({
         label: t('chart.milestoneModalTitle'),
         data: visibleMilestones.map((m) => ({
@@ -311,7 +407,11 @@ export function draw(options) {
 
     chartInstance = new Chart(options.canvas, {
         type: 'line',
-        data: { labels, datasets },
+        // Sin `labels`: todos los puntos llevan su propia X. Con anclajes
+        // dispersos (semana, mes) la correspondencia `data[i] ↔ labels[i]` deja
+        // de existir, y además el lienzo ya mezclaba los dos modos de parseo
+        // —la línea por `labels`, los hitos por `{x,y}`—. Unificar simplifica.
+        data: { datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -322,10 +422,21 @@ export function draw(options) {
             interaction: { mode: 'index', intersect: false },
             scales: {
                 x: {
+                    // NO se usa `type: 'time'`: el Chart.js vendorizado trae la
+                    // escala pero NO un adaptador de fechas, así que lanzaría.
+                    // La X es el índice absoluto de día; la fecha es una
+                    // ETIQUETA, no una coordenada.
                     type: 'linear',
                     min: range.from,
                     max: range.to,
-                    ticks: { color: muted, maxTicksLimit: 8 },
+                    ticks: {
+                        color: muted,
+                        maxTicksLimit: 8,
+                        callback: (/** @type {*} */ value) => {
+                            const point = projection.daily[Math.round(Number(value))];
+                            return point ? axisLabel(point.dateISO, spanDays) : '';
+                        }
+                    },
                     grid: { color: grid }
                 },
                 y: {

@@ -19,6 +19,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import {
     milestoneLabel,
     handleKey,
@@ -26,8 +27,11 @@ import {
     cursorIndex,
     destroy,
     unavailable,
-    toPng
+    toPng,
+    seriesAnchors,
+    setWindow
 } from '../src/ui/chart.js';
+import { shortDate, monthYear, axisLabel } from '../src/ui/dates.js';
 import { muscleUnitsFor } from '../src/ui/muscle-units.js';
 import { makeComposition, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
@@ -195,4 +199,112 @@ test('el estado de error ofrece recargar y NUNCA borrar (ficha H-013)', () => {
 test('toPng sin gráfica viva devuelve null en vez de lanzar', () => {
     destroy();
     assert.equal(toPng(), null);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Modelo de coordenadas (E12-2)
+ * ---------------------------------------------------------------------- */
+
+test('los anclajes de granularidad salen de los agregados del motor, no de un cálculo propio', () => {
+    // Si se recalcularan aquí los bloques, duplicarían las reglas GEN-07
+    // (semanas de 7 días desde el día 1) y GEN-11/12 (meses de calendario), y
+    // divergirían en silencio el día que alguien tocara el generador.
+    const proj = projection();
+
+    const dias = seriesAnchors(proj, 'day');
+    assert.equal(dias.length, proj.daily.length);
+    assert.equal(dias[0], 0);
+    assert.equal(dias[dias.length - 1], proj.daily.length - 1);
+
+    for (const grain of /** @type {const} */ (['week', 'month'])) {
+        const anchors = seriesAnchors(proj, grain);
+        const blocks = grain === 'week' ? proj.weekly : proj.monthly;
+
+        assert.equal(anchors[0], 0, `${grain}: falta el ancla del día 0`);
+        for (let i = 1; i < anchors.length; i++) {
+            assert.ok(anchors[i] > anchors[i - 1], `${grain}: los anclajes no crecen`);
+        }
+        // cada ancla (salvo el día 0) es el ÚLTIMO día de un bloque real
+        const finales = new Set(blocks.map((b) => b.endISO));
+        for (const i of anchors.slice(1)) {
+            assert.ok(finales.has(proj.daily[i].dateISO),
+                `${grain}: el ancla ${i} (${proj.daily[i].dateISO}) no cierra ningún bloque`);
+        }
+        // y reduce de verdad: menos puntos que días
+        assert.ok(anchors.length < proj.daily.length, `${grain} no reduce la densidad`);
+    }
+
+    // semana da más puntos que mes, que es lo que significa «más detalle»
+    assert.ok(seriesAnchors(proj, 'week').length > seriesAnchors(proj, 'month').length);
+});
+
+test('seriesAnchors degrada con proyecciones rotas', () => {
+    for (const bad of [null, undefined, {}, { daily: [] }, { daily: null }]) {
+        assert.deepEqual(seriesAnchors(/** @type {*} */ (bad), 'week'), []);
+    }
+});
+
+test('setWindow sin gráfica viva devuelve false en vez de lanzar', () => {
+    destroy();
+    assert.equal(setWindow(10, 50), false);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Fechas — la trampa de la zona horaria
+ * ---------------------------------------------------------------------- */
+
+test('las fechas se formatean en el idioma activo', () => {
+    setLocale('es');
+    const es = shortDate('2027-02-14');
+    assert.match(es, /14/);
+    assert.match(es, /feb/i);
+
+    setLocale('en');
+    const en = shortDate('2027-02-14');
+    assert.match(en, /14/);
+    assert.match(en, /feb/i);
+    setLocale('es');
+
+    assert.match(monthYear('2027-02-14'), /2027/);
+});
+
+test('una fecha ilegible se devuelve tal cual, sin «Invalid Date»', () => {
+    for (const bad of ['', 'ayer', '2027-13-45', null, undefined, '2027']) {
+        const salida = shortDate(/** @type {*} */ (bad));
+        assert.ok(!/invalid/i.test(salida), `«${bad}» produjo: ${salida}`);
+    }
+});
+
+test('el rótulo del eje se adapta al ancho de la ventana', () => {
+    setLocale('es');
+    // ventana corta: interesa el día
+    assert.match(axisLabel('2027-02-14', 30), /14/);
+    // ventana larga: el día es ruido, manda el mes con su año
+    const largo = axisLabel('2027-02-14', 400);
+    assert.match(largo, /2027/);
+    assert.ok(!/14/.test(largo), `el rótulo largo conserva el día: ${largo}`);
+});
+
+test('LAS FECHAS SON UTC: la zona horaria del usuario no puede correrlas un día', () => {
+    // Las fechas del generador son días civiles en UTC (GEN-02), no instantes.
+    // Sin `timeZone: 'UTC'` en el formateador, quien viva en UTC-5 vería «13
+    // feb» donde pone `2027-02-14`, y la línea de HOY dejaría de coincidir con
+    // su propio rótulo. Es un desfase que no se reproduce en el portátil de
+    // quien escribe el código, así que se prueba en un proceso con otra zona.
+    const script = `
+        import { shortDate } from '${new URL('../src/ui/dates.js', import.meta.url).pathname}';
+        process.stdout.write(shortDate('2027-02-14'));
+    `;
+    const run = (/** @type {string} */ tz) => execFileSync(
+        process.execPath, ['--input-type=module', '-e', script],
+        { env: { ...process.env, TZ: tz }, encoding: 'utf8' }
+    );
+
+    const madrid = run('Europe/Madrid');
+    const nuevaYork = run('America/New_York');
+    const tokio = run('Asia/Tokyo');
+
+    assert.equal(madrid, nuevaYork, `Madrid dice «${madrid}» y Nueva York «${nuevaYork}»`);
+    assert.equal(madrid, tokio, `Madrid dice «${madrid}» y Tokio «${tokio}»`);
+    assert.match(madrid, /14/, `la fecha se corrió de día: ${madrid}`);
 });
