@@ -189,9 +189,18 @@ function readForm(root) {
         if (key && Number.isFinite(value)) subjective[key] = value;
     }
     const field = (name) => /** @type {HTMLInputElement | null} */ (root.querySelector(`[data-field="${name}"]`))?.value ?? '';
-    /** Campo numérico opcional: vacío es null, no 0. */
+    /**
+     * Campo numérico opcional. Distingue tres cosas, y la distinción importa:
+     * `undefined` = el campo NO está en pantalla (no se pregunta por él, así
+     * que no hay respuesta que guardar), `null` = está y el usuario lo dejó
+     * vacío, número = lo rellenó. Sin el primer caso, editar el peso de un
+     * check-in antiguo en un perfil que ya no es de báscula BORRABA sus cifras
+     * de músculo y hueso, que ni siquiera se le habían mostrado.
+     */
     const optionalNumber = (name) => {
-        const raw = field(name).trim();
+        const el = /** @type {HTMLInputElement | null} */ (root.querySelector(`[data-field="${name}"]`));
+        if (el === null) return undefined;
+        const raw = el.value.trim();
         return raw === '' ? null : Number(raw);
     };
 
@@ -266,20 +275,36 @@ export function mount(container) {
         // trivial, pero siguen aplicándose los límites de hueso y de
         // composición, que son los que impiden guardar 190 kg de músculo en
         // un cuerpo de 80.
-        if (input.scaleMuscleKg !== null && input.boneKg !== null) {
-            const leanKg = input.scaleMuscleKg + input.boneKg;
-            const fatPct = input.fatPct !== null
-                ? input.fatPct
-                : ((input.weightKg - leanKg) / input.weightKg) * 100;
-            const read = fromBioimpedance({
-                weightKg: input.weightKg,
-                fatPct,
-                muscleKg: input.scaleMuscleKg,
-                boneKg: input.boneKg,
-                sex: data?.profile?.user?.sex
-            });
-            if (!read.ok) {
-                if (messages) render(messages, html`<p class="field__error">${plans.issueText(read.errors[0])}</p>`);
+        if (typeof input.scaleMuscleKg === 'number') {
+            // El hueso puede venir vacío (el campo es opcional y el usuario
+            // puede borrarlo). Se recurre al del perfil, que apenas cambia; sin
+            // ninguno de los dos no se puede reconstruir la lectura, pero
+            // sigue habiendo una verdad que comprobar: el músculo no puede
+            // pesar más que el cuerpo entero. Antes, vaciar un campo opcional
+            // desactivaba TODO el control y dejaba guardar 150 kg de músculo.
+            const boneKg = typeof input.boneKg === 'number' ? input.boneKg : data?.profile?.initial?.boneKg;
+            if (Number.isFinite(boneKg)) {
+                const leanKg = input.scaleMuscleKg + boneKg;
+                const fatPct = typeof input.fatPct === 'number'
+                    ? input.fatPct
+                    : ((input.weightKg - leanKg) / input.weightKg) * 100;
+                const read = fromBioimpedance({
+                    weightKg: input.weightKg,
+                    fatPct,
+                    muscleKg: input.scaleMuscleKg,
+                    boneKg,
+                    sex: data?.profile?.user?.sex
+                });
+                if (!read.ok) {
+                    if (messages) render(messages, html`<p class="field__error">${plans.issueText(read.errors[0])}</p>`);
+                    return;
+                }
+            } else if (input.scaleMuscleKg >= input.weightKg) {
+                if (messages) {
+                    render(messages, html`<p class="field__error">${plans.issueText({
+                        code: 'scale.leanExceedsWeight', params: { leanKg: input.scaleMuscleKg }
+                    })}</p>`);
+                }
                 return;
             }
         }

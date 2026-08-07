@@ -75,37 +75,63 @@ function applyRecalibration(latest) {
     const nextFatPct = inferFatPct(point, latest.actualKg, measured ? measured.fatPct : null);
     if (!Number.isFinite(nextFatPct)) return { ok: false, error: 'recal.failed' };
 
+    const roundedFatPct = Math.round(nextFatPct * 10) / 10;
+
     const nextProfile = {
         ...parsed.value,
         initial: {
             ...parsed.value.initial,
             weightKg: latest.actualKg,
-            fatPct: Math.round(nextFatPct * 10) / 10,
+            fatPct: roundedFatPct,
             // el origen del músculo NO cambia al recalibrar (A3)
             muscleKg: parsed.value.initial.muscleSource === 'measured' ? parsed.value.initial.muscleKg : null
         },
         startDateISO: latest.dateISO
     };
 
+    // Perfiles en cifras de báscula: hay que reconstruir la composición a mano
+    // ANTES de planificar (E11).
+    //
+    // Dejar `muscleKg` a null hace que se re-estime con la proporción de
+    // POBLACIÓN (0,49 × magra), que es transversal: sirve para adivinar el
+    // músculo de alguien en un instante, no para seguir a una persona en el
+    // tiempo. El motor usa el modelo LONGITUDINAL contrario —el músculo que
+    // ganas se suma a la magra y `otherLeanKg` se conserva (invariante
+    // `conservacion`)—, así que mezclar los dos aquí tenía tres consecuencias,
+    // las tres verificadas: en el día 300 se tiraban 1,67 kg de la ganancia
+    // que el propio plan decía haber conseguido; el offset saltaba de 27,32 a
+    // 28,99, moviendo el objetivo del usuario sin que él tocara nada; y el
+    // registro resultante ya no cuadraba consigo mismo (1,69 kg de desajuste,
+    // sobre una tolerancia de 0,5), de modo que al reeditar el perfil la app
+    // rechazaba sus propios datos y le pedía revisar cifras que nunca tecleó.
+    //
+    // Aquí se conserva `otherLeanKg`, que es exactamente lo que dice hacer la
+    // inferencia de arriba: «el tejido magro no muscular también se conserva».
+    // Con eso el offset queda constante por construcción y `scaleMuscleKg` es
+    // lo que de verdad marcaría su báscula: `magra − hueso`.
+    const previousOffset = muscleOffsetKg(parsed.value.initial);
+    const boneKg = parsed.value.initial.boneKg;
+    if (previousOffset !== null && Number.isFinite(boneKg)) {
+        const nextLeanKg = latest.actualKg * (1 - roundedFatPct / 100);
+        // Se redondea primero la cifra de báscula —es la que el usuario lee, y
+        // una báscula da dos decimales— y el músculo se deriva de ELLA, no al
+        // revés: así el offset se conserva exacto, sin arrastrar un residuo de
+        // redondeo que se acumularía a cada recalibración.
+        const nextScaleMuscleKg = Math.round((nextLeanKg - boneKg) * 100) / 100;
+        const nextMuscleKg = nextScaleMuscleKg - previousOffset;
+        // Si el usuario ha perdido tanta magra que el músculo se iría a cero,
+        // el modelo ya no aplica: se deja la ruta estimada de siempre y se
+        // renuncia a la unidad de báscula, en vez de escribir un imposible.
+        if (nextMuscleKg > 0 && nextMuscleKg < nextLeanKg) {
+            nextProfile.initial.muscleKg = nextMuscleKg;
+            nextProfile.initial.scaleMuscleKg = nextScaleMuscleKg;
+        }
+    }
+
     const built = plans.build(nextProfile, { profileId: storage.getActiveProfile() });
     if (!built.ok) {
         const issues = 'issues' in built ? built.issues : [];
         return { ok: false, error: issues.length > 0 ? `ranges.${issues[0].code}` : 'recal.failed' };
-    }
-
-    // Si el usuario trabaja en cifras de báscula, las suyas tienen que seguir
-    // al músculo recalibrado (E11). Lo que se conserva es el OFFSET —lo que su
-    // báscula cuenta de más: órganos, piel, sangre y agua—, no la cifra: si se
-    // dejara la vieja, el offset saltaría y con él el objetivo que se fijó.
-    //
-    // Y hay que reescribir también `muscleKg`: sin eso queda a null (se
-    // re-estima en cada arranque) y el par del que sale el offset se rompe,
-    // devolviendo al usuario a una unidad que no es la suya sin avisar.
-    const previousOffset = muscleOffsetKg(parsed.value.initial);
-    if (previousOffset !== null) {
-        const nextMuscleKg = built.value.composition.muscleKg;
-        nextProfile.initial.muscleKg = nextMuscleKg;
-        nextProfile.initial.scaleMuscleKg = Math.round((nextMuscleKg + previousOffset) * 100) / 100;
     }
 
     // 1 · archivar el plan vigente ANTES de sobrescribir nada

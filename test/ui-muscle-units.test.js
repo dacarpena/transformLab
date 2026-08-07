@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { muscleUnitsFor, muscleUnitsOf } from '../src/ui/muscle-units.js';
+import { muscleUnitsFor, muscleUnitsOf, isScaleProfile } from '../src/ui/muscle-units.js';
 import { fromBioimpedance } from '../src/core/scale.js';
 import { makeComposition, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
@@ -115,33 +115,98 @@ test('el caso real: escribir 60 produce un plan cerrado que aterriza en 60,0 de 
         `duración inesperada: ${plan.value.totalDays} días`);
 });
 
-test('recalibrar conserva el offset, así que el objetivo del usuario no se mueve', () => {
-    // Reproduce lo que hace `recalibrate.applyRecalibration`: el peso real
-    // cambia, la composición se vuelve a derivar y la cifra de báscula se
-    // recalcula CONSERVANDO el offset. Lo que no puede pasar es que el
-    // objetivo que el usuario se fijó (60) aparezca de pronto como 59,8.
+/* ---------------------------------------------------------------------- *
+ * Hallazgos del ataque adversarial a E11, cada uno con su test
+ * ---------------------------------------------------------------------- */
+
+test('un perfil a medias (báscula sin hueso) NO se trata como de báscula', () => {
+    // El esquema permite `scaleMuscleKg` y `boneKg` de forma independiente, así
+    // que un backup importado puede traer solo uno. Cuando el predicado estaba
+    // escrito en tres sitios distintos, ese perfil traducía en el dashboard,
+    // se degradaba a «medido» en el asistente y comparaba unidades cruzadas en
+    // Progreso. Una sola respuesta a la pregunta, y es «no».
+    const aMedias = { scaleMuscleKg: 56.56, muscleKg: 29.2432, boneKg: null };
+    assert.equal(isScaleProfile(aMedias), false);
+    assert.equal(muscleUnitsFor(aMedias).isScale, false);
+    assert.equal(muscleUnitsFor(aMedias).toDisplay(29.2432), 29.2432);
+    // con las tres cifras, sí
+    assert.equal(isScaleProfile({ ...aMedias, boneKg: 3.12 }), true);
+});
+
+test('una proporción imposible entre las dos cifras no se traduce: se deja de traducir', () => {
+    // Vector real: un backup importado que declara 199 kg de músculo junto a
+    // 29,24 haría que toda la interfaz tradujera con un offset de 170 kg.
+    // Fuera de rango no se corrige nada — se muestra el esquelético, que es
+    // siempre una cifra honesta (B9: avisar o abstenerse, nunca inventar).
+    for (const scaleMuscleKg of [199, 120, 31]) {
+        const u = muscleUnitsFor({ scaleMuscleKg, muscleKg: 29.2432, boneKg: 3.12 });
+        assert.equal(u.isScale, false, `aceptó una proporción de ${(scaleMuscleKg / 29.2432).toFixed(1)}×`);
+    }
+    // y las proporciones reales de ambos sexos siguen pasando
+    for (const [scale, smm] of [[56.56, 29.2432], [40.9, 19.096]]) {
+        assert.equal(muscleUnitsFor({ scaleMuscleKg: scale, muscleKg: smm, boneKg: 3 }).isScale, true,
+            `rechazó una lectura real: ${scale}/${smm} = ${(scale / smm).toFixed(2)}×`);
+    }
+});
+
+test('el objetivo tecleado conserva su CANTIDAD al cambiar de unidad, no su número', () => {
+    // Reproduce lo que hace el asistente: se teclea 33 sin báscula (esquelético)
+    // y luego se añaden las cifras de una Xiaomi. Si el número se releyera como
+    // kilos de báscula, 33 pasarían a ser 5,7 esqueléticos y la app avisaría de
+    // que el objetivo implica perder 23 kg de músculo.
+    const reexpresar = (valor, offsetTecleado, offsetActual) =>
+        Math.round((valor - offsetTecleado + offsetActual) * 10) / 10;
+
+    assert.equal(reexpresar(33, 0, 27.32), 60.3);          // esquelético → báscula
+    assert.equal(reexpresar(60, 27.32, 0), 32.7);          // báscula → esquelético
+    assert.equal(reexpresar(60, 27.32, 27.32), 60);        // sin cambio de unidad, intacto
+    // y es idempotente: re-expresar dos veces desde el par guardado no acumula
+    assert.equal(reexpresar(reexpresar(33, 0, 27.32), 27.32, 27.32), 60.3);
+});
+
+test('recalibrar conserva el offset EXACTO y no tira el músculo ya ganado', () => {
+    // El defecto que encontró el ataque: recalibrar re-estimaba el músculo con
+    // la proporción de POBLACIÓN (0,49 × magra), que es transversal, mientras
+    // que el motor usa el modelo LONGITUDINAL contrario. Resultado en el día
+    // 300: 1,67 kg de ganancia tirados, el offset saltando de 27,32 a 28,99 y
+    // un registro que ya no cuadraba consigo mismo.
     const initial = scaleInitial();
-    const antes = muscleUnitsFor(initial);
-    const objetivoEscrito = 60;
-    const objetivoEsqueletico = antes.fromInput(objetivoEscrito);
+    const offset = muscleUnitsFor(initial).offsetKg;
+    const boneKg = initial.boneKg;
 
-    // una semana peor de lo previsto: pesa 1,5 kg más, todo atribuido a grasa
-    const nuevoPeso = initial.weightKg + 1.5;
-    const nuevaComp = makeComposition({
-        weightKg: nuevoPeso,
-        fatPct: ((nuevoPeso - (initial.weightKg - initial.weightKg * initial.fatPct / 100)) / nuevoPeso) * 100,
-        sex: 'male'
+    const comp = makeComposition({
+        weightKg: initial.weightKg, fatPct: initial.fatPct,
+        muscleKg: initial.muscleKg, muscleSource: 'derived', sex: 'male'
     });
-    assert.ok(nuevaComp.ok, JSON.stringify(!nuevaComp.ok && nuevaComp.errors));
+    assert.ok(comp.ok);
+    const plan = planPhases(comp.value, { fatPct: 15, muscleKg: 60 - offset }, PROFILE_USER);
+    assert.ok(plan.ok);
+    const proj = generateProjection(plan.value, comp.value, PROFILE_USER, { startDateISO: '2026-08-03', seed: 1, fluctuation: false });
+    assert.ok(proj.ok);
 
-    const nuevaEscala = Math.round((nuevaComp.value.muscleKg + antes.offsetKg) * 100) / 100;
-    const despues = muscleUnitsFor({ scaleMuscleKg: nuevaEscala, muscleKg: nuevaComp.value.muscleKg });
+    // lo que hace `recalibrate.applyRecalibration` en el día 300
+    const d = proj.value.daily[300];
+    const fatPct = Math.round(d.fatPct * 10) / 10;
+    const leanKg = d.weightKg * (1 - fatPct / 100);
+    const nextScale = Math.round((leanKg - boneKg) * 100) / 100;
+    const nextMuscle = nextScale - offset;
 
-    assert.ok(despues.isScale, 'la recalibración ha perdido la unidad del usuario');
-    assert.ok(Math.abs(despues.offsetKg - antes.offsetKg) < 0.01,
-        `el offset se movió de ${antes.offsetKg} a ${despues.offsetKg}`);
-    // y el objetivo, visto desde la unidad nueva, sigue siendo el mismo número
-    assert.equal(despues.toDisplay(objetivoEsqueletico).toFixed(1), objetivoEscrito.toFixed(1));
+    const despues = muscleUnitsFor({ scaleMuscleKg: nextScale, muscleKg: nextMuscle, boneKg });
+    assert.ok(despues.isScale, 'la recalibración perdió la unidad del usuario');
+    assert.ok(Math.abs(despues.offsetKg - offset) < 1e-9,
+        `el offset derivó de ${offset} a ${despues.offsetKg}`);
+
+    // no se tira la ganancia: el músculo recalibrado sigue al proyectado
+    assert.ok(Math.abs(nextMuscle - d.muscleKg) < 0.05,
+        `se perdieron ${(d.muscleKg - nextMuscle).toFixed(2)} kg de músculo ya ganado`);
+
+    // y el registro resultante cuadra consigo mismo: si no, al reeditar el
+    // perfil la app rechazaría sus propios datos
+    const cruce = fromBioimpedance({ weightKg: d.weightKg, fatPct, muscleKg: nextScale, boneKg, sex: 'male' });
+    assert.ok(cruce.ok, `el perfil recalibrado no pasa su propio cruce: ${JSON.stringify(!cruce.ok && cruce.errors)}`);
+
+    // el objetivo del usuario sigue siendo el mismo número en pantalla
+    assert.equal(despues.toDisplay(60 - offset).toFixed(1), '60.0');
 });
 
 test('el incremento es el mismo en las dos unidades a lo largo de todo el plan', () => {

@@ -77,6 +77,19 @@ function cleanMap(input, allowed) {
 }
 
 /**
+ * Resuelve un campo numérico opcional distinguiendo «vacío» de «no preguntado».
+ * @param {unknown} incoming `undefined` = el formulario no lo mostraba
+ * @param {unknown} previous lo que ya había guardado
+ * @returns {number | null}
+ */
+function keepOptional(incoming, previous) {
+    if (incoming === undefined) {
+        return typeof previous === 'number' && Number.isFinite(previous) ? previous : null;
+    }
+    return typeof incoming === 'number' && Number.isFinite(incoming) ? incoming : null;
+}
+
+/**
  * Guarda un check-in (alta o edición del mismo día).
  * @param {CheckinInput} input
  * @param {{ nowISO: string }} context
@@ -101,8 +114,12 @@ export function save(input, context) {
         // traducen aquí: guardar lo medido y traducir al mostrarlo es lo que
         // permite que un cambio futuro en la conversión no reescriba el
         // historial del usuario.
-        scaleMuscleKg: typeof input?.scaleMuscleKg === 'number' && Number.isFinite(input.scaleMuscleKg) ? input.scaleMuscleKg : null,
-        boneKg: typeof input?.boneKg === 'number' && Number.isFinite(input.boneKg) ? input.boneKg : null,
+        //
+        // `undefined` significa «no me han preguntado por esto», y entonces se
+        // conserva lo que ya hubiera: un formulario que no muestra un campo no
+        // puede borrarlo. `null` sí borra, porque es el usuario vaciándolo.
+        scaleMuscleKg: keepOptional(input?.scaleMuscleKg, existing?.scaleMuscleKg),
+        boneKg: keepOptional(input?.boneKg, existing?.boneKg),
         measuresCm: cleanMap(input?.measuresCm, MEASURE_KEYS),
         subjective: cleanMap(input?.subjective, SUBJECTIVE_KEYS),
         notes: sanitizeText(input?.notes ?? ''),

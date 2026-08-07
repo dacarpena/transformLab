@@ -60,19 +60,42 @@ function num1(n) {
 }
 
 /**
+ * ¿Está este perfil en unidades de báscula? **La única definición.**
+ *
+ * Hacen falta las TRES cifras: la de la báscula, la esquelética y el hueso. El
+ * hueso no entra en la conversión, pero es lo que dice que la lectura viene de
+ * una báscula de bioimpedancia (decisión de E10: solo esas lo dan), y sin él el
+ * asistente no puede reconstruirla.
+ *
+ * Que esto viva en un solo sitio no es estética. Cuando el predicado estaba
+ * escrito en tres —aquí, en `main.js` y en `progress.js`— un perfil con
+ * `scaleMuscleKg` pero sin `boneKg` (que un backup importado puede traer, y el
+ * esquema acepta porque ambos campos son opcionales) hacía que el dashboard
+ * tradujera, el asistente lo degradara de `derived` a `measured` y Progreso
+ * comparara kilos de báscula contra kilos esqueléticos. Tres respuestas
+ * distintas a la misma pregunta es exactamente el defecto que hundió la v4.0.
+ *
+ * @param {{ scaleMuscleKg?: number | null, muscleKg?: number | null, boneKg?: number | null } | null | undefined} initial
+ * @returns {boolean}
+ */
+export function isScaleProfile(initial) {
+    if (initial === null || typeof initial !== 'object') return false;
+    if (!Number.isFinite(initial.boneKg)) return false;
+    return muscleOffsetKg(initial) !== null;
+}
+
+/**
  * Construye la aduana a partir de la composición inicial del perfil.
  *
- * Un perfil está «en unidades de báscula» si y solo si guarda una cifra de
- * báscula junto a la esquelética. No hay ajuste ni selector: la señal es el
- * propio dato, igual que en E10 la presencia del hueso es lo que dice que las
- * cifras vienen de una báscula.
+ * Sin ajuste ni selector: la señal es el propio dato, igual que en E10 la
+ * presencia del hueso es lo que dice que las cifras vienen de una báscula.
  *
- * @param {{ scaleMuscleKg?: number | null, muscleKg?: number | null } | null | undefined} initial
+ * @param {{ scaleMuscleKg?: number | null, muscleKg?: number | null, boneKg?: number | null } | null | undefined} initial
  * @returns {MuscleUnits}
  */
 export function muscleUnitsFor(initial) {
-    const offsetKg = muscleOffsetKg(initial ?? {});
-    if (offsetKg === null) return IDENTITY;
+    if (!isScaleProfile(initial)) return IDENTITY;
+    const offsetKg = /** @type {number} */ (muscleOffsetKg(/** @type {*} */ (initial)));
     return {
         isScale: true,
         offsetKg,

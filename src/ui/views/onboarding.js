@@ -50,6 +50,8 @@ function defaultDraft() {
         boneKg: /** @type {number | null} */ (null),
         targetFatPct: 15,
         targetMuscleKg: /** @type {number | null} */ (null),
+        /** Offset en vigor cuando se tecleó `targetMuscleKg`: es su UNIDAD. */
+        targetMuscleOffsetKg: /** @type {number | null} */ (null),
         startDateISO: plans.todayISO(),
         intensity: 'moderate'
     };
@@ -117,7 +119,11 @@ function draftUnits() {
     if (draft.muscleKg === null || draft.boneKg === null) return muscleUnitsFor(null);
     const { composition } = currentComposition();
     if (!composition) return muscleUnitsFor(null);
-    return muscleUnitsFor({ scaleMuscleKg: draft.muscleKg, muscleKg: composition.muscleKg });
+    return muscleUnitsFor({
+        scaleMuscleKg: draft.muscleKg,
+        muscleKg: composition.muscleKg,
+        boneKg: draft.boneKg
+    });
 }
 
 /**
@@ -127,12 +133,27 @@ function draftUnits() {
  * OJO: esto NO es lo que consume el motor. Para eso está `targetMuscleSkeletal`.
  * Mezclarlas es exactamente lo que hacía que escribir «60» —el número natural
  * viniendo de 56,56 en su báscula— respondiera «ganar 30,8 kg no es alcanzable».
+ *
+ * Y por eso el borrador guarda, junto al número, el offset que estaba en vigor
+ * cuando el usuario lo tecleó. Un nivel de músculo sin su unidad es
+ * ambiguo: si escribes 33 sin báscula y luego vuelves atrás y añades tus
+ * cifras de una Xiaomi, esos 33 pasarían a leerse como kilos de báscula —o
+ * sea, 5,7 esqueléticos— y la app te avisaría de que tu objetivo implica
+ * perder 23 kg de músculo. Aquí se re-expresa: lo que el usuario fijó es una
+ * cantidad FÍSICA, y esa no cambia porque cambie la unidad en que se escribe.
  */
 function effectiveTargetMuscle() {
-    if (draft.targetMuscleKg !== null) return draft.targetMuscleKg;
+    const units = draftUnits();
+    if (draft.targetMuscleKg !== null) {
+        const typedOffset = draft.targetMuscleOffsetKg ?? 0;
+        if (typedOffset !== units.offsetKg) {
+            return Math.round((draft.targetMuscleKg - typedOffset + units.offsetKg) * 10) / 10;
+        }
+        return draft.targetMuscleKg;
+    }
     const { composition } = currentComposition();
     if (!composition) return null;
-    return Math.round(draftUnits().toDisplay(composition.muscleKg) * 10) / 10;
+    return Math.round(units.toDisplay(composition.muscleKg) * 10) / 10;
 }
 
 /** El mismo objetivo, ya traducido a músculo esquelético para el motor. */
@@ -407,8 +428,9 @@ function renderStepFields(step) {
                     <span class="field__label">${units.isScale ? t('onboarding.field.targetMuscle.scale') : t('onboarding.field.targetMuscle')}</span>
                     <input class="input" type="number" inputmode="decimal" step="0.1" data-field="targetMuscleKg"
                            aria-describedby="target-muscle-note"
-                           value="${draft.targetMuscleKg === null ? (suggested ?? '') : draft.targetMuscleKg}">
+                           value="${suggested ?? ''}">
                     <span class="field__hint" id="target-muscle-note" data-target-muscle-note></span>
+                    ${units.isScale ? html`<span class="field__hint">${t('muscleUnits.explain')}</span>` : ''}
                 </label>
                 <label class="field">
                     <span class="field__label">${t('onboarding.field.startDate')}</span>
@@ -536,6 +558,11 @@ function applyField(name, rawValue) {
     if (name === 'muscleKg' || name === 'boneKg' || name === 'targetMuscleKg') {
         const trimmed = rawValue.trim();
         draft[name] = trimmed === '' ? null : Number(trimmed);
+        // El objetivo se anota CON su unidad: sin eso, cambiar después el
+        // músculo o el hueso reinterpretaría el número en silencio (E11).
+        if (name === 'targetMuscleKg') {
+            draft.targetMuscleOffsetKg = trimmed === '' ? null : draftUnits().offsetKg;
+        }
         return;
     }
     draft[name] = rawValue.trim() === '' ? NaN : Number(rawValue);

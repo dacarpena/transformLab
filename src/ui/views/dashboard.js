@@ -128,10 +128,21 @@ function renderPlan(data) {
     // muestra tal y como él lo escribió (`target.scaleMuscleKg`) siempre que
     // esté guardado: así, si una recalibración mueve la estimación interna, la
     // meta que se fijó sigue siendo la misma cifra en pantalla.
+    //
+    // Pero solo si CUADRA con la meta que persigue el motor. Ese campo puede
+    // llegar de un backup importado, que es el vector hostil del producto, y
+    // enseñarlo a ciegas dejaba que un fichero mintiera sobre el objetivo:
+    // «99,0 kg de músculo» en pantalla mientras el plan iba a 60,0. Cuando no
+    // cuadran gana la cifra que el motor realmente persigue, porque es la que
+    // describe el plan que el usuario está viendo.
     const muscle = muscleUnitsOf(data);
-    const targetMuscleShown = muscle.isScale && Number.isFinite(data.profile.target.scaleMuscleKg)
-        ? data.profile.target.scaleMuscleKg
-        : muscle.toDisplay(data.profile.target.muscleKg);
+    const derivedTarget = muscle.toDisplay(data.profile.target.muscleKg);
+    const storedTarget = data.profile.target.scaleMuscleKg;
+    const targetMuscleShown = muscle.isScale
+        && Number.isFinite(storedTarget)
+        && Math.abs(storedTarget - derivedTarget) < 0.1
+        ? storedTarget
+        : derivedTarget;
 
     return html`
         <section class="card" aria-labelledby="plan-title">

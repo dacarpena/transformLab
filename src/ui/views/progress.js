@@ -102,6 +102,10 @@ function renderDeviation(evaluations) {
  */
 function renderMuscle(data, evaluations) {
     const muscle = muscleUnitsOf(data);
+    // Sin unidad de báscula no hay nada que comparar: los check-ins guardan la
+    // cifra de la báscula, y enfrentarla a un músculo esquelético proyectado
+    // pintaría el offset de unidad (~27 kg) como si fuera progreso real.
+    if (!muscle.isScale) return '';
     const rows = evaluations
         .map((e) => ({ e, item: checkins.findByDate(e.dateISO) }))
         .filter((r) => r.item && Number.isFinite(r.item.scaleMuscleKg))

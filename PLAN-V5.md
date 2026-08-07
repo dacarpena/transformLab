@@ -581,10 +581,56 @@ bloqueante estaba incrustado sin nombre ni fuente y ahora es
 cambiar el valor; `CLAUDE.md` §4 seguía diciendo `'measured' | 'estimated'`;
 y el título de un test del esquema no cubría `derived`.
 
-**Verificado:** 346 tests unitarios y 62 E2E en verde, typecheck limpio, y en
+**Verificación adversarial (el mismo día).** El ataque devolvió 9 hallazgos y
+**los 9 resultaron reales** — un porcentaje muy peor que el de M5 (15 de 27) o
+M6 (14 de 25), y la razón es instructiva: casi todos colgaban de UNA cosa que
+diseñé mal, no de nueve descuidos independientes. La pregunta «¿está este perfil
+en unidades de báscula?» estaba respondida en tres sitios con tres predicados
+distintos, y el objetivo se guardaba como un número sin su unidad.
+
+El peor, y el que más me costó ver porque era mi propia premisa:
+
+- **Recalibrar tiraba el músculo ganado y rompía el offset.** `recalibrate.js`
+  dejaba `muscleKg` a null, así que la composición se re-estimaba con la
+  proporción de POBLACIÓN (0,49 × magra). Esa proporción es transversal —sirve
+  para adivinar el músculo de alguien en un instante—, mientras que el motor usa
+  el modelo LONGITUDINAL contrario: lo que ganas se suma a la magra y
+  `otherLeanKg` se conserva. Mezclarlos tenía tres efectos, los tres medidos: en
+  el día 300 se tiraban **1,67 kg** de la ganancia que el propio plan decía haber
+  conseguido; el offset saltaba de 27,32 a 28,99, moviendo el objetivo del
+  usuario sin que él tocara nada; y el registro resultante **ya no cuadraba
+  consigo mismo** (1,69 kg de desajuste sobre una tolerancia de 0,5), de modo que
+  al reeditar el perfil la app rechazaba sus propios datos y le pedía revisar
+  cifras que nunca había tecleado. Mi «conservar el offset» era el instinto
+  correcto con la fórmula equivocada: lo que hay que conservar es `otherLeanKg`
+  —exactamente lo que ya decía hacer la inferencia de `inferFatPct`— y entonces
+  `scaleMuscleKg = magra − hueso`, que es lo que de verdad marcaría su báscula.
+  Con eso el offset queda constante por construcción.
+
+Los otros ocho, todos con test propio: el predicado de «unidad de báscula» ahora
+vive en un solo sitio (`isScaleProfile`), y exige las tres cifras; el objetivo
+viaja con el offset que estaba en vigor cuando se tecleó, así que cambiar de
+unidad conserva la CANTIDAD y no el número; Progreso ya no compara kilos de
+báscula contra esqueléticos; el dashboard solo se fía de `target.scaleMuscleKg`
+si cuadra con lo que persigue el motor; `muscleOffsetKg` rechaza proporciones
+imposibles, que es el cortafuegos contra backups importados; el cruce del
+check-in ya no se desactiva al vaciar el hueso; editar un check-in ya no borra
+campos que el formulario no llegó a mostrar; y `muscleUnits.explain` dejó de ser
+una clave muerta.
+
+**Lección para la próxima:** el ataque encontró en una tarde tres cosas que mis
+siete invariantes no podían ver, porque los tres viven en las costuras — entre
+el motor y la interfaz, entre una sesión y la siguiente, entre un formulario y
+el registro que escribe. Los invariantes cubren el motor, que era donde dolía en
+la v4.0; las costuras necesitan ataque.
+
+**Verificado:** 349 tests unitarios y 64 E2E en verde, typecheck limpio, y en
 navegador con sus cifras reales — objetivo 60 aceptado, plan de 377 días,
 dashboard 56,6 → 60,0 con «≈ 29,2 kg de músculo esquelético» debajo, eje de la
-gráfica y lectura accesible en la misma unidad, y sin desbordes a 320 px.
+gráfica y lectura accesible en la misma unidad, sin desbordes a 320 px, y una
+recalibración real aceptada desde el modal que deja el offset intacto (27,3168
+antes y después), el objetivo en 60,0 y el asistente reabriéndose sin un solo
+error.
 
 ---
 
@@ -593,6 +639,7 @@ gráfica y lectura accesible en la misma unidad, y sin desbordes a 320 px.
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
 - **Hallazgos de M5 refutados pero que siguen siendo endurecimiento razonable:** `escapeHtml` no cubre atributos sin comillas ni esquemas de URL (hoy no hay ningún sitio que los use, pero un `raw()` futuro podría); `splitIntoMeals` no tiene suelo en 0 aunque hoy ninguna entrada real lo alcanza; `suggestProgression` y `refeedMacros` lanzan con objetos corruptos que el almacén nunca produce; `unmount()` de fotos no revoca las URLs de un `draw()` en vuelo.
 - **Hallazgos de M6 refutados o de bajo impacto, anotados por si vuelven:** el registro del service worker espera al módulo de la vista inicial (retrasa el precache, no el pintado); `cache.addAll` todo-o-nada es deliberado pero deja la app sin offline si un recurso falla; la marca de «una notificación al día» se guarda por perfil, así que dos perfiles podrían dar dos avisos el mismo día si se cambia de perfil entre medias; `test/security.test.js` no cubre vías de inyección equivalentes que hoy no existen en el código.
+- **Recalibrar tira el músculo proyectado también en los perfiles SIN báscula (visto en E11):** `recalibrate.js` re-estima la composición con la proporción de población, así que un perfil `estimated` pierde la ganancia acumulada en cada recalibración igual que le pasaba a uno de báscula (1,67 kg en el día 300 del caso real). En E11 se arregló solo para los perfiles de báscula, donde el usuario compara con una cifra concreta cada semana y la incoherencia es visible. Extenderlo a todos cambiaría la duración de los planes ya creados, así que es una decisión de producto, no un arreglo: hay que decidirla antes de tocarlo.
 - i18n a más idiomas · modo claro · sincronización entre dispositivos · exportación PDF del plan · integración con básculas/wearables · comparativas entre perfiles
 - **Hallazgos media/baja del ataque a M2 (2026-08-02), pendientes de revisar en M3:** `sanitizeText` parte pares sustitutos al recortar y no elimina los controles C1 de Unicode; un perfil cuyo nombre son solo caracteres invisibles no se puede borrar; `readIndex` normaliza sin marcarlo; los validadores no se protegen de getters que lanzan; `photos-db` no valida que el id no contenga `:` ni que `blob.size` sea finito y positivo; los campos de kilos del plan no tienen cota superior; `migrate` no valida `nowISO`; `transformlab_startDate` nunca se lee.
 

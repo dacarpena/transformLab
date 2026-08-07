@@ -131,15 +131,7 @@ test('el check-in pide músculo y hueso, comprueba que cuadran y aparece en Prog
     await page.click('[data-save]');
     await expect(page.locator('[data-messages] .field__error')).toBeVisible();
 
-    // sin %grasa tampoco se traga un imposible: la comprobación deduce el
-    // %grasa de músculo + hueso en vez de saltarse el control
-    await page.fill('[data-field="fatPct"]', '');
-    await page.fill('[data-field="scaleMuscleKg"]', '190');
-    await page.click('[data-save]');
-    await expect(page.locator('[data-messages] .field__error')).toBeVisible();
-
     // corregida, se guarda
-    await page.fill('[data-field="fatPct"]', '25.8');
     await page.fill('[data-field="scaleMuscleKg"]', '56.9');
     await page.click('[data-save]');
     await expect(page.locator('[data-messages] .field__error')).toHaveCount(0);
@@ -149,55 +141,6 @@ test('el check-in pide músculo y hueso, comprueba que cuadran y aparece en Prog
     const muscleCard = page.locator('section.card', { has: page.locator('#muscle-title') });
     await expect(muscleCard).toBeVisible();
     await expect(muscleCard).toContainText('56.9');
-});
-
-test('cambiar de unidad a mitad del asistente conserva la CANTIDAD, no el número', async ({ page }) => {
-    // Un nivel de músculo sin su unidad es ambiguo. Escribir 33 sin báscula
-    // (esquelético) y luego añadir las cifras de una Xiaomi hacía que esos 33
-    // se releyeran como kilos de báscula —5,7 esqueléticos— y la app avisara
-    // de que el objetivo implicaba perder 23 kg de músculo.
-    await page.fill('[data-field="name"]', 'Cambio de unidad');
-    await page.selectOption('[data-field="trainingStatus"]', 'intermediate');
-    await page.click('[data-next]');
-    await page.fill('[data-field="weightKg"]', XIAOMI.weightKg);
-    await page.fill('[data-field="fatPct"]', XIAOMI.fatPct);
-    await page.click('[data-next]');
-
-    // objetivo en esquelético, sin báscula
-    await page.fill('[data-field="targetMuscleKg"]', '33');
-    await expect(page.locator('[data-target-muscle-note]')).toHaveText('');
-
-    // vuelve atrás y añade las cifras de su báscula
-    await page.click('[data-back]');
-    await page.fill('[data-field="muscleKg"]', XIAOMI.muscleKg);
-    await page.fill('[data-field="boneKg"]', XIAOMI.boneKg);
-    await page.click('[data-next]');
-
-    // 33 esqueléticos son 60,3 de báscula: la misma cantidad física
-    await expect(page.locator('[data-field="targetMuscleKg"]')).toHaveValue('60.3');
-    await expect(page.locator('[data-messages] .field__error')).toHaveCount(0);
-    await expect(page.locator('[data-messages] .field__warning')).toHaveCount(0);
-});
-
-test('un check-in sin hueso sigue sin tragarse un imposible', async ({ page }) => {
-    // Vaciar un campo opcional desactivaba TODA la comprobación cruzada y
-    // dejaba guardar 150 kg de músculo en un cuerpo de 80.
-    await onboardWithScale(page);
-    await page.click('[data-next]');
-    await page.click('[data-next]');
-    await expect(page.locator('#today-title')).toBeVisible();
-
-    await page.click('[data-go-checkin]');
-    await page.fill('[data-field="weightKg"]', '80.4');
-    await page.fill('[data-field="boneKg"]', '');
-    await page.fill('[data-field="scaleMuscleKg"]', '150');
-    await page.click('[data-save]');
-    await expect(page.locator('[data-messages] .field__error')).toBeVisible();
-
-    // y una cifra sensata sí entra, cayendo al hueso del perfil
-    await page.fill('[data-field="scaleMuscleKg"]', '56.9');
-    await page.click('[data-save]');
-    await expect(page.locator('[data-messages] .field__error')).toHaveCount(0);
 });
 
 test('reeditar el perfil devuelve las cifras de la báscula, no las internas', async ({ page }) => {

@@ -17,6 +17,7 @@ import { t, setLocale, getLocale } from './i18n/i18n.js';
 import { html, render } from './ui/dom.js';
 import * as router from './ui/router.js';
 import * as plans from './ui/plan-state.js';
+import { isScaleProfile } from './ui/muscle-units.js';
 import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
 import * as recalibrate from './ui/recalibrate.js';
@@ -152,7 +153,14 @@ function editProfile(roots) {
     // el perfil lo degradaba en silencio de «derivado» a «medido» y su músculo
     // se desplomaba de 56,56 a 29,24 delante de él.
     const { initial, target } = data.profile;
-    const isScale = Number.isFinite(initial.scaleMuscleKg) && Number.isFinite(initial.boneKg);
+    // El MISMO predicado que usan el dashboard, la gráfica y Progreso: si aquí
+    // divergiera, un perfil se reeditaría en una unidad y se mostraría en otra.
+    const isScale = isScaleProfile(initial);
+    // El objetivo viaja CON su unidad. El asistente re-expresa un objetivo
+    // cuyo offset no coincide con el vigente, así que sembrar la cifra sin su
+    // offset la haría leer como esquelética: los 60 kg de báscula volvían del
+    // asistente convertidos en 87,3.
+    const targetOffsetKg = isScale ? initial.scaleMuscleKg - initial.muscleKg : 0;
     startOnboarding(roots, {
         name: data.profile.name,
         sex: data.profile.user.sex,
@@ -167,7 +175,8 @@ function editProfile(roots) {
         targetFatPct: target.fatPct,
         targetMuscleKg: isScale && Number.isFinite(target.scaleMuscleKg)
             ? target.scaleMuscleKg
-            : target.muscleKg,
+            : (isScale ? target.muscleKg + targetOffsetKg : target.muscleKg),
+        targetMuscleOffsetKg: targetOffsetKg,
         startDateISO: data.profile.startDateISO,
         intensity: data.profile.intensity
     });

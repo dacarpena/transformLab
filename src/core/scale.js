@@ -81,6 +81,14 @@ const BONE_SHARE_HARD = Object.freeze({ min: 0.02, max: 0.12 });
  */
 const MISMATCH_TOLERANCE_KG = 0.5;
 
+/**
+ * Proporción admisible entre la cifra de músculo de una báscula y el músculo
+ * esquelético del motor. Ver `muscleOffsetKg` para de dónde sale y para qué
+ * está: es un cortafuegos contra datos importados, no un límite fisiológico.
+ * @type {Readonly<{min: number, max: number}>}
+ */
+const SCALE_TO_SKELETAL_RATIO = Object.freeze({ min: 1.2, max: 3.0 });
+
 /** @param {unknown} v @returns {v is number} */
 function isFiniteNumber(v) {
     return typeof v === 'number' && Number.isFinite(v);
@@ -221,6 +229,18 @@ export function muscleOffsetKg(composition) {
     // Una báscula siempre da MÁS que el esquelético: su «músculo» es casi toda
     // la magra. Un offset negativo significa que las cifras no son lo que
     // dicen ser, y traducir con él desplazaría todo en la dirección contraria.
+    //
+    // Y hay un techo, porque las dos cifras guardan una proporción conocida:
+    // `(magra − hueso) / (0,49 × magra)` ronda 1,9 en varones y 2,2 en
+    // mujeres, y ni con el hueso en sus extremos fisiológicos se sale de
+    // 1,8–2,3. El rango de abajo es deliberadamente ancho —no es un límite
+    // fisiológico, es un cortafuegos—: sirve para que un backup importado,
+    // que es el vector hostil del producto, no pueda declarar 199 kg de
+    // músculo junto a 29 y hacer que toda la interfaz traduzca con un offset
+    // de 170 kg. Fuera de rango no se corrige nada: se deja de traducir y el
+    // usuario ve músculo esquelético, que es siempre una cifra honesta.
+    const ratio = scaleMuscleKg / muscleKg;
+    if (ratio < SCALE_TO_SKELETAL_RATIO.min || ratio > SCALE_TO_SKELETAL_RATIO.max) return null;
     const offset = scaleMuscleKg - muscleKg;
     return offset > 0 ? offset : null;
 }
