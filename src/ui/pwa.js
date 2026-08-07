@@ -17,19 +17,39 @@ import * as toast from './components/toast.js';
 /** Evita registrar dos veces si `boot()` se repite. */
 let registered = false;
 
+/** Para no apilar avisos si el evento llega más de una vez. */
+let announced = false;
+
+/** Esta pestaña pidió la actualización: su recarga ya está en marcha. */
+let skipWaitingSent = false;
+
 /**
  * Avisa de que hay una versión nueva lista y deja recargar al usuario.
- * @param {ServiceWorker} waiting
+ *
+ * `waiting` es el service worker que espera, si esta pestaña es la que ha
+ * detectado la actualización. Cuando el cambio lo aplicó OTRA pestaña, no hay
+ * nada que esperar: el SW nuevo ya manda, y aquí solo queda recargar.
+ * @param {ServiceWorker | null} waiting
  */
 function announceUpdate(waiting) {
+    if (announced) return;
+    announced = true;
     toast.show('pwa.updateReady', {
         type: 'info',
         duration: 0,
         action: {
             labelKey: 'pwa.reload',
             onClick: () => {
+                if (!waiting) {
+                    // La actualización ya está activa (la aplicó otra pestaña):
+                    // mandar SKIP_WAITING aquí no haría nada y el aviso
+                    // desaparecería dejando al usuario en la versión vieja.
+                    globalThis.location?.reload();
+                    return;
+                }
                 // El SW que espera toma el control y, cuando lo hace,
                 // recargamos: en ese orden, para no servir media versión.
+                skipWaitingSent = true;
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     globalThis.location?.reload();
                 }, { once: true });
@@ -72,6 +92,23 @@ export async function register() {
     try {
         const registration = await navigator.serviceWorker.register('sw.js', { scope: './' });
         watchForUpdate(registration);
+
+        // Si la actualización la aplica OTRA pestaña, esta se queda ejecutando
+        // los módulos de la versión vieja contra la caché de la nueva, y sus
+        // `import()` diferidos ya traen código nuevo: dos versiones a la vez en
+        // la misma página. No se recarga sola —eso sigue prohibido—, pero sí
+        // se avisa, y aquí el botón simplemente recarga.
+        //
+        // `hadController` distingue eso de la PRIMERA instalación: al activarse,
+        // el service worker llama a `clients.claim()` y eso también dispara
+        // `controllerchange`. Sin esta condición, todo el mundo veía un aviso de
+        // «versión nueva» la primera vez que abría la aplicación.
+        const hadController = Boolean(navigator.serviceWorker.controller);
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (skipWaitingSent) return;   // esta pestaña ya está recargando
+            if (!hadController) return;    // primera instalación, no hay nada nuevo
+            announceUpdate(null);
+        });
     } catch (err) {
         // Sin offline se vive; sin aplicación no. No se molesta al usuario
         // con esto: no hay nada que pueda hacer al respecto.

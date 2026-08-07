@@ -25,6 +25,20 @@ import * as reminder from './ui/reminder.js';
 import * as toast from './ui/components/toast.js';
 import { error as errorState } from './ui/components/state.js';
 
+/**
+ * Cablea el botón «Recargar» de los estados de error que pinta ESTE módulo.
+ *
+ * El router cablea el suyo dentro de `start()`, pero los errores de arranque
+ * —índice de perfiles ilegible, plan no reconstruible— se pintan antes de que
+ * el router arranque, y su único botón se quedaba inerte: un callejón sin
+ * salida, justo lo que un estado de error no puede ser (ficha H-013).
+ * @param {HTMLElement} root
+ */
+function wireReload(root) {
+    root.querySelector('[data-action="reload"]')
+        ?.addEventListener('click', () => globalThis.location?.reload());
+}
+
 /** Pinta el armazón y devuelve sus anclajes. */
 function renderShell() {
     const app = document.getElementById('app');
@@ -180,6 +194,7 @@ async function route(roots) {
         }));
         roots.viewRoot.querySelector('[data-action="edit-profile"]')
             ?.addEventListener('click', () => startOnboarding(roots));
+        wireReload(roots.viewRoot);
         return;
     }
     await startApp(roots);
@@ -207,6 +222,7 @@ async function boot() {
     const index = profiles.readIndex();
     if (!index.ok) {
         render(roots.viewRoot, errorState({ titleKey: 'error.viewTitle', bodyKey: 'error.viewBody' }));
+        wireReload(roots.viewRoot);
         return;
     }
 
@@ -227,6 +243,7 @@ async function boot() {
             const created = profiles.create(t('app.title'), { createdAtISO: new Date().toISOString() });
             if (!created.ok) {
                 render(roots.viewRoot, errorState({ titleKey: 'error.viewTitle', bodyKey: 'error.viewBody' }));
+                wireReload(roots.viewRoot);
                 return;
             }
         } else if (list.ok) {
