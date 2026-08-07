@@ -599,6 +599,22 @@ export function cursorIndex() {
 }
 
 /**
+ * Lleva el cursor a un día concreto y lo anuncia.
+ *
+ * Es lo que conecta la línea de tiempo con la gráfica: pulsar un evento no
+ * abre otra pantalla, mueve el cursor de ESTA. El mismo cursor que ya usa el
+ * recorrido con teclado, para que las dos vías cuenten la misma historia.
+ * @param {HTMLElement} readout
+ * @param {Projection} projection
+ * @param {number} index
+ * @param {{ from: number, to: number }} range
+ */
+export function focusDay(readout, projection, index, range) {
+    cursor = Math.min(Math.max(index, range.from), range.to);
+    announce(readout, projection, cursor);
+}
+
+/**
  * Mueve el cursor de lectura por teclado y lo anuncia.
  * @param {{ readout: HTMLElement, projection: Projection, key: string, range: {from: number, to: number} }} options
  * @returns {boolean} true si la tecla se ha consumido

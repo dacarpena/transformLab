@@ -591,6 +591,119 @@ ul { margin: 0; padding: 0; list-style: none; }
     border: 1px solid var(--color-accent);
 }
 
+/* Línea de tiempo del proceso (E12). Es DOM y no lienzo a propósito: usa
+   tokens, la lee un lector de pantalla y refluye a 320 px con el tipo grande.
+   Sin un solo ancho en px: todo envuelve. */
+.timeline {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: 0;
+    margin: 0;
+}
+
+.timeline__summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    cursor: pointer;
+    min-height: 44px; /* objetivo táctil */
+}
+
+.timeline__events {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: var(--space-2) 0 0 var(--space-2);
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--color-border);
+}
+
+/* La fila es un botón que lleva la gráfica a ese día. El reset conserva el
+   foco visible (regla global de :focus-visible, que nunca se anula). */
+button.timeline__event {
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-2);
+}
+
+.timeline__event {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.timeline__event--static {
+    padding: var(--space-1) var(--space-2);
+}
+
+button.timeline__event:hover {
+    background: var(--color-surface-2);
+}
+
+/* La fila que corresponde al cursor de la gráfica. El color no es la única
+   señal: lleva además la barra lateral, como la navegación. */
+.timeline__event[aria-current="true"] {
+    background: var(--color-surface-2);
+    box-shadow: inset 2px 0 0 0 var(--color-accent);
+}
+
+.timeline__event--past {
+    color: var(--color-text-muted);
+}
+
+.timeline__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+    align-self: center;
+    background: var(--color-text-muted);
+}
+
+/* Los cambios visibles del catálogo van huecos: son otra clase de hito que
+   los cruces de cifra, y la forma lo dice antes que el texto. */
+.timeline__dot--hollow {
+    background: transparent;
+    border: 2px solid var(--color-text-muted);
+}
+
+.timeline__when {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    flex-shrink: 0;
+}
+
+.timeline__what {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+/* El ancla de HOY dentro de la fase actual. */
+.timeline__now {
+    color: var(--color-accent);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px dashed var(--color-accent);
+    padding: var(--space-1) 0;
+    list-style: none;
+}
+
 .chart-readout {
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
