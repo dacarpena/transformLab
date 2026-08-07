@@ -290,7 +290,7 @@ export function setWindow(from, to) {
 
 /**
  * Dibuja la gráfica.
- * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle'|'kcal', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month' }} options
+ * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle'|'kcal', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, scaleMuscleKg?: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month' }} options
  * @returns {boolean} false si Chart.js no está disponible
  */
 export function draw(options) {
@@ -415,15 +415,23 @@ export function draw(options) {
     // Check-ins reales superpuestos a la proyección (M4-4). Van con estilo
     // propio y en primer plano: lo medido no puede confundirse con lo previsto.
     // No se filtran por ventana: los recorta la escala, como a todo lo demás.
-    const realPoints = (options.checkins ?? []).filter(
-        (c) => metric !== 'fatPct' || c.fatPct !== null
-    );
-    if (realPoints.length > 0 && metric !== 'muscle' && metric !== 'kcal') {
+    // En músculo solo se dibujan si el perfil es de báscula: el check-in
+    // guarda la cifra de la báscula (E11) y el eje ya está en esa unidad, así
+    // que se pinta TAL CUAL, sin conversión — es una medición, no un nivel del
+    // motor. Sin báscula no hay dato de músculo medido, y en kcal los
+    // check-ins no significan nada: son pesos.
+    const realPoints = (options.checkins ?? []).filter((c) => {
+        if (metric === 'fatPct') return c.fatPct !== null;
+        if (metric === 'muscle') return muscleUnits.isScale && Number.isFinite(c.scaleMuscleKg);
+        if (metric === 'kcal') return false;
+        return true;
+    });
+    if (realPoints.length > 0 && metric !== 'kcal') {
         datasets.push({
             label: t('checkin.title'),
             data: realPoints.map((c) => ({
                 x: c.dayIndex,
-                y: metric === 'fatPct' ? c.fatPct : c.actualKg
+                y: metric === 'fatPct' ? c.fatPct : metric === 'muscle' ? c.scaleMuscleKg : c.actualKg
             })),
             showLine: true,
             borderColor: cssVar('--color-text'),

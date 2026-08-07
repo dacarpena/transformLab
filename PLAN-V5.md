@@ -634,6 +634,75 @@ error.
 
 ---
 
+## E12 · La proyección: legible, navegable y con la historia de tu proceso (2026-08-08)
+
+**El problema.** La proyección recalibrable es lo que define este producto, y
+vivía apretada al final de Hoy. Como pieza visual estaba sin terminar: eje
+rotulando números de día crudos sobre planes de 377 días, `legend: false` con
+cuatro cosas distintas en el lienzo, botones de métrica que comunicaban el
+estado activo solo con color (cero `aria-pressed` en todo el repo), y cinco
+bloques de texto gris apilados debajo. Como producto estaba a medio pagar: el
+motor calculaba desde M1 los agregados `weekly`/`monthly`, el TDEE adaptado día
+a día, el déficit y el suelo de seguridad — y la interfaz no usaba nada de eso
+en ningún sitio.
+
+**Petición del usuario:** vista propia con Hoy conservando una gráfica compacta;
+las cuatro áreas (día/semana/mes, escenarios con fechas, calorías/TDEE, eje en
+fechas y zoom); y, con sus palabras, «ubicar los cambios en todos los aspectos
+durante el proceso a modo de hitos».
+
+**La corrección que hubo que hacer antes de diseñar.** Enseñé un mockup con
+tres fechas de final distintas y era falso: los tres escenarios deforman el
+TIEMPO, no el valor, así que terminan el mismo día. Pero esa deformación es
+invertible —`d = T·(d/T)^(1/k)`—, y eso da a cada hito una ventana honesta:
+«bajas del 22 % entre el 16 sep y el 12 nov». Un test de propiedad la ata a la
+banda que dibuja el motor: si divergen, salta.
+
+**Cómo quedó, en ocho etapas cada una en verde:**
+
+- **E12-0** — primera cobertura unitaria de `chart.js`, que tenía cero, ANTES
+  de reformarlo. Escribirla hizo visibles dos endurecimientos: `draw()` dibujaba
+  sobre lienzos ya desconectados, y el cursor se heredaba entre vistas.
+- **E12-1** — `src/core/timeline.js`, puro, con la ventana de fechas y la fusión
+  de eventos. No importa el catálogo de 34 KB; las recalibraciones caen fuera
+  del plan por construcción y van a su propio grupo.
+- **E12-2** — la ventana deja de ser un `slice` y pasa a ser dos números de la
+  escala (por eso el deslizador viejo solo movía un extremo). Recorte
+  obligatorio de los dos plugins, que pintaban `fillRect` sin `clip()` — con la
+  ventana clavada en 0 nunca se vio. Eje en fechas con `Intl` y `timeZone: 'UTC'`
+  (sin él, UTC-5 vería «13 feb» donde pone 2027-02-14; probado con tres `TZ`).
+- **E12-3** — la vista, con detalle día/semana/mes leyendo por fin los
+  agregados. Dos defectos que solo salieron al ejecutar: rótulos del eje
+  congelados con el ancho anterior, y granularidad mensual dejando la gráfica
+  vacía en ventanas estrechas.
+- **E12-4** — calorías y TDEE, con el déficit como el hueco sombreado entre las
+  dos líneas; leyenda en DOM, no en el lienzo.
+- **E12-5** — la historia del proceso, agrupada por fase, con cada fila
+  llevando la gráfica a su día y el recorrido con teclado marcando la fila más
+  cercana sin scroll.
+- **E12-6** — Hoy adelgaza: cinco bloques grises → cero, gráfica compacta y un
+  botón. Conserva el rango completo y `[data-canvas]`, que son contrato de
+  `smoke.spec.js` y de los tests de píxeles.
+- **E12-7** — `test/e2e/projection.spec.js` cubriendo por primera vez el recorte
+  de los plugins (píxeles en el margen), el clic en hito y el no-clic en vacío,
+  el PNG, la fluctuación y que 20 cambios de ventana conservan la instancia.
+
+**Dos trampas del entorno, ya conocidas, que volvieron a morder:** el service
+worker sirviendo módulos precacheados viejos mientras yo depuraba (se resuelve
+verificando el fuente servido antes de sacar conclusiones), y la caché HTTP del
+navegador sirviendo un `dashboard.js` viejo junto a un `main.js` nuevo — la
+mezcla de versiones que el todo-o-nada del SW existe para evitar. Y una tercera
+copia de iCloud (`chart 2.js`) se coló en un commit; ya hay regla en
+`.gitignore` y quedó anotada.
+
+**Verificado:** 383 tests unitarios y 72 E2E en verde, typecheck limpio. En
+navegador con las cifras reales: las cinco secciones, granularidad y ventana,
+la métrica de calorías con su lectura accesible, la historia enfocando la
+gráfica al pulsar un momento, y **cero desbordes a 320 px con la tipografía al
+200 %** pese a todos los controles nuevos.
+
+---
+
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.

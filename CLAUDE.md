@@ -49,10 +49,13 @@ src/
     es.js / en.js           diccionarios; NINGÚN string visible vive fuera de ellos
   ui/
     dom.js                  escapeHtml, tagged template html``, delegación de eventos, focus-trap
+    dates.js                fechas legibles con Intl; SIEMPRE timeZone:'UTC' (las del motor son UTC)
+    muscle-units.js         aduana de unidad de músculo (E11): traduce en la frontera, no en el core
     router.js               vistas + navegación; tabs inferiores en móvil, sidebar en escritorio
     components/             tarjetas, modal accesible, estados vacíos/error, toasts
-    views/                  dashboard, onboarding, checkin, progress, chart, nutrition,
+    views/                  dashboard, onboarding, checkin, progress, projection, nutrition,
                             training, body, milestones, settings
+  (core/timeline.js         fusiona fases/hitos/check-ins en una línea de tiempo; ventana de escenarios)
 test/
   *.test.js                 node:test — el motor se prueba desde Node, sin navegador
   e2e/smoke.spec.js         Playwright — recorrido de humo

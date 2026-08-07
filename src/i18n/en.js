@@ -163,12 +163,10 @@ export const en = {
     'chart.band': 'Scenario band',
     'chart.expected': 'Expected',
     'chart.today': 'Today',
-    'chart.range': 'Range shown',
     'chart.readout': 'Day {day}, {date}: {weight} kg, {fat} % body fat, {muscle} kg of muscle. Phase: {phase}.',
     'chart.readoutHint': 'Move through the chart with the arrow keys to hear each point.',
     'chart.unavailableTitle': 'The chart could not be loaded',
     'chart.unavailableBody': 'The charting library is unavailable. The rest of the app works normally and your data is intact.',
-    'chart.milestone': 'Milestone: {label}',
     'chart.milestoneModalTitle': 'Milestone',
     'chart.milestoneDay': 'Day {day} · {date}',
 
