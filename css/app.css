@@ -551,6 +551,35 @@ ul { margin: 0; padding: 0; list-style: none; }
     max-height: 100%;
 }
 
+/* Grupo de botones excluyentes (E12).
+
+   El estado activo se deriva de `aria-pressed`, NO de una clase paralela como
+   `.btn--primary`. Con una clase, un descuido puede dejar un botón pintado como
+   activo sin su estado accesible —que es justo el defecto que tenía el selector
+   de métrica de Hoy—; con el atributo, eso es imposible por construcción.
+
+   Y el color no es la única señal (WCAG 1.4.1): el botón activo lleva además
+   una barra inferior, el mismo recurso de forma que usa `.nav-item`. */
+.segmented {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.segmented .btn[aria-pressed="true"] {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border-color: var(--color-accent);
+    box-shadow: inset 0 -3px 0 0 var(--color-on-accent);
+}
+
+/* La gráfica de la vista Proyección tiene toda la pantalla para ella.
+   El alto de escritorio vive en el bloque de 768 px, con el resto. */
+.chart-wrap--tall {
+    height: 340px;
+}
+
 .chart-readout {
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
@@ -1057,6 +1086,7 @@ ul { margin: 0; padding: 0; list-style: none; }
     }
 
     .chart-wrap { height: 400px; }
+    .chart-wrap--tall { height: 460px; }
 
     .toast-region { bottom: var(--space-6); }
 }

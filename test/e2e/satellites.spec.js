@@ -39,7 +39,7 @@ test.beforeEach(async ({ page }) => {
     await completeOnboarding(page);
 });
 
-const VIEWS = ['today', 'checkin', 'progress', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings'];
+const VIEWS = ['today', 'checkin', 'progress', 'projection', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings'];
 
 test('las diez vistas montan sin error de consola', async ({ page }) => {
     /** @type {string[]} */ const errors = [];
@@ -71,7 +71,7 @@ test('a 320 px la barra inferior pliega las secciones sobrantes tras «más»', 
 
     await more.click();
     await expect(more).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('.nav-list__item:visible')).toHaveCount(11);
+    await expect(page.locator('.nav-list__item:visible')).toHaveCount(12);
 
     // Escape repliega y devuelve el foco al botón que la abrió
     await page.keyboard.press('Escape');

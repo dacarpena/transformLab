@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0014';
+const CACHE_VERSION = 'tl-v5-0015';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -93,6 +93,7 @@ const PRECACHE = [
     'src/ui/views/onboarding.js',
     'src/ui/views/photos.js',
     'src/ui/views/progress.js',
+    'src/ui/views/projection.js',
     'src/ui/views/settings.js',
     'src/ui/views/training.js'
 ];

@@ -432,10 +432,21 @@ export function draw(options) {
                     ticks: {
                         color: muted,
                         maxTicksLimit: 8,
-                        callback: (/** @type {*} */ value) => {
+                        // `function` y no flecha: Chart.js invoca el callback con
+                        // la ESCALA como `this`, y hace falta para leer el ancho
+                        // de la ventana ACTUAL. Con el ancho capturado en el
+                        // dibujado, mover la ventana con `setWindow()` dejaba los
+                        // rótulos congelados en el formato anterior: una ventana
+                        // de 30 días seguía rotulando «sept 2026» en vez del día.
+                        callback: /** @type {*} */ (function (/** @type {*} */ value) {
                             const point = projection.daily[Math.round(Number(value))];
-                            return point ? axisLabel(point.dateISO, spanDays) : '';
-                        }
+                            if (!point) return '';
+                            const scale = /** @type {*} */ (this);
+                            const span = Number.isFinite(scale?.max) && Number.isFinite(scale?.min)
+                                ? scale.max - scale.min
+                                : spanDays;
+                            return axisLabel(point.dateISO, span);
+                        })
                     },
                     grid: { color: grid }
                 },

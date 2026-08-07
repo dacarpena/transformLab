@@ -104,6 +104,13 @@ async function startApp(roots) {
         id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', primary: true,
         load: () => import('./ui/views/nutrition.js')
     });
+    // `primary: false` a propósito: promoverla obligaría a degradar una de las
+    // cuatro pestañas actuales, porque a 320 px solo caben cuatro más «más»
+    // sin que los objetivos táctiles bajen de 44 px. Se llega desde Hoy.
+    router.register({
+        id: 'projection', labelKey: 'nav.projection', icon: '↗',
+        load: () => import('./ui/views/projection.js')
+    });
     router.register({ id: 'training', labelKey: 'nav.training', icon: '⬛', load: () => import('./ui/views/training.js') });
     router.register({ id: 'body', labelKey: 'nav.body', icon: '◐', load: () => import('./ui/views/body.js') });
     router.register({ id: 'milestones', labelKey: 'nav.milestones', icon: '✦', load: () => import('./ui/views/milestones.js') });

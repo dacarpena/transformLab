@@ -86,7 +86,7 @@ test('sin red, la aplicación abre y se puede recorrer entera', async ({ page, c
 
         // Las diez vistas, incluidas las que se cargan con import() diferido y
         // que en esta sesión no se habían visitado nunca
-        for (const v of ['checkin', 'progress', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings']) {
+        for (const v of ['checkin', 'progress', 'projection', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings']) {
             await page.locator(`[data-view="${v}"]`).click();
             await expect(
                 page.locator(`.view[data-view-id="${v}"] .card, .view[data-view-id="${v}"] .state`).first()

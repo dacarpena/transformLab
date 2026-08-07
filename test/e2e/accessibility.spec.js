@@ -14,7 +14,7 @@
 
 import { test, expect } from '@playwright/test';
 
-const VIEWS = ['today', 'checkin', 'progress', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings'];
+const VIEWS = ['today', 'checkin', 'progress', 'projection', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings'];
 
 async function completeOnboarding(page) {
     await page.fill('[data-field="name"]', 'Dani');
