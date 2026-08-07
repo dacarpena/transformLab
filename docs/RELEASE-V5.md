@@ -28,6 +28,11 @@ cada push. No hay que ejecutarlos a mano; hay que mirar que CI esté en verde.
 | Precache completo (la app abre sin red) | `test/pwa.test.js` |
 | Accesibilidad AA automatizable | `test/e2e/accessibility.spec.js` |
 | Reflow a 320 px con el texto al 200 % | `test/e2e/accessibility.spec.js` |
+| **La app abre y se recorre entera SIN RED** | `test/e2e/pwa.spec.js` (modo avión real) |
+| Un check-in guardado offline sobrevive | `test/e2e/pwa.spec.js` |
+| El aviso de versión nueva se puede pulsar con el dedo | `test/e2e/pwa.spec.js` |
+| Todas las secciones alcanzables en ventana baja | `test/e2e/accessibility.spec.js` |
+| El recordatorio no se equivoca de día en el cambio de hora | `test/reminder.test.js` |
 
 Salida del test de identidad, para el registro:
 
@@ -131,6 +136,12 @@ En el teléfono, sobre el dominio con HTTPS:
       diez secciones
 - [ ] Offline, la gráfica de «Hoy» dibuja (Chart.js va precacheado)
 - [ ] Offline, se puede guardar un check-in y sigue ahí al recuperar la red
+
+> Esto está automatizado en `test/e2e/pwa.spec.js`, pero **hay que repetirlo a
+> mano sobre el dominio**: el fallo más grave de M6 fue justo este —el
+> precache fallaba entero en producción por una redirección que en local no
+> existe— y no había forma de verlo sin probar contra el despliegue real.
+> Si la app no abre en modo avión, avísame antes de seguir.
 
 ### 3.4 Guion de humo manual, en el móvil
 

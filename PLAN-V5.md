@@ -375,9 +375,48 @@ Chart.js bajo demanda (89 → 96; sus 208 KB no pintan nada del primer paint).
 ajustes; lo que faltaba era el momento. Ahora salen también en el último paso
 del onboarding, antes de que el usuario escriba su peso y su grasa corporal.
 
+**Verificación adversarial de M6 (2026-08-07).** 5 atacantes, 25 hallazgos, un
+refutador independiente por hallazgo. 12 confirmados, 11 refutados, 2 sin
+veredicto porque su refutador agotó la cuota (los cerré yo). Corregidos:
+
+1. *(alta)* **La PWA desplegada no tenía offline en absoluto.** Cloudflare
+   Pages responde 308 a `/index.html` y `cache.addAll` es todo-o-nada: esa
+   sola entrada hacía fallar el precache entero, así que el service worker no
+   llegaba a instalarse nunca. Reproducido imitando el 308 en local: caché
+   creada con **0 entradas**. Y era invisible, porque la aplicación cargaba de
+   red igual; solo el modo avión lo delataba. `test/pwa.test.js` no podía
+   verlo porque solo lee el fuente — por eso ahora hay `test/e2e/pwa.spec.js`,
+   que activa el modo avión de verdad.
+2. *(alta)* El botón «Recargar» del aviso de versión nueva no recibía clics ni
+   toques: `.toast-region` desactiva `pointer-events` y nadie se los devolvía
+   al botón. En un móvil, sin teclado, era un banner permanente e inútil que
+   además activaba el control que quedara debajo.
+3. *(alta)* En escritorio con la ventana baja, «Ajustes» era inalcanzable:
+   diez secciones no caben y la barra lateral no se podía desplazar.
+4. *(alta)* El recordatorio se quedaba armado en el perfil anterior al cambiar
+   de perfil, y `fire()` no releía el horario antes de notificar.
+5. *(alta)* Con dos pestañas, la que no aplicó la actualización se quedaba
+   ejecutando dos versiones a la vez y su «Recargar» era un no-op silencioso.
+6. *(media)* El cambio de hora mandaba el aviso al día equivocado: en
+   Groenlandia las 23:00 del sábado no existen y se normalizaban al domingo.
+   Barrido de 100 800 casos × 10 husos: 0 fallos (antes 48).
+7. *(media)* Un clic en zona vacía de la gráfica abría la ficha de un hito que
+   no estaba ahí.
+8. *(media)* El PNG de la gráfica salía transparente: ilegible sobre blanco.
+9. *(media)* El botón «Recargar» de los errores de ARRANQUE era inerte, porque
+   se pintan antes de que el router cablee el suyo.
+10. *(baja)* La vista de Logros no dejaba ningún `h1` en el documento.
+
+Lección: los dos peores —el precache y el botón muerto— eran invisibles desde
+dentro. El primero porque la aplicación funcionaba igual con red; el segundo
+porque con teclado sí funcionaba. Ninguno de los 318 tests unitarios podía
+verlos; hicieron falta un navegador real, el modo avión y un dedo simulado.
+
 **Pendiente y bloqueado en el usuario:** M6-7 (dominio en Cloudflare Pages) y
 M6-8 (checklist de release: Lighthouse sobre el dominio, migración v4→v5 con
-datos reales, PWA instalada en un móvil real, guion de humo manual).
+datos reales, PWA instalada en un móvil real, guion de humo manual). Los pasos
+exactos están en `docs/RELEASE-V5.md`; el resto de la checklist ya está
+automatizado en `test/e2e/release.spec.js`.
 
 ---
 
@@ -385,6 +424,7 @@ datos reales, PWA instalada en un móvil real, guion de humo manual).
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
 - **Hallazgos de M5 refutados pero que siguen siendo endurecimiento razonable:** `escapeHtml` no cubre atributos sin comillas ni esquemas de URL (hoy no hay ningún sitio que los use, pero un `raw()` futuro podría); `splitIntoMeals` no tiene suelo en 0 aunque hoy ninguna entrada real lo alcanza; `suggestProgression` y `refeedMacros` lanzan con objetos corruptos que el almacén nunca produce; `unmount()` de fotos no revoca las URLs de un `draw()` en vuelo.
+- **Hallazgos de M6 refutados o de bajo impacto, anotados por si vuelven:** el registro del service worker espera al módulo de la vista inicial (retrasa el precache, no el pintado); `cache.addAll` todo-o-nada es deliberado pero deja la app sin offline si un recurso falla; la marca de «una notificación al día» se guarda por perfil, así que dos perfiles podrían dar dos avisos el mismo día si se cambia de perfil entre medias; `test/security.test.js` no cubre vías de inyección equivalentes que hoy no existen en el código.
 - i18n a más idiomas · modo claro · sincronización entre dispositivos · exportación PDF del plan · integración con básculas/wearables · comparativas entre perfiles
 - **Hallazgos media/baja del ataque a M2 (2026-08-02), pendientes de revisar en M3:** `sanitizeText` parte pares sustitutos al recortar y no elimina los controles C1 de Unicode; un perfil cuyo nombre son solo caracteres invisibles no se puede borrar; `readIndex` normaliza sin marcarlo; los validadores no se protegen de getters que lanzan; `photos-db` no valida que el id no contenga `:` ni que `blob.size` sea finito y positivo; los campos de kilos del plan no tienen cota superior; `migrate` no valida `nowISO`; `transformlab_startDate` nunca se lee.
 
