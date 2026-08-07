@@ -17,6 +17,23 @@ import * as toast from './components/toast.js';
 /** Evita registrar dos veces si `boot()` se repite. */
 let registered = false;
 
+/**
+ * Resuelve cuando la página ha terminado de cargar y el hilo principal está
+ * ocioso. `requestIdleCallback` no existe en Safari, así que hay respaldo.
+ * @returns {Promise<void>}
+ */
+function pageIsIdle() {
+    return new Promise((resolve) => {
+        const idle = () => {
+            const ric = /** @type {*} */ (globalThis).requestIdleCallback;
+            if (typeof ric === 'function') ric(() => resolve(), { timeout: 3000 });
+            else setTimeout(resolve, 1000);
+        };
+        if (document.readyState === 'complete') idle();
+        else globalThis.addEventListener('load', idle, { once: true });
+    });
+}
+
 /** Para no apilar avisos si el evento llega más de una vez. */
 let announced = false;
 
@@ -88,6 +105,14 @@ export async function register() {
     // Un SW solo se registra en origen seguro; en `file://` ni se intenta.
     if (!globalThis.isSecureContext) return;
     registered = true;
+
+    // Se espera a que la página esté quieta. Instalar el service worker
+    // descarga y guarda las 55 piezas de golpe, y medido contra el despliegue
+    // real eso bloqueaba el hilo principal 3,4 s en la primera visita desde un
+    // móvil: la aplicación ya se veía, pero no respondía al dedo. El offline
+    // es para la segunda visita; no hay ninguna prisa por tenerlo en la
+    // primera.
+    await pageIsIdle();
 
     try {
         const registration = await navigator.serviceWorker.register('sw.js', { scope: './' });
