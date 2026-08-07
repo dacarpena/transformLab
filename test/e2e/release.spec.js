@@ -289,3 +289,64 @@ test('el recorrido de humo completo no deja ningún error de consola', async ({ 
 
     expect(errors).toEqual([]);
 });
+
+test('las cifras de una báscula Xiaomi se pueden introducir tal cual', async ({ page }) => {
+    // El caso real que motivó E10: 81,20 kg · 26,5 % · 56,56 kg de «músculo».
+    // Ese 56,56 es el 94,8 % de la masa magra, porque la Xiaomi llama «masa
+    // muscular» a `peso − grasa − hueso`. El validador lo rechazaba —con
+    // razón, no es músculo esquelético— y el usuario se quedaba sin poder
+    // meter sus propios datos.
+    await page.fill('[data-field="name"]', 'Dani');
+    await page.selectOption('[data-field="sex"]', 'male');
+    await page.click('[data-next]');
+
+    await page.fill('[data-field="weightKg"]', '81.20');
+    await page.fill('[data-field="fatPct"]', '26.5');
+    await page.fill('[data-field="muscleKg"]', '56.56');
+
+    // Sin la masa ósea NO se puede avanzar, y el mensaje señala la salida
+    await expect(page.locator('.field__error, [role="alert"]').first()).toContainText(/masa ósea|bone mass/i);
+
+    // Con ella, la lectura se interpreta y se etiqueta como derivada
+    await page.fill('[data-field="boneKg"]', '3.12');
+    await expect(page.locator('[data-muscle-source]')).toContainText(/Derivado|Derived/);
+    await expect(page.locator('.field__error')).toHaveCount(0);
+
+    await page.click('[data-next]');
+    await page.fill('[data-field="targetFatPct"]', '18');
+    await page.click('[data-next]');
+    await page.click('[data-next]');
+    await expect(page.locator('#today-title')).toBeVisible();
+
+    const inicial = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find((k) => k.endsWith('.profile'));
+        return JSON.parse(localStorage.getItem(key)).initial;
+    });
+    // El motor guarda músculo ESQUELÉTICO (~49 % de la magra), no el de la
+    // báscula. Confundirlos es el defecto que hundió la v4.0.
+    expect(inicial.muscleSource).toBe('derived');
+    expect(inicial.muscleKg).toBeGreaterThan(27);
+    expect(inicial.muscleKg).toBeLessThan(31);
+    // Y las cifras del usuario se conservan tal cual: son suyas
+    expect(inicial.scaleMuscleKg).toBe(56.56);
+    expect(inicial.boneKg).toBe(3.12);
+});
+
+test('una cifra mal copiada de la báscula se detecta y se explica', async ({ page }) => {
+    await page.fill('[data-field="name"]', 'Dani');
+    await page.click('[data-next]');
+    await page.fill('[data-field="weightKg"]', '81.20');
+    await page.fill('[data-field="fatPct"]', '26.5');
+    await page.fill('[data-field="muscleKg"]', '65.56');   // 65 en vez de 56
+    await page.fill('[data-field="boneKg"]', '3.12');
+
+    const error = page.locator('.field__error, [role="alert"]').first();
+    await expect(error).toContainText(/no cuadran|do not add up/i);
+    // El mensaje dice QUÉ no cuadra, no un genérico «revisa el dato»
+    await expect(error).toContainText(/15[.,]4/);
+    await expect(page.locator('[data-next]')).toBeDisabled();
+
+    // Y al corregirlo, desbloquea
+    await page.fill('[data-field="muscleKg"]', '56.56');
+    await expect(page.locator('[data-next]')).toBeEnabled();
+});

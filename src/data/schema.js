@@ -43,7 +43,16 @@ const SEXES = Object.freeze(['male', 'female']);
 const ACTIVITY_LEVELS = Object.freeze(['sedentary', 'light', 'moderate', 'active', 'veryActive']);
 const TRAINING_STATUSES = Object.freeze(['beginner', 'intermediate', 'advanced']);
 const INTENSITIES = Object.freeze(['conservative', 'moderate', 'aggressive']);
-const MUSCLE_SOURCES = Object.freeze(['measured', 'estimated']);
+/**
+ * Origen del dato de músculo (invariante A3).
+ *
+ * `derived` es el tercero, y lo añadió el caso real de una Xiaomi: esas
+ * básculas llaman «masa muscular» a `peso − grasa − hueso`, que NO es músculo
+ * esquelético. Cuando el usuario da músculo Y hueso, `core/scale.js` interpreta
+ * la lectura y DERIVA el músculo esquelético. No es medido —el usuario nunca
+ * midió su músculo esquelético— ni estimado a ciegas: se llama por su nombre.
+ */
+const MUSCLE_SOURCES = Object.freeze(['measured', 'estimated', 'derived']);
 const PHASE_TYPES = Object.freeze(['adaptation', 'recomposition', 'cut', 'bulk', 'transition', 'maintenance']);
 
 /**
@@ -322,7 +331,11 @@ export const validateProfile = rootValidator({
         weightKg: num({ min: 20, max: 400 }),
         fatPct: num({ min: 0, max: 100 }),
         muscleKg: opt(num({ min: 1, max: 200 })),
-        muscleSource: enumOf(MUSCLE_SOURCES)
+        muscleSource: enumOf(MUSCLE_SOURCES),
+        // Lo que dio la báscula, guardado tal cual para poder volver a
+        // interpretarlo y para que el usuario vea sus propias cifras.
+        scaleMuscleKg: opt(num({ min: 1, max: 200 })),
+        boneKg: opt(num({ min: 0.5, max: 10 }))
     }),
     target: objectOf({
         fatPct: num({ min: 0, max: 100 }),

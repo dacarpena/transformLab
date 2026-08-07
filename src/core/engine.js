@@ -50,7 +50,7 @@ import { checkComposition, checkTarget, checkProfile, isValidSex, LIMITS } from 
  * @property {number} leanKg masa magra = peso − grasa
  * @property {number} muscleKg músculo esquelético
  * @property {number} otherLeanKg magra no muscular (hueso, órganos, agua)
- * @property {'measured' | 'estimated'} muscleSource origen del dato de músculo (A3)
+ * @property {'measured' | 'estimated' | 'derived'} muscleSource origen del dato de músculo (A3)
  * @property {'male' | 'female'} sex
  *
  * @typedef {'adaptation'|'recomposition'|'cut'|'bulk'|'transition'|'maintenance'} PhaseType
@@ -96,7 +96,7 @@ function isFiniteNumber(v) {
  * Ruta `estimated` (sin dato de músculo): proporción músculo/magra por sexo
  * (Janssen 2000), SIN clamp. Ruta `measured`: el dato del usuario se respeta
  * intacto; lo implausible genera aviso, nunca corrección (B9).
- * @param {{ weightKg: number, fatPct: number, muscleKg?: number | null, sex: 'male' | 'female', muscleSource?: 'measured' | 'estimated' }} input
+ * @param {{ weightKg: number, fatPct: number, muscleKg?: number | null, sex: 'male' | 'female', muscleSource?: 'measured' | 'estimated' | 'derived' }} input
  * @returns {EngineResult<Composition>}
  */
 export function makeComposition(input) {
@@ -105,7 +105,10 @@ export function makeComposition(input) {
     }
     const { weightKg, fatPct, sex } = input;
     if (!isValidSex(sex)) return { ok: false, errors: [{ code: 'profile.sexUnknown' }] };
-    if (input.muscleSource !== undefined && input.muscleSource !== 'measured' && input.muscleSource !== 'estimated') {
+    if (input.muscleSource !== undefined
+        && input.muscleSource !== 'measured'
+        && input.muscleSource !== 'estimated'
+        && input.muscleSource !== 'derived') {
         return { ok: false, errors: [{ code: 'composition.muscleSourceInvalid' }] };
     }
 

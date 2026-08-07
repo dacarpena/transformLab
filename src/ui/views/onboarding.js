@@ -19,6 +19,7 @@
 import { html, render, on } from '../dom.js';
 import { t, getLocale, setLocale, availableLocales } from '../../i18n/i18n.js';
 import { checkProfile, checkComposition, checkTarget, LIMITS } from '../../core/ranges.js';
+import { fromBioimpedance } from '../../core/scale.js';
 import { makeComposition } from '../../core/engine.js';
 import { SCHEMA_VERSION, MEASURE_KEYS } from '../../data/schema.js';
 import * as storage from '../../data/storage.js';
@@ -45,6 +46,7 @@ function defaultDraft() {
         weightKg: 75,
         fatPct: 20,
         muscleKg: /** @type {number | null} */ (null),
+        boneKg: /** @type {number | null} */ (null),
         targetFatPct: 15,
         targetMuscleKg: /** @type {number | null} */ (null),
         startDateISO: plans.todayISO(),
@@ -57,15 +59,48 @@ function defaultDraft() {
  * @returns {{ composition: import('../../core/engine.js').Composition | null, issues: import('../../core/ranges.js').Issue[] }}
  */
 function currentComposition() {
+    const sex = /** @type {'male'|'female'} */ (draft.sex);
+
+    // Si el usuario ha rellenado la masa ósea, lo que tiene delante es una
+    // báscula de bioimpedancia: solo esas la dan. Su «masa muscular» no es
+    // músculo esquelético sino `peso − grasa − hueso`, así que la lectura la
+    // interpreta `core/scale.js` en vez de entrar cruda al motor. Confundir
+    // las dos cantidades es lo que hundió la v4.0.
+    if (draft.muscleKg !== null && draft.boneKg !== null) {
+        const read = fromBioimpedance({
+            weightKg: draft.weightKg,
+            fatPct: draft.fatPct,
+            muscleKg: draft.muscleKg,
+            boneKg: draft.boneKg,
+            sex
+        });
+        if (!read.ok) return { composition: null, issues: read.errors };
+        const derived = makeComposition({
+            weightKg: read.value.weightKg,
+            fatPct: read.value.fatPct,
+            muscleKg: read.value.skeletalMuscleKg,
+            muscleSource: 'derived',
+            sex
+        });
+        if (!derived.ok) return { composition: null, issues: derived.errors };
+        return { composition: derived.value, issues: [...read.warnings, ...derived.warnings] };
+    }
+
     const result = makeComposition({
         weightKg: draft.weightKg,
         fatPct: draft.fatPct,
         muscleKg: draft.muscleKg,
         muscleSource: draft.muscleKg === null ? undefined : 'measured',
-        sex: /** @type {'male'|'female'} */ (draft.sex)
+        sex
     });
     if (!result.ok) return { composition: null, issues: result.errors };
     return { composition: result.value, issues: result.warnings };
+}
+
+/** Cómo se ha obtenido el músculo, para etiquetarlo en la interfaz. */
+function muscleSourceKey() {
+    if (draft.muscleKg !== null && draft.boneKg !== null) return 'onboarding.muscleSource.derived';
+    return draft.muscleKg === null ? 'onboarding.muscleSource.estimated' : 'onboarding.muscleSource.measured';
 }
 
 /** Objetivo de músculo efectivo: el tecleado o, si no hay, el actual. */
@@ -77,6 +112,10 @@ function effectiveTargetMuscle() {
 
 /** Registro de perfil v5 a partir del borrador. */
 function toProfileRecord(nowISO) {
+    // El músculo que se persiste es el ESQUELÉTICO, venga de donde venga: es
+    // la magnitud con la que trabaja el motor. Las cifras de la báscula se
+    // guardan aparte, sin mezclarse con ella.
+    const { composition } = currentComposition();
     return {
         schemaVersion: SCHEMA_VERSION,
         name: draft.name.trim() || t('app.title'),
@@ -91,8 +130,14 @@ function toProfileRecord(nowISO) {
         initial: {
             weightKg: draft.weightKg,
             fatPct: draft.fatPct,
-            muscleKg: draft.muscleKg,
-            muscleSource: draft.muscleKg === null ? 'estimated' : 'measured'
+            muscleKg: composition ? composition.muscleKg : draft.muscleKg,
+            muscleSource: draft.muscleKg === null
+                ? 'estimated'
+                : (draft.boneKg === null ? 'measured' : 'derived'),
+            // Las cifras de la báscula se guardan tal cual: son SUS datos, y
+            // permiten volver a interpretar la lectura más adelante.
+            scaleMuscleKg: draft.boneKg === null ? null : draft.muscleKg,
+            boneKg: draft.boneKg
         },
         target: { fatPct: draft.targetFatPct, muscleKg: effectiveTargetMuscle() ?? 0 },
         startDateISO: draft.startDateISO,
@@ -113,6 +158,14 @@ function validateStep() {
         });
     }
     if (step === 'current') {
+        // Con masa ósea, quien valida es `currentComposition` (que interpreta
+        // la lectura de la báscula); `checkComposition` rechazaría el músculo
+        // de una Xiaomi por ser el 95 % de la magra, y con razón: no es la
+        // cantidad que ese validador espera.
+        if (draft.muscleKg !== null && draft.boneKg !== null) {
+            const { composition, issues } = currentComposition();
+            return composition ? { errors: [], warnings: issues } : { errors: issues, warnings: [] };
+        }
         return checkComposition(
             { weightKg: draft.weightKg, fatPct: draft.fatPct, muscleKg: draft.muscleKg ?? undefined },
             /** @type {'male'|'female'} */ (draft.sex)
@@ -162,7 +215,9 @@ function refreshSideEffects(root) {
     // la fuente del músculo se anuncia en cuanto el usuario escribe o borra
     const source = root.querySelector('[data-muscle-source]');
     if (source) {
-        source.textContent = t(draft.muscleKg === null
+        source.textContent = t(muscleSourceKey() === 'onboarding.muscleSource.derived'
+            ? 'onboarding.muscleSource.derived'
+            : draft.muscleKg === null
             ? 'onboarding.muscleSource.estimated'
             : 'onboarding.muscleSource.measured');
     }
@@ -263,14 +318,26 @@ function renderStepFields(step) {
                            min="0" max="60" value="${draft.fatPct}">
                 </label>
             </div>
-            <label class="field">
-                <span class="field__label">${t('onboarding.field.muscle')}</span>
-                <input class="input" type="number" inputmode="decimal" step="0.1" data-field="muscleKg"
-                       value="${draft.muscleKg === null ? '' : draft.muscleKg}"
-                       placeholder="${t('onboarding.field.muscle.optional')}">
-                <span class="field__hint">${t('onboarding.field.muscle.explain')}</span>
-                <span class="field__hint" data-muscle-source></span>
-            </label>
+            <div class="field-grid">
+                <label class="field">
+                    <span class="field__label">${t('onboarding.field.muscle')}</span>
+                    <input class="input" type="number" inputmode="decimal" step="0.01" data-field="muscleKg"
+                           value="${draft.muscleKg === null ? '' : draft.muscleKg}"
+                           placeholder="${t('onboarding.field.muscle.optional')}">
+                </label>
+                <label class="field">
+                    <span class="field__label">${t('onboarding.field.bone')}</span>
+                    <input class="input" type="number" inputmode="decimal" step="0.01" data-field="boneKg"
+                           value="${draft.boneKg === null ? '' : draft.boneKg}"
+                           placeholder="${t('onboarding.field.bone.optional')}">
+                </label>
+            </div>
+            <p class="field__hint">${t('onboarding.field.muscle.explain')}</p>
+            <p class="notice">
+                <span class="notice__icon" aria-hidden="true">⚖</span>
+                <span>${t('onboarding.field.scaleHint')}</span>
+            </p>
+            <p class="field__hint" data-muscle-source></p>
         `;
     }
 
@@ -318,7 +385,7 @@ function renderStepFields(step) {
                 <span>${t('onboarding.field.muscle')}</span>
                 <span class="preview__value">
                     ${composition ? composition.muscleKg.toFixed(1) : '—'} ${t('today.unit.kg')}
-                    · ${t(draft.muscleKg === null ? 'onboarding.muscleSource.estimated' : 'onboarding.muscleSource.measured')}
+                    · ${t(muscleSourceKey())}
                 </span>
             </div>
             <div class="preview__row">
@@ -407,7 +474,7 @@ function applyField(name, rawValue) {
         draft[name] = rawValue;
         return;
     }
-    if (name === 'muscleKg' || name === 'targetMuscleKg') {
+    if (name === 'muscleKg' || name === 'boneKg' || name === 'targetMuscleKg') {
         const trimmed = rawValue.trim();
         draft[name] = trimmed === '' ? null : Number(trimmed);
         return;

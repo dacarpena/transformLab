@@ -475,6 +475,49 @@ automatizado en `test/e2e/release.spec.js` y `test/e2e/pwa.spec.js`.
 
 ---
 
+## E10 · Lectura de báscula de bioimpedancia (2026-08-07)
+
+Fuera de las milestones: lo pidió el usuario con un caso real suyo y bloqueaba
+el uso de la aplicación.
+
+**El problema.** Su Xiaomi miScale dio 81,20 kg, 26,5 % de grasa y 56,56 kg de
+«masa muscular». La app lo rechazaba con «Ese músculo es el 95 % de tu masa
+magra: revisa el dato» — y el dato estaba bien. Lo que no coincidía era la
+DEFINICIÓN: una báscula de bioimpedancia descompone el peso en
+`grasa + músculo + hueso`, así que su «masa muscular» es la magra menos el
+hueso (~95 % de la magra). El motor usa músculo esquelético (Janssen 2000,
+~49 % de la magra): para él, 29,24 kg. La diferencia de 3,12 kg es justo lo que
+la app de Xiaomi llama «masa ósea».
+
+Es la misma clase de defecto que hundió la v4.0 —dos definiciones de «músculo»
+conviviendo— con la diferencia de que aquí el validador SÍ lo paró. Lo que
+faltaba era una salida.
+
+**Decisión del usuario:** pedir también la masa ósea y usar `magra = músculo +
+hueso` como comprobación cruzada del %grasa.
+
+**Cómo quedó.** `src/core/scale.js` interpreta la lectura; el asistente pide
+masa ósea junto al músculo y, **si está rellena, entiende que son cifras de
+báscula** (solo esas dan el hueso, así que no hace falta ningún selector).
+De ahí:
+
+- se comprueba que `peso = grasa + músculo + hueso` con 0,5 kg de tolerancia,
+  que deja pasar el redondeo y caza un dedo torpe con un mensaje que dice QUÉ
+  no cuadra, no un genérico «revisa el dato»;
+- se recalcula el %grasa desde músculo + hueso, que traen más decimales;
+- se DERIVA el músculo esquelético, con un tercer origen `muscleSource:
+  'derived'` — ni medido ni estimado a ciegas;
+- las cifras del usuario se guardan tal cual (`scaleMuscleKg`, `boneKg`).
+
+**Contrapartida honesta, fijada por un test:** la composición derivada es
+idéntica a la estimada. La «masa muscular» de una báscula doméstica es casi
+toda la magra, así que no aporta información independiente sobre el músculo
+esquelético. Lo que sí aporta es la comprobación cruzada y un %grasa más fino.
+Si algún día ese test dejara de pasar, sería que alguien metió el número de la
+báscula en el motor.
+
+---
+
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
