@@ -6,5 +6,3 @@
 
 User-agent: *
 Allow: /
-
-Sitemap: https://transformlab.app/sitemap.xml

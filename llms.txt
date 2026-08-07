@@ -1,0 +1,34 @@
+# TransformLab
+
+> Aplicación web de seguimiento de transformación corporal con proyección
+> recalibrable. Funciona entera en el navegador: no hay backend, no hay cuentas
+> y ningún dato del usuario sale de su dispositivo.
+
+TransformLab genera un plan por fases (adaptación, recomposición, definición,
+volumen, transición, mantenimiento) con proyección diaria y banda de
+escenarios. Los check-ins semanales reales se comparan contra esa proyección y,
+cuando divergen, la aplicación **ofrece** recalibrar; nunca lo hace en
+silencio.
+
+Las cifras que muestra son proyecciones derivadas de tasas medias publicadas,
+no mediciones ni consejo médico o nutricional. La interfaz lo distingue
+explícitamente en cada pantalla donde aparece una cifra proyectada.
+
+## Sobre los datos del usuario
+
+No hay nada que rastrear aquí. Los perfiles, check-ins, fotos y ajustes viven
+en `localStorage` e `IndexedDB` del navegador de cada persona. El servidor solo
+sirve ficheros estáticos y no recibe ni almacena nada. No hay analítica, ni
+CDN de terceros, ni peticiones de red con datos personales.
+
+## Enlaces
+
+- [Código fuente](https://github.com/dacarpena/transformLab): repositorio público, licencia MIT.
+- [Metodología](https://github.com/dacarpena/transformLab/blob/main/docs/METODOLOGIA-CIENTIFICA.md): el modelo de composición corporal y sus fuentes.
+- [Auditoría](https://github.com/dacarpena/transformLab/blob/main/docs/AUDITORIA.md): los defectos de la versión anterior que motivaron la reconstrucción.
+- [Modelo de datos](https://github.com/dacarpena/transformLab/blob/main/docs/MODELO-DE-DATOS.md): qué se guarda y dónde.
+
+## Opcional
+
+- [Plan de trabajo](https://github.com/dacarpena/transformLab/blob/main/PLAN-V5.md): decisiones cerradas, milestones y bitácora.
+- [Convenciones](https://github.com/dacarpena/transformLab/blob/main/CLAUDE.md): invariantes del motor y reglas del proyecto.
