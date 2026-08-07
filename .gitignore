@@ -1,6 +1,15 @@
 # Sistema
 .DS_Store
 
+# Copias que crea iCloud Drive al resolver un conflicto de sincronización.
+#
+# El proyecto vive bajo ~/Documents, que está sincronizada, y iCloud duplica
+# ficheros como «chart 2.js» junto al original. Ya se han colado dos veces en
+# commits: una copia de `scale-units.spec.js` que Playwright nunca ejecutaba
+# —parecía cobertura y no lo era— y una de `chart.js`. Son 400 líneas de código
+# muerto que además confunden a cualquiera que abra el repositorio.
+*\ [0-9].*
+
 # Claude Code (worktrees, ajustes locales)
 .claude/
 
