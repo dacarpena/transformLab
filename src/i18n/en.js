@@ -137,6 +137,7 @@ export const en = {
     'today.projectionTag': 'Projection',
     'today.projectionNote': 'These figures are what the plan predicts for today, not a measurement. Log a check-in to compare your reality against the plan.',
     'today.firstCheckin': 'Log my first check-in',
+    'today.seeProjection': 'See the full projection',
     'today.plan.title': 'Your plan',
     'today.plan.start': 'Start',
     'today.plan.goal': 'Goal',

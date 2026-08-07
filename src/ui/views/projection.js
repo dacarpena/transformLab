@@ -28,6 +28,7 @@ import { t, getLocale } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as chart from '../chart.js';
 import * as modal from '../components/modal.js';
+import * as toast from '../components/toast.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
 import { muscleUnitsOf } from '../muscle-units.js';
@@ -249,6 +250,7 @@ function renderChart(data) {
                     { value: '90', labelKey: 'projection.window.90' },
                     { value: '30', labelKey: 'projection.window.30' }
                 ], preset)}
+                <button type="button" class="btn btn--sm" data-png>${t('action.downloadPng')}</button>
             </div>
 
             <div class="chart-wrap chart-wrap--tall" data-chart-host>
@@ -260,6 +262,13 @@ function renderChart(data) {
                  hasta cuatro cosas distintas sin decir cuál era cuál. -->
             <ul class="phase-legend" data-legend aria-label="${t('projection.legend.label')}"></ul>
             <p class="chart-readout" data-readout role="status" aria-live="polite"></p>
+
+            <label class="switch">
+                <input type="checkbox" data-fluctuation aria-describedby="fluct-hint"
+                       ${data.fluctuation ? raw('checked') : ''}>
+                <span>${t('chart.fluctuation')}</span>
+            </label>
+            <p class="field__hint" id="fluct-hint">${t('chart.fluctuationHint')}</p>
         </section>
     `;
 }
@@ -741,6 +750,25 @@ export function mount(container) {
             block: 'nearest',
             behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
         });
+    });
+
+    on(container, 'change', '[data-fluctuation]', (_event, target) => {
+        plans.setFluctuation(/** @type {HTMLInputElement} */ (target).checked, storage.getActiveProfile());
+        void redraw(container);
+    });
+
+    on(container, 'click', '[data-png]', () => {
+        const url = chart.toPng();
+        if (!url) {
+            toast.error('chart.unavailableTitle');
+            return;
+        }
+        const link = document.createElement('a');
+        link.href = url;
+        // Con la métrica y el día: un fichero que se llama igual para todo
+        // no se distingue en la carpeta de descargas.
+        link.download = `transformlab-${metric}-${plans.todayISO()}.png`;
+        link.click();
     });
 
     on(container, 'click', '[data-show-kcal]', () => {

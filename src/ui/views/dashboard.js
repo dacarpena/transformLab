@@ -17,19 +17,14 @@ import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
 import * as modal from '../components/modal.js';
-import * as storage from '../../data/storage.js';
 import * as checkins from '../../data/checkins.js';
 import { evaluateSeries } from '../../core/tracking.js';
-import * as toast from '../components/toast.js';
 import { error as errorState } from '../components/state.js';
 
-/** @type {'weight'|'fatPct'|'muscle'} */
-let metric = 'weight';
-let rangeTo = 0;
-/** @type {(() => void) | null} */
-let onEditProfile = null;
 /** @type {(() => void) | null} */
 let onGoToCheckin = null;
+/** @type {(() => void) | null} */
+let onGoToProjection = null;
 
 /** @param {number} value @param {number} digits */
 function num(value, digits = 1) {
@@ -191,19 +186,16 @@ function renderPlan(data) {
 
 /** Sección de la gráfica. */
 function renderChartSection(data) {
-    const muscle = muscleUnitsOf(data);
+    void data;
+    // Compacta a propósito (E12): la gráfica de Hoy responde «¿qué pinta tiene
+    // mi plan?» de un vistazo. Los controles —métrica, detalle, ventana,
+    // fluctuación, PNG— viven en la vista Proyección, que es el instrumento.
+    // Antes aquí se apilaban cinco bloques de texto gris compitiendo.
     return html`
         <section class="card" aria-labelledby="chart-title">
             <div class="card__header">
                 <h2 id="chart-title" class="card__title">${t('chart.title')}</h2>
-                <div class="chart-toolbar">
-                    ${(['weight', 'fatPct', 'muscle']).map((m) => html`
-                        <button type="button" class="btn btn--sm ${m === metric ? 'btn--primary' : ''}" data-metric="${m}">
-                            ${m === 'muscle' && muscle.isScale ? muscle.label() : t(`chart.metric.${m}`)}
-                        </button>
-                    `)}
-                    <button type="button" class="btn btn--sm" data-png>${t('action.downloadPng')}</button>
-                </div>
+                <button type="button" class="btn btn--sm" data-go-projection>${t('today.seeProjection')}</button>
             </div>
 
             <div class="chart-wrap" data-chart-host>
@@ -214,28 +206,20 @@ function renderChartSection(data) {
             </div>
 
             <p class="chart-readout" data-readout role="status" aria-live="polite"></p>
-            <p class="muted">${t('chart.readoutHint')}</p>
-
-            <label class="switch">
-                <input type="checkbox" data-fluctuation ${data.fluctuation ? 'checked' : ''}>
-                <span>${t('chart.fluctuation')}</span>
-            </label>
-            <p class="muted">${t('chart.fluctuationHint')}</p>
-
-            <label class="range-row">
-                <span>${t('chart.range')}</span>
-                <input type="range" data-range min="7" max="${data.plan.totalDays}" value="${rangeTo}">
-                <span class="numeric" data-range-label>${rangeTo}</span>
-            </label>
         </section>
     `;
 }
 
 /**
- * Redibuja solo la gráfica (cambio de métrica, rango o fluctuación).
+ * Dibuja la gráfica compacta.
  *
  * Es asíncrona porque Chart.js se carga bajo demanda: sus 208 KB no pintan
  * nada de la primera pantalla y no tienen por qué retrasarla.
+ *
+ * Métrica fija (peso) y rango completo, y ambos son CONTRATO, no casualidad:
+ * `smoke.spec.js` recorre la serie con `End` y espera aterrizar en el último
+ * día del plan, y los tests de release cuentan píxeles de ESTE lienzo — el
+ * primero del documento.
  */
 async function redraw(container) {
     const data = plans.get();
@@ -258,10 +242,10 @@ async function redraw(container) {
         canvas,
         readout,
         projection: data.projection,
-        metric,
+        metric: 'weight',
         muscle: muscleUnitsOf(data),
         todayIndex: today.dayIndex,
-        range: { from: 0, to: rangeTo },
+        range: { from: 0, to: data.plan.totalDays },
         checkins: evaluations.map((e) => ({
             dayIndex: e.dayIndex,
             actualKg: e.actualKg,
@@ -293,7 +277,6 @@ export function mount(container) {
         return;
     }
     const today = plans.todayIndex(data, plans.todayISO());
-    if (rangeTo === 0 || rangeTo > data.plan.totalDays) rangeTo = data.plan.totalDays;
     const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
 
     render(container, html`
@@ -303,39 +286,6 @@ export function mount(container) {
     `);
 
     redraw(container);
-
-    on(container, 'click', '[data-metric]', (_event, target) => {
-        metric = /** @type {*} */ (target.getAttribute('data-metric'));
-        for (const button of container.querySelectorAll('[data-metric]')) {
-            button.classList.toggle('btn--primary', button.getAttribute('data-metric') === metric);
-        }
-        redraw(container);
-    });
-
-    on(container, 'change', '[data-fluctuation]', (_event, target) => {
-        const enabled = /** @type {HTMLInputElement} */ (target).checked;
-        plans.setFluctuation(enabled, storage.getActiveProfile());
-        redraw(container);
-    });
-
-    on(container, 'input', '[data-range]', (_event, target) => {
-        rangeTo = Number(/** @type {HTMLInputElement} */ (target).value);
-        const label = container.querySelector('[data-range-label]');
-        if (label) label.textContent = String(rangeTo);
-        redraw(container);
-    });
-
-    on(container, 'click', '[data-png]', () => {
-        const url = chart.toPng();
-        if (!url) {
-            toast.error('chart.unavailableTitle');
-            return;
-        }
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'transformlab.png';
-        link.click();
-    });
 
     // Recorrido de la serie con el teclado: la alternativa al canvas
     const canvas = container.querySelector('[data-canvas]');
@@ -347,13 +297,13 @@ export function mount(container) {
             readout,
             projection: current.projection,
             key: /** @type {KeyboardEvent} */ (event).key,
-            range: { from: 0, to: rangeTo }
+            range: { from: 0, to: current.plan.totalDays }
         });
         if (handled) event.preventDefault();
     });
 
-    on(container, 'click', '[data-edit-profile]', () => {
-        if (onEditProfile) onEditProfile();
+    on(container, 'click', '[data-go-projection]', () => {
+        if (onGoToProjection) onGoToProjection();
     });
 
     on(container, 'click', '[data-go-checkin]', () => {
@@ -366,13 +316,13 @@ export function setOnGoToCheckin(fn) {
     onGoToCheckin = fn;
 }
 
+/** @param {() => void} fn */
+export function setOnGoToProjection(fn) {
+    onGoToProjection = fn;
+}
+
 /** Limpia la gráfica al salir de la vista: sin esto, fuga de memoria. */
 export function unmount() {
     chart.destroy();
-}
-
-/** @param {() => void} fn */
-export function setOnEditProfile(fn) {
-    onEditProfile = fn;
 }
 

@@ -285,7 +285,7 @@ async function boot() {
     // hace `afterLoad` cuando llega su módulo (ver `startApp`).
     onboarding.setOnComplete(() => route(roots));
     dashboard.setOnGoToCheckin(() => router.navigate('checkin'));
-    dashboard.setOnEditProfile(() => editProfile(roots));
+    dashboard.setOnGoToProjection(() => router.navigate('projection'));
 
     // 5 · a rodar
     await route(roots);
