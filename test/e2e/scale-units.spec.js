@@ -149,6 +149,20 @@ test('el check-in pide músculo y hueso, comprueba que cuadran y aparece en Prog
     const muscleCard = page.locator('section.card', { has: page.locator('#muscle-title') });
     await expect(muscleCard).toBeVisible();
     await expect(muscleCard).toContainText('56.9');
+
+    // Y en la gráfica de Proyección, la métrica de músculo dibuja ese check-in
+    // medido (E12 lo reenvía a chart.js; antes se perdía por el camino y el
+    // dataset de check-in salía vacío pese a haber uno guardado).
+    await page.click('[data-view="projection"]');
+    await expect(page.locator('.view[data-view-id="projection"] canvas')).toBeVisible();
+    await page.click('[data-metric="muscle"]');
+    const checkinPoints = await page.evaluate(() => {
+        const cv = document.querySelector('.view canvas');
+        const c = /** @type {*} */ (globalThis).Chart.getChart(cv);
+        const ds = c.data.datasets.find((/** @type {*} */ d) => d.pointStyle === 'rectRot');
+        return ds ? ds.data.length : 0;
+    });
+    expect(checkinPoints).toBeGreaterThan(0);
 });
 
 test('cambiar de unidad a mitad del asistente conserva la CANTIDAD, no el número', async ({ page }) => {

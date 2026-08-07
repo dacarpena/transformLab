@@ -158,11 +158,19 @@ test('clic sobre un hito abre su ficha; clic en zona vacía, no', async ({ page 
 
     const dialog = page.locator('[role="dialog"]');
 
-    expect(await clickCanvasAt('hit')).toBe(true);
-    await expect(dialog).toBeVisible();
+    // El `ResizeObserver` de Chart.js asienta el layout responsive del lienzo
+    // recién montado en un frame posterior, así que las coordenadas del punto
+    // pueden aún no coincidir con el hit-test. Se reintenta el despacho hasta
+    // que abra: es lo que hace un usuario real, que pulsa cuando ya se ve.
+    await expect(async () => {
+        expect(await clickCanvasAt('hit')).toBe(true);
+        await expect(dialog).toBeVisible({ timeout: 250 });
+    }).toPass();
+
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
 
+    // Ya asentado: un clic en zona vacía no abre nada.
     await clickCanvasAt('empty');
     await expect(dialog).toHaveCount(0);
 });

@@ -290,7 +290,11 @@ function renderLegend(hasCheckins, muscle) {
     } else {
         items.push({ dot: 'dot--accent', label: t('chart.expected') });
         if (metric === 'weight') items.push({ dot: 'dot--band', label: t('chart.band') });
-        if (hasCheckins && metric !== 'muscle') items.push({ dot: 'dot--real', label: t('checkin.title') });
+        // La leyenda de check-in aparece cuando de verdad se van a dibujar: en
+        // músculo, solo si el perfil es de báscula (guarda esa cifra medida).
+        if (hasCheckins && (metric !== 'muscle' || muscle.isScale)) {
+            items.push({ dot: 'dot--real', label: t('checkin.title') });
+        }
         items.push({ dot: 'dot--warning', label: t('chart.milestoneModalTitle') });
     }
     return html`${items.map((i) => html`
@@ -636,12 +640,20 @@ async function redraw(container) {
         muscle: muscleUnitsOf(data),
         todayIndex: today.dayIndex,
         range: windowBounds(data, today.dayIndex),
-        checkins: evaluations.map((e) => ({
-            dayIndex: e.dayIndex,
-            actualKg: e.actualKg,
-            fatPct: checkins.findByDate(e.dateISO)?.fatPct ?? null,
-            signal: e.signal
-        })),
+        checkins: evaluations.map((e) => {
+            const record = checkins.findByDate(e.dateISO);
+            return {
+                dayIndex: e.dayIndex,
+                actualKg: e.actualKg,
+                fatPct: record?.fatPct ?? null,
+                // Sin reenviar esto, la métrica de músculo no dibujaba NINGÚN
+                // check-in aunque el perfil fuera de báscula y lo hubiera
+                // guardado: `chart.js` filtra por `scaleMuscleKg` y aquí
+                // llegaba undefined. La funcionalidad de E12-7 quedaba muerta.
+                scaleMuscleKg: record?.scaleMuscleKg ?? null,
+                signal: e.signal
+            };
+        }),
         onMilestone: (m) => {
             modal.open({
                 titleKey: 'chart.milestoneModalTitle',
