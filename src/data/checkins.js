@@ -53,11 +53,55 @@ export function readAll() {
     return { ok: true, value: parsed.value };
 }
 
+/**
+ * Caché de la lista ordenada y su índice por fecha (M7-5).
+ *
+ * EL PROBLEMA QUE RESUELVE, MEDIDO. `list()` no es barata: lee de
+ * `localStorage`, hace `JSON.parse` y **revalida el array ENTERO** contra el
+ * esquema. Y `findByDate()` la llamaba en cada invocación, mientras las vistas
+ * la metían dentro de un `.map()` sobre las evaluaciones — un N+1 clásico, con
+ * el agravante de que cada «1» cuesta validar N elementos. O sea, cuadrático:
+ *
+ *      52 check-ins (un año semanal)  →     38 ms
+ *     365 check-ins (un año diario)   →  1 510 ms
+ *     730 check-ins (dos años)        →  6 775 ms
+ *
+ * El esquema admite hasta 2 000 (`schema.js`), así que el techo se alcanza. Y
+ * no ocurría una vez por pantalla: la vista de Proyección rehace ese trabajo en
+ * CADA cambio de métrica, granularidad, ventana o fluctuación.
+ *
+ * Hoy no se nota porque los check-ins son semanales. Se notaría el día que
+ * alguien lleve tres años, o importe datos diarios de una báscula — es decir,
+ * justo cuando la aplicación esté funcionando bien.
+ *
+ * QUÉ LA INVALIDA. Dos cosas, y ninguna es «llamarla desde `save()`»:
+ *
+ * - **El perfil activo.** Las claves llevan el perfil en el namespace, así que
+ *   una caché que no lo comprobara serviría los check-ins de otra persona.
+ * - **`storage.revision()`**, que sube con cualquier escritura del almacén.
+ *   Esta clave no la escribe solo este módulo: también `backup.js` al importar,
+ *   `migrate.js` al convertir de la v4 y `profiles.js` al sembrar un perfil.
+ *   Invalidar solo desde `save()`/`remove()` dejaría al usuario restaurando un
+ *   backup y viendo todavía los datos de antes.
+ * @type {{ profileId: string, revision: number, list: any[], byDate: Map<string, any> } | null}
+ */
+let cache = null;
+
 /** @returns {any[]} lista ordenada por fecha, vacía si algo falla */
 export function list() {
+    const profileId = storage.getActiveProfile();
+    const revision = storage.revision();
+    if (cache && cache.profileId === profileId && cache.revision === revision) return cache.list;
+
     const all = readAll();
+    // Un fallo NO se cachea: si el almacén está corrupto, el usuario puede
+    // arreglarlo (importar un backup) y la próxima lectura debe verlo.
     if (!all.ok) return [];
-    return [...all.value.items].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+
+    const sorted = [...all.value.items].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    const byDate = new Map(sorted.map((item) => [item.dateISO, item]));
+    cache = { profileId, revision, list: sorted, byDate };
+    return sorted;
 }
 
 /**
@@ -160,7 +204,8 @@ export function remove(id) {
 
 /** @param {string} dateISO @returns {any | null} */
 export function findByDate(dateISO) {
-    return list().find((item) => item.dateISO === dateISO) ?? null;
+    list();  // asegura la caché (y su índice) para el perfil activo
+    return cache?.byDate.get(dateISO) ?? null;
 }
 
 /**

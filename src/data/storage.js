@@ -49,6 +49,34 @@ export function getActiveProfile() {
 }
 
 /**
+ * Contador de escrituras. Sube con CUALQUIER mutación del almacén, venga de
+ * donde venga, y es lo que permite que una colección cachee en memoria sin
+ * arriesgarse a servir datos rancios (M7-5).
+ *
+ * POR QUÉ AQUÍ Y NO EN LA COLECCIÓN. `checkins.js` no es el único que escribe
+ * su clave: la escriben también `backup.js` al importar, `migrate.js` al
+ * convertir de la v4 y `profiles.js` al sembrar un perfil. Una caché que solo
+ * se invalidara desde `save()`/`remove()` sobreviviría a un import de backup
+ * — el usuario restauraría sus datos y seguiría viendo los anteriores. Con el
+ * contador aquí, ningún camino de escritura puede olvidarse de avisar, ni
+ * ahora ni cuando la v2 añada colecciones nuevas.
+ * @type {number}
+ */
+let revisionCounter = 0;
+
+/** @returns {number} revisión actual; cambia => lo cacheado ha caducado */
+export function revision() {
+    return revisionCounter;
+}
+
+// Otra pestaña del mismo origen escribiendo por debajo. Antes de las cachés
+// esto se veía solo porque cada lectura releía el almacén; el contador
+// mantiene esa propiedad. En Node no hay `addEventListener` y se omite.
+if (typeof globalThis.addEventListener === 'function') {
+    globalThis.addEventListener('storage', () => { revisionCounter++; });
+}
+
+/**
  * Backend de almacenamiento. En navegador es window.localStorage; en tests
  * (Node) se inyecta un doble en `globalThis.localStorage`.
  * @returns {Storage}
@@ -103,6 +131,7 @@ export function set(key, value) {
         // clave, ilegible para siempre y con acuse de recibo positivo.
         if (serialized === undefined) return { ok: false, error: 'storage.notSerializable' };
         backend().setItem(fullKey(key), serialized);
+        revisionCounter++;
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };
@@ -117,6 +146,7 @@ export function set(key, value) {
 export function remove(key) {
     try {
         backend().removeItem(fullKey(key));
+        revisionCounter++;
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };
@@ -203,6 +233,7 @@ export function clearProfile(profileId) {
     try {
         const ls = backend();
         for (const key of keys.value) ls.removeItem(`${ROOT_PREFIX}${profileId}.${key}`);
+        revisionCounter++;
         return { ok: true, value: keys.value.length };
     } catch (err) {
         return { ok: false, error: message(err) };
@@ -236,6 +267,7 @@ export function setGlobal(key, value) {
         const serialized = JSON.stringify(value);
         if (serialized === undefined) return { ok: false, error: 'storage.notSerializable' };
         backend().setItem(`${ROOT_PREFIX}${key}`, serialized);
+        revisionCounter++;
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };
@@ -285,6 +317,7 @@ export function getRaw(key) {
 export function setRaw(key, rawValue) {
     try {
         backend().setItem(key, rawValue);
+        revisionCounter++;
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };
@@ -299,6 +332,7 @@ export function setRaw(key, rawValue) {
 export function removeRaw(key) {
     try {
         backend().removeItem(key);
+        revisionCounter++;
         return { ok: true, value: undefined };
     } catch (err) {
         return { ok: false, error: message(err) };

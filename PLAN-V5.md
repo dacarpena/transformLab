@@ -703,6 +703,58 @@ gráfica al pulsar un momento, y **cero desbordes a 320 px con la tipografía al
 
 ---
 
+## M7 · Cerrar la v1 y dejar el código listo para crecer (2026-08-08)
+
+**Petición del usuario:** «dejarlo todo listo para que la v1 esté terminada y
+podamos ponernos con la v2», con el código «completamente optimizado y listo
+para crecer», renunciando explícitamente a las verificaciones que exigían su
+móvil físico y sus datos reales. Y, preguntado por la dirección de la v2, eligió
+**«más funcionalidad, misma app»** — lo que fija la prioridad de esta milestone:
+hoy **añadir una vista obliga a tocar siete sitios** y ninguno avisa si olvidas
+los otros.
+
+### Tareas
+
+- [x] M7-1 · Defectos reales y promesas incumplidas: `formatBytes` unificado (una foto de 500 B se leía «0 KB» en Fotos y «500 B» en Ajustes), el historial de planes que `recal.explain` prometía y no se podía abrir, los `role="alert"` sin salida de `nutrition` y `body`, y la fuga de URLs de objeto de `photos.js`.
+- [x] M7-2 · `src/ui/` entra en el comprobador de tipos. Los 24 ficheros declaraban `// @ts-check` sin estar incluidos en `tsconfig.json`: 7 053 líneas, la mitad del código, escribiendo JSDoc sin cobrar el beneficio. Aparecieron 10 errores reales, casi todos en la frontera core↔UI con el patrón `Result<T>`.
+- [ ] M7-3 · Manifiesto único de vistas (`main.js` y los tres specs beben de él) y test que ate `CACHE_VERSION` al contenido de `PRECACHE`.
+- [ ] M7-4 · Helpers compartidos (`redraw` de la gráfica, `dates.js` en todas las vistas) y `src/data/nutrition.js` + `src/data/training.js`, hoy sin un solo test porque su persistencia vive dentro de la vista.
+- [x] M7-5 · El N+1 cuadrático de check-ins.
+- [ ] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
+- [ ] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
+- [ ] M7-8 · Barrido de código muerto: 15 claves i18n, 8 exports, 5 reglas CSS y 6 tokens sin consumidor.
+- [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
+
+### Bitácora M7
+
+**M7-5 (2026-08-08) · el hallazgo que más iba a doler, y la trampa que escondía.**
+`findByDate()` llamaba a `list()` en cada invocación, y `list()` reparsea y
+**revalida la colección entera**. Las vistas lo metían dentro de un `.map()`
+(`dashboard.js:252`, `projection.js:644`, `progress.js:110`), o sea cuadrático:
+medido, 52 check-ins → 38 ms, 365 → 1 510 ms, 730 → 6 775 ms, con el esquema
+permitiendo 2 000. Y `projection.js` lo rehacía en **cada** cambio de métrica,
+granularidad, ventana o fluctuación.
+
+Al escribir el test apareció el problema de verdad: **esta clave no la escribe
+solo `checkins.js`**. La escriben `backup.js` al importar, `migrate.js` al
+convertir de la v4 y `profiles.js` al sembrar un perfil. Una caché invalidada
+desde `save()`/`remove()` —que era el plan— habría sobrevivido a un import de
+backup: el usuario restaura sus datos y sigue viendo los de antes. Eso no es un
+problema de rendimiento, es pérdida de datos aparente.
+
+Así que la invalidación no vive en la colección sino en `storage.js`, como un
+contador de revisión que sube con **cualquier** escritura, incluida la de otra
+pestaña vía el evento `storage`. Ningún camino puede olvidarse de avisar, ni
+ahora ni cuando la v2 añada colecciones. La caché guarda `{profileId, revision}`
+y se descarta si cambia cualquiera de los dos; un almacén corrupto no se cachea,
+para que repararlo se vea sin recargar.
+
+**Verificado:** 397 unitarios (8 nuevos) y typecheck limpio. El test de
+rendimiento tiene dientes comprobados: desactivando la caché tarda **16 325 ms**
+frente a los 11 ms de ahora, contra un umbral de 500.
+
+---
+
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
