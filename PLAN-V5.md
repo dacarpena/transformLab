@@ -721,11 +721,30 @@ los otros.
 - [x] M7-4 · Helpers compartidos (`redraw` de la gráfica, `dates.js` en todas las vistas) y `src/data/nutrition.js` + `src/data/training.js`, hoy sin un solo test porque su persistencia vive dentro de la vista.
 - [x] M7-5 · El N+1 cuadrático de check-ins.
 - [x] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
-- [ ] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
+- [x] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
 - [ ] M7-8 · Barrido de código muerto: 15 claves i18n, 8 exports, 5 reglas CSS y 6 tokens sin consumidor.
 - [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
 
 ### Bitácora M7
+
+**M7-7 (2026-08-08) · la CSP deja de ser una afirmación.** `tools/serve-csp.mjs`
+existía desde M6-3 y estaba huérfano: `playwright.config.js` levantaba `python3
+-m http.server`, que no manda una sola cabecera, mientras `docs/RELEASE-V5.md`
+afirmaba que los E2E corrían bajo la política real citándolo. **Ningún E2E se
+había ejecutado nunca bajo la CSP.**
+
+Ahora Playwright levanta dos servidores y toda la suite va contra el de la
+política, que lee las cabeceras de `_headers` en vez de copiarlas — así lo que
+se prueba es literalmente lo que despliega Cloudflare Pages. El segundo, sin
+cabeceras, es donde vive `dom-security.spec.js`: bajo `script-src 'self'` el
+navegador ya bloquea los `javascript:` y los handlers inline, así que ahí un
+resultado limpio probaría que la CSP funciona, no que `escapeHtml` escape. Cada
+capa se verifica sola. `csp.spec.js` cubre lo complementario: que la política
+llega, que la aplicación arranca entera bajo ella (gráfica incluida, que es la
+que más podría romperse), y que apaga lo que `dom.js` ya apagaba.
+
+Comprobado con dientes: apuntando la configuración al servidor sin cabeceras,
+`csp.spec.js` cae con «falta la directiva default-src 'self'».
 
 **M7-6 (2026-08-08) · la frontera de seguridad se ejecuta, no se lee.**
 `dom.js` es el único sitio por el que entran datos al DOM, y no tenía un solo

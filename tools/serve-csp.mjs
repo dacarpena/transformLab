@@ -1,14 +1,21 @@
 // @ts-check
 
 /**
- * Servidor de verificación de la CSP (M6-3).
+ * Servidor con las cabeceras de producción (M6-3, cableado en M7-7).
  *
  * `python3 -m http.server` no manda cabeceras, así que la CSP de `_headers`
- * solo se probaría en producción — es decir, cuando ya es tarde. Esto sirve
- * el sitio con EXACTAMENTE las cabeceras de `_headers` para poder recorrer
- * las diez vistas bajo la política real y ver los errores en consola.
+ * solo se probaría en producción — es decir, cuando ya es tarde.
  *
- * Uso: node tools/serve-csp.mjs [puerto]
+ * Este fichero existía desde M6-3 y estaba HUÉRFANO: `playwright.config.js`
+ * levantaba el servidor de Python, y `docs/RELEASE-V5.md` afirmaba mientras
+ * tanto que los E2E corrían bajo la CSP real citándolo. Ningún E2E se había
+ * ejecutado nunca bajo la política. Desde M7-7 lo levanta Playwright en el
+ * 8081 y es el servidor por omisión de toda la suite.
+ *
+ * Las cabeceras se LEEN de `_headers`, no se copian: la política que se prueba
+ * es literalmente la que despliega Cloudflare Pages.
+ *
+ * Uso manual: node tools/serve-csp.mjs [puerto]
  */
 
 import { createServer } from 'node:http';

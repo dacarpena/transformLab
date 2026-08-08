@@ -12,12 +12,21 @@
  *
  * Estos tests importan `src/ui/dom.js` DENTRO de la página, así que prueban el
  * mismo fichero que se despliega, sin dobles.
+ *
+ * CORREN SIN CSP, Y ES DELIBERADO (M7-7). El resto de la suite va contra el
+ * servidor de la política real; esta no. Bajo `script-src 'self'` el navegador
+ * ya bloquea los `javascript:` y los handlers inline, así que un resultado
+ * limpio probaría que la CSP funciona —que se comprueba en `csp.spec.js`— y no
+ * que `escapeHtml` escape. Cada capa se verifica sola: si un día hay que
+ * relajar la CSP, `dom.js` sigue teniendo su red y este fichero lo demuestra.
  */
 
 import { test, expect } from '@playwright/test';
 
+const SIN_CSP = 'http://127.0.0.1:8082';
+
 test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`${SIN_CSP}/`);
     // Un testigo global: si algo consigue ejecutarse, lo levanta. Que un XSS
     // «no se vea» no es prueba de nada — hay que comprobar que no CORRIÓ.
     await page.evaluate(() => { /** @type {*} */ (globalThis).__xss = 0; });

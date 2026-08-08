@@ -24,7 +24,8 @@ cada push. No hay que ejecutarlos a mano; hay que mirar que CI esté en verde.
 | La migración NO hereda el objetivo roto de la v4.0 | `test/e2e/release.spec.js` |
 | Migrar dos veces no duplica nada | `test/e2e/release.spec.js` |
 | Recorrido de humo sin errores de consola | `test/e2e/release.spec.js` |
-| CSP activa sin violaciones en las diez vistas | `test/security.test.js` + `tools/serve-csp.mjs` |
+| CSP activa sin violaciones en toda la app | `test/e2e/csp.spec.js` — **toda** la suite E2E corre bajo `tools/serve-csp.mjs`, que sirve las cabeceras leyéndolas de `_headers` (M7-7; hasta entonces esta fila era falsa: el servidor de los E2E no mandaba ninguna cabecera) |
+| `dom.js` se defiende SIN la CSP | `test/ui-dom.test.js` + `test/e2e/dom-security.spec.js`, contra un servidor sin cabeceras a propósito |
 | Precache completo (la app abre sin red) | `test/pwa.test.js` |
 | Accesibilidad AA automatizable | `test/e2e/accessibility.spec.js` |
 | Reflow a 320 px con el texto al 200 % | `test/e2e/accessibility.spec.js` |
