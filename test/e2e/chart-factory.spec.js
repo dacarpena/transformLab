@@ -121,23 +121,31 @@ test('las vistas de la v1 siguen dibujando igual', async ({ page }) => {
     // comportarse exactamente como antes del refactor.
     await conPlan(page);
     await expect(page.locator('canvas')).toBeVisible();
-    const hoy = await page.evaluate(() => {
-        const c = /** @type {HTMLCanvasElement} */ (document.querySelector('canvas'));
-        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-        let n = 0;
-        for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
-        return n;
-    });
-    expect(hoy, 'la gráfica de Hoy dejó de pintar').toBeGreaterThan(1000);
+
+    // `poll` y no una lectura suelta: «el lienzo es visible» NO significa «el
+    // lienzo está pintado». La animación dura 250 ms, así que muestrear justo
+    // después de `toBeVisible()` puede caer en el fotograma cero y contar menos
+    // de mil píxeles opacos sin que nada esté roto. Este test falló así una vez
+    // en la suite completa y pasó tres veces aislado, que es la firma de una
+    // carrera. Un vigilante intermitente es peor que ninguno: enseña a ignorarlo.
+    await expect.poll(() => pixelesOpacos(page, 'canvas'),
+        { message: 'la gráfica de Hoy dejó de pintar' }).toBeGreaterThan(1000);
 
     await page.locator('[data-view="projection"]').click();
     await expect(page.locator('.view[data-view-id="projection"] canvas')).toBeVisible();
-    const proy = await page.evaluate(() => {
-        const c = /** @type {HTMLCanvasElement} */ (document.querySelector('.view[data-view-id="projection"] canvas'));
-        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    await expect.poll(() => pixelesOpacos(page, '.view[data-view-id="projection"] canvas'),
+        { message: 'la gráfica de Proyección dejó de pintar' }).toBeGreaterThan(1000);
+});
+
+/** Cuántos píxeles no transparentes hay en el lienzo que case el selector. */
+function pixelesOpacos(page, selector) {
+    return page.evaluate((sel) => {
+        const c = /** @type {HTMLCanvasElement | null} */ (document.querySelector(sel));
+        if (!c) return 0;
+        const d = c.getContext('2d')?.getImageData(0, 0, c.width, c.height).data;
+        if (!d) return 0;
         let n = 0;
         for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
         return n;
-    });
-    expect(proy, 'la gráfica de Proyección dejó de pintar').toBeGreaterThan(1000);
-});
+    }, selector);
+}

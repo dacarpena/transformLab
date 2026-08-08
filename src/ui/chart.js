@@ -26,6 +26,31 @@ import { num } from './format.js';
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
 /** @typedef {import('./muscle-units.js').MuscleUnits} MuscleUnits */
 
+/**
+ * La región `aria-live` donde se anuncia el punto bajo el cursor.
+ *
+ * NO se declara `HTMLElement` a propósito: `chart-factory.spec.js` le pasa un
+ * doble `{ textContent: '' }`, y hoy eso funciona por accidente porque el tipo
+ * miente. Con este typedef el contrato queda en el sistema de tipos, y un
+ * `HTMLElement` real sigue siendo asignable.
+ * @typedef {{ textContent: string | null }} Readout
+ *
+ * @typedef {Object} DrawSeriesOptions
+ * @property {HTMLCanvasElement} canvas
+ * @property {*[]} datasets objetos de dataset de Chart.js, YA construidos por el
+ *   llamador, en el orden EXACTO en que van a `data.datasets`
+ * @property {{ from: number, to: number }} range ventana visible, en índices de día
+ * @property {(value: number, span: number) => string} xTickLabel rótulo del eje X
+ * @property {(items: *[]) => string} [tooltipTitle]
+ * @property {Array<{ id: string, position: 'left'|'right', beginAtZero?: boolean }>} [yAxes]
+ *   omitido = UN eje `y` a la izquierda y **cero `yAxisID` en los datasets**, que
+ *   es exactamente la configuración que produce hoy el camino de una métrica
+ * @property {*[]} [extraPlugins]
+ * @property {number} [maxTicks]
+ * @property {number} [clickDatasetIndex] dataset cuyos puntos abren ficha; -1 = ninguno
+ * @property {(index: number) => void} [onPointClick]
+ */
+
 /** @returns {*} el global Chart, o null si el vendor no cargó */
 function getChartLib() {
     return /** @type {*} */ (globalThis).Chart ?? null;
@@ -95,37 +120,59 @@ function cssVar(/** @type {*} */ name) {
 const tokenCache = new Map();
 
 /**
+ * Los tramos contiguos de una misma fase, en índices de día.
+ *
+ * Se calcula UNA vez por dibujado y no dentro del plugin. La diferencia no es
+ * estética: el plugin se ejecuta en CADA fotograma, y con 250 ms de animación
+ * son unos quince por dibujado. Recorrer ahí los 1096 días de un plan de tres
+ * años son ~16 000 iteraciones para pintar seis rectángulos. Precalculado son
+ * seis, y ese margen es justo el que pagan cuatro series simultáneas.
+ * Se exporta solo para poder probarlo desde Node: un plugin que dibuja no se
+ * puede comprobar sin navegador, pero los tramos que consume sí.
+ * @param {Projection} projection
+ * @returns {Array<{ from: number, to: number, phaseType: string }>}
+ */
+export function phaseSpansOf(projection) {
+    const daily = projection?.daily;
+    if (!Array.isArray(daily) || daily.length === 0) return [];
+    /** @type {Array<{ from: number, to: number, phaseType: string }>} */ const spans = [];
+    let start = 0;
+    for (let i = 1; i <= daily.length; i++) {
+        if (i !== daily.length && daily[i].phaseType === daily[start].phaseType) continue;
+        spans.push({ from: start, to: i - 1, phaseType: daily[start].phaseType });
+        start = i;
+    }
+    return spans;
+}
+
+/**
  * Plugin de bandas de fase: pinta el fondo por tramos usando el color del
  * token de cada fase. Va detrás de todo lo demás.
  * @param {Projection} projection
  */
 function phaseBandsPlugin(projection) {
+    const spans = phaseSpansOf(projection);
     return {
         id: 'phaseBands',
         beforeDatasetsDraw(/** @type {*} */ chart) {
             const { ctx, chartArea, scales } = chart;
             if (!chartArea || !scales.x) return;
-            const daily = projection.daily;
-            let start = 0;
             ctx.save();
-            // RECORTE OBLIGATORIO. Este plugin recorre la serie ENTERA con
-            // índices absolutos, así que en cuanto la ventana deja de empezar
-            // en el día 0 hay fases cuyos píxeles caen fuera del área de
-            // trazado, y `fillRect` no las recorta solo: pintaría el fondo de
-            // color por encima de los rótulos del eje. No se notaba antes
-            // porque la ventana siempre iba de 0 al final (E12).
+            // RECORTE OBLIGATORIO. Este plugin usa índices absolutos, así que en
+            // cuanto la ventana deja de empezar en el día 0 hay fases cuyos
+            // píxeles caen fuera del área de trazado, y `fillRect` no las
+            // recorta solo: pintaría el fondo de color por encima de los
+            // rótulos del eje. No se notaba antes porque la ventana siempre iba
+            // de 0 al final (E12).
             ctx.beginPath();
             ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
             ctx.clip();
-            for (let i = 1; i <= daily.length; i++) {
-                const changed = i === daily.length || daily[i].phaseType !== daily[start].phaseType;
-                if (!changed) continue;
-                const x1 = scales.x.getPixelForValue(start);
-                const x2 = scales.x.getPixelForValue(i - 1);
+            for (const span of spans) {
+                const x1 = scales.x.getPixelForValue(span.from);
+                const x2 = scales.x.getPixelForValue(span.to);
                 ctx.globalAlpha = 0.10;
-                ctx.fillStyle = cssVar(`--color-phase-${daily[start].phaseType}`);
+                ctx.fillStyle = cssVar(`--color-phase-${span.phaseType}`);
                 ctx.fillRect(x1, chartArea.top, Math.max(1, x2 - x1), chartArea.bottom - chartArea.top);
-                start = i;
             }
             ctx.restore();
         }
@@ -253,11 +300,12 @@ export function seriesAnchors(projection, grain) {
 /**
  * @typedef {Object} ChartInstance
  * @property {(options: *) => boolean} draw
+ * @property {(options: DrawSeriesOptions) => boolean} drawSeries
  * @property {() => void} destroy
  * @property {(from: number, to: number) => boolean} setWindow
- * @property {(readout: HTMLElement, projection: Projection, index: number) => void} announce
+ * @property {(readout: Readout, projection: Projection, index: number) => void} announce
  * @property {() => number} cursorIndex
- * @property {(readout: HTMLElement, projection: Projection, index: number, range: {from: number, to: number}) => void} focusDay
+ * @property {(readout: Readout, projection: Projection, index: number, range: {from: number, to: number}) => void} focusDay
  * @property {(options: *) => boolean} handleKey
  * @property {() => string | null} toPng
  */
@@ -311,14 +359,28 @@ export function createChart() {
     let announceMetric = 'weight';
 
     /**
-     * Destruye la instancia previa. Imprescindible: sin esto, cambiar de vista o
-     * de métrica deja gráficas colgadas consumiendo memoria (defecto REN del legacy).
+     * Mata SOLO la instancia de Chart.js, sin tocar el estado de anuncio.
+     *
+     * Existe separado de `destroy()` porque `drawSeries` tiene que limpiar la
+     * gráfica anterior, pero para entonces `draw()` YA ha fijado la métrica con
+     * la que va a anunciar. Con una sola función, esa segunda llamada devolvería
+     * `announceMetric` a 'weight' y el lector de pantalla recitaría kilos sobre
+     * un eje de calorías — que es exactamente el defecto que ese estado existe
+     * para evitar.
      */
-    function destroy() {
+    function destroyInstance() {
         if (chartInstance) {
             chartInstance.destroy();
             chartInstance = null;
         }
+    }
+
+    /**
+     * Destruye la instancia previa. Imprescindible: sin esto, cambiar de vista o
+     * de métrica deja gráficas colgadas consumiendo memoria (defecto REN del legacy).
+     */
+    function destroy() {
+        destroyInstance();
         // El cursor pertenece a la gráfica que acaba de morir. Sin esto, la
         // siguiente vista arranca con el índice de la anterior hasta su primer
         // `draw()`, y con rangos distintos ese índice puede caer fuera del suyo.
@@ -390,10 +452,7 @@ export function createChart() {
             ({ x: d.dayIndex, y: f(d) });
     
         const accent = cssVar('--color-accent');
-        const muted = cssVar('--color-text-muted');
-        const grid = cssVar('--color-border');
-        const spanDays = Math.max(1, range.to - range.from);
-    
+
         /** @type {*[]} */
         const datasets = [];
     
@@ -530,7 +589,92 @@ export function createChart() {
             });
         }
         const milestoneDatasetIndex = metric === 'kcal' ? -1 : datasets.length - 1;
-    
+
+        const ok = drawSeries({
+            canvas: options.canvas,
+            datasets,
+            range,
+            xTickLabel: (value, span) => {
+                const point = projection.daily[Math.round(value)];
+                return point ? axisLabel(point.dateISO, span) : '';
+            },
+            tooltipTitle: (items) => {
+                const point = projection.daily[Number(items[0]?.parsed?.x ?? 0)];
+                return point ? `${point.dateISO} · ${t('phase.' + point.phaseType)}` : '';
+            },
+            extraPlugins: [phaseBandsPlugin(projection), todayLinePlugin(() => options.todayIndex)],
+            clickDatasetIndex: milestoneDatasetIndex,
+            onPointClick: (index) => {
+                const milestone = visibleMilestones[index];
+                if (milestone) options.onMilestone(milestone);
+            }
+        });
+        if (!ok) return false;
+
+        cursor = Math.min(Math.max(options.todayIndex, range.from), range.to);
+        announce(options.readout, projection, cursor);
+        return true;
+    }
+
+/**
+     * Construye la instancia de Chart.js. **ÚNICO sitio del módulo que llama a
+     * `new Chart(...)`.**
+     *
+     * Nace por EXTRACCIÓN de `draw()`, no reescribiéndolo: los datasets se los
+     * pasa el llamador ya construidos, byte a byte como estaban. La razón es que
+     * tres contratos de test son POSICIONALES —los hitos son el último dataset,
+     * la serie principal se localiza por `borderWidth === 2`, el check-in por
+     * `pointStyle === 'rectRot'`— y recrearlos desde una tubería genérica sería
+     * apostar a que produce exactamente el mismo array. Así el diff se revisa
+     * comprobando que no cambia ni un campo.
+     *
+     * **La regla de los hitos deja de ser disciplina y pasa a ser código:** si
+     * `clickDatasetIndex` no apunta al último dataset, esto devuelve `false` en
+     * vez de dibujar. Antes solo lo vigilaba un test, y un test solo protege lo
+     * que alguien se acordó de escribir.
+     *
+     * @param {DrawSeriesOptions} options
+     * @returns {boolean} false si Chart.js no está, el lienzo no está conectado,
+     *   o el índice de clic viola el invariante de los hitos
+     */
+    function drawSeries(options) {
+        const Chart = getChartLib();
+        if (!Chart) return false;
+        // El vendor se carga con `await`, y en ese hueco el usuario puede haber
+        // cambiado de vista: el router llama a `unmount()` ANTES de reemplazar el
+        // host, así que el lienzo viejo sigue conectado un instante. Dibujar aquí
+        // dejaría una instancia viva colgada de un nodo que se va a descartar.
+        if (!options.canvas?.isConnected) return false;
+        // `destroyInstance` y NO `destroy`: en el camino de `draw()` la métrica
+        // de anuncio ya está fijada, y `destroy()` la devolvería a 'weight'.
+        destroyInstance();
+
+        const { datasets, range } = options;
+        if (options.clickDatasetIndex !== undefined && options.clickDatasetIndex >= 0
+            && options.clickDatasetIndex !== datasets.length - 1) {
+            console.error('[chart] la capa pulsable debe ser la ÚLTIMA: '
+                + `${options.clickDatasetIndex} de ${datasets.length} datasets`);
+            return false;
+        }
+
+        const muted = cssVar('--color-text-muted');
+        const grid = cssVar('--color-border');
+        const spanDays = Math.max(1, range.to - range.from);
+
+        /** El eje Y implícito, o los que pida el llamador. Ver `yAxes`. */
+        /** @type {Record<string, *>} */
+        const yScales = {};
+        for (const axis of options.yAxes ?? [{ id: 'y', position: 'left' }]) {
+            yScales[axis.id] = {
+                position: axis.position,
+                ticks: { color: muted },
+                // Dos rejillas superpuestas convierten el fondo en papel
+                // milimetrado: solo la del eje principal se dibuja en el área.
+                grid: { color: grid, drawOnChartArea: axis.position !== 'right' },
+                ...(axis.beginAtZero === true ? { beginAtZero: true } : {})
+            };
+        }
+
         chartInstance = new Chart(options.canvas, {
             type: 'line',
             // Sin `labels`: todos los puntos llevan su propia X. Con anclajes
@@ -557,45 +701,32 @@ export function createChart() {
                         max: range.to,
                         ticks: {
                             color: muted,
-                            maxTicksLimit: 8,
+                            maxTicksLimit: options.maxTicks ?? 8,
                             // `function` y no flecha: Chart.js invoca el callback con
                             // la ESCALA como `this`, y hace falta para leer el ancho
                             // de la ventana ACTUAL. Con el ancho capturado en el
                             // dibujado, mover la ventana con `setWindow()` dejaba los
                             // rótulos congelados en el formato anterior: una ventana
                             // de 30 días seguía rotulando «sept 2026» en vez del día.
-                            // `@this` no es decorativo: Chart.js invoca el callback
-                            // con la ESCALA como `this`, y de ahí sale la ventana
-                            // ACTUAL. Por eso es `function` y no una flecha.
                             callback: /** @type {*} */ (
                                 /** @this {{ min: number, max: number }} @param {*} value */
                                 function (value) {
-                                const point = projection.daily[Math.round(Number(value))];
-                                if (!point) return '';
                                 const scale = this;
                                 const span = Number.isFinite(scale?.max) && Number.isFinite(scale?.min)
                                     ? scale.max - scale.min
                                     : spanDays;
-                                return axisLabel(point.dateISO, span);
+                                return options.xTickLabel(Number(value), span);
                             })
                         },
                         grid: { color: grid }
                     },
-                    y: {
-                        ticks: { color: muted },
-                        grid: { color: grid }
-                    }
+                    ...yScales
                 },
                 plugins: {
                     legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            title: (/** @type {*} */ items) => {
-                                const point = projection.daily[Number(items[0]?.parsed?.x ?? 0)];
-                                return point ? `${point.dateISO} · ${t('phase.' + point.phaseType)}` : '';
-                            }
-                        }
-                    }
+                    ...(options.tooltipTitle
+                        ? { tooltip: { callbacks: { title: options.tooltipTitle } } }
+                        : {})
                 },
                 onClick: (/** @type {*} */ event, /** @type {*} */ _elements, /** @type {*} */ chart) => {
                     // `interaction.intersect: false` está bien para el tooltip —que
@@ -603,28 +734,24 @@ export function createChart() {
                     // `elements` trae el hito más CERCANO aunque el clic haya caído
                     // en zona vacía, y se abría la ficha de un hito que no estaba
                     // ahí. Aquí se vuelve a consultar exigiendo intersección real.
+                    const index = options.clickDatasetIndex ?? -1;
+                    if (index < 0 || !options.onPointClick) return;
                     const hits = chart.getElementsAtEventForMode(
                         /** @type {*} */ (event), 'point', { intersect: true }, true
                     );
-                    if (milestoneDatasetIndex < 0) return; // en kcal no hay hitos
-                    const hit = hits.find((/** @type {*} */ e) => e.datasetIndex === milestoneDatasetIndex);
-                    if (!hit) return;
-                    const milestone = visibleMilestones[hit.index];
-                    if (milestone) options.onMilestone(milestone);
+                    const hit = hits.find((/** @type {*} */ e) => e.datasetIndex === index);
+                    if (hit) options.onPointClick(hit.index);
                 }
             },
-            plugins: [phaseBandsPlugin(projection), todayLinePlugin(() => options.todayIndex)]
+            plugins: options.extraPlugins ?? []
         });
-    
-        cursor = Math.min(Math.max(options.todayIndex, range.from), range.to);
-        announce(options.readout, projection, cursor);
         return true;
     }
 
 /**
      * Anuncia un punto en la región `aria-live`: es la alternativa textual del
      * canvas, que para un lector de pantalla es opaco.
-     * @param {HTMLElement} readout
+     * @param {Readout} readout
      * @param {Projection} projection
      * @param {number} index
      */
@@ -676,7 +803,7 @@ export function createChart() {
      * Es lo que conecta la línea de tiempo con la gráfica: pulsar un evento no
      * abre otra pantalla, mueve el cursor de ESTA. El mismo cursor que ya usa el
      * recorrido con teclado, para que las dos vías cuenten la misma historia.
-     * @param {HTMLElement} readout
+     * @param {Readout} readout
      * @param {Projection} projection
      * @param {number} index
      * @param {{ from: number, to: number }} range
@@ -732,7 +859,7 @@ export function createChart() {
         return out.toDataURL('image/png');
     }
 
-    return { draw, destroy, setWindow, announce, cursorIndex, focusDay, handleKey, toPng };
+    return { draw, drawSeries, destroy, setWindow, announce, cursorIndex, focusDay, handleKey, toPng };
 }
 
 /** Estado de error de la gráfica: recarga, jamás borrado (H-013). */

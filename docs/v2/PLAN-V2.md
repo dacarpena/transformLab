@@ -859,7 +859,7 @@ etiquetadas de estimación · legibilidad primero.
 
 - [x] **E13-0 · Los tres defectos de datos**
 - [x] **E13-1 · Catálogo de series puro + las 3 funciones que faltan**
-- [ ] E13-2 · `drawSeries` por extracción + invariante de hitos + precálculo de fases
+- [x] **E13-2 · `drawSeries` por extracción + invariante de hitos + precálculo de fases**
 - [ ] E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta
 - [ ] E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`
 - [ ] E13-5 · Vista «Analizar»: selector, leyenda y procedencia
@@ -961,3 +961,42 @@ cuerpo **nunca comprueba ese orden**. Misma familia que los tres defectos de
 E13-0: un nombre que afirma más que su código.
 
 **765 unitarios · typecheck limpio.**
+
+### E13-2 — extracción, no reescritura, y el diff se demuestra
+
+`drawSeries` pasa a ser el **único sitio del módulo que llama a `new Chart(...)`**.
+Nace por EXTRACCIÓN: los datasets se los pasa el llamador ya construidos, y el
+cuerpo de `draw()` no se toca. La alternativa —reimplementar `draw` sobre una
+tubería genérica— era apostar a que produce el mismo array, y tres contratos de
+test son POSICIONALES: los hitos son el último dataset, la serie principal se
+localiza por `borderWidth === 2`, el check-in por `pointStyle === 'rectRot'`.
+
+**La extracción se verificó, no se supuso.** Un spec temporal volcó datasets,
+escalas, `yAxisID`, plugins e interacción en las 12 combinaciones de métrica ×
+grano, antes y después. Salida: **9 215 bytes idénticos**. Ni un campo cambió.
+
+**La regla de los hitos deja de ser disciplina y pasa a ser código.** Si la capa
+pulsable no es la última, `drawSeries` devuelve `false` en vez de dibujar. Antes
+lo vigilaba solo un test, y un test protege lo que alguien se acordó de escribir.
+
+**`destroy()` se parte en dos, y esto sí era un defecto a punto de entrar.**
+`drawSeries` tiene que matar la gráfica anterior, pero para entonces `draw()` ya
+fijó `announceMetric`. Con una sola función, esa segunda llamada la devolvía a
+`'weight'` y el lector de pantalla habría recitado kilos sobre un eje de
+calorías — justo lo que ese estado existe para evitar. Ahora `destroyInstance()`
+mata el lienzo y `destroy()` además resetea el cursor y la métrica.
+
+**Rendimiento:** `phaseBandsPlugin` recorría `projection.daily` **en cada
+fotograma** —~16 000 iteraciones por dibujado para pintar seis rectángulos—.
+Ahora los tramos se precalculan una vez con `phaseSpansOf`, que se exporta para
+poder probarlo desde Node: contigüidad, cobertura total y equivalencia día a día
+con recorrer la serie.
+
+**Y un vigilante intermitente arreglado.** `chart-factory.spec.js` («las vistas
+de la v1 siguen dibujando igual») leía píxeles justo tras `toBeVisible()`, con
+250 ms de animación por delante: «visible» no es «pintado». Falló una vez en la
+suite completa y pasó tres aislado, que es la firma de una carrera. Ahora usa
+`expect.poll`, el patrón que ya usaba `projection.spec.js`. Un test intermitente
+es peor que ninguno: enseña a ignorarlo, y este es el que vigila esta etapa.
+
+**767 unitarios · 156 E2E · typecheck limpio.**

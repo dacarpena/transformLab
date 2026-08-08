@@ -20,7 +20,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { createChart, milestoneLabel, unavailable, seriesAnchors } from '../src/ui/chart.js';
+import { createChart, milestoneLabel, unavailable, seriesAnchors, phaseSpansOf } from '../src/ui/chart.js';
 
 /**
  * Desde V2-M8 `chart.js` es una FACTORÍA: el cursor, la instancia y la unidad de
@@ -322,4 +322,37 @@ test('LAS FECHAS SON UTC: la zona horaria del usuario no puede correrlas un día
     assert.equal(madrid, nuevaYork, `Madrid dice «${madrid}» y Nueva York «${nuevaYork}»`);
     assert.equal(madrid, tokio, `Madrid dice «${madrid}» y Tokio «${tokio}»`);
     assert.match(madrid, /14/, `la fecha se corrió de día: ${madrid}`);
+});
+
+/* ---------------------------------------------------------------------- *
+ * phaseSpansOf (E13-2)
+ * ---------------------------------------------------------------------- */
+
+test('phaseSpansOf cubre la serie entera, sin huecos ni solapes', () => {
+    const proj = projection();
+    const spans = phaseSpansOf(proj);
+
+    assert.ok(spans.length >= 2, 'un plan real tiene varias fases');
+    assert.equal(spans[0].from, 0, 'el primer tramo arranca en el día 0');
+    assert.equal(spans.at(-1).to, proj.daily.length - 1, 'el último llega al final');
+
+    for (let i = 1; i < spans.length; i++) {
+        assert.equal(spans[i].from, spans[i - 1].to + 1,
+            'los tramos son contiguos: un hueco dejaría fondo sin pintar');
+        assert.notEqual(spans[i].phaseType, spans[i - 1].phaseType,
+            'dos tramos seguidos de la misma fase serían un tramo mal partido');
+    }
+
+    // El precálculo debe describir EXACTAMENTE lo mismo que recorrer día a día.
+    for (const span of spans) {
+        for (let i = span.from; i <= span.to; i++) {
+            assert.equal(proj.daily[i].phaseType, span.phaseType, `día ${i}`);
+        }
+    }
+});
+
+test('phaseSpansOf degrada sin lanzar', () => {
+    for (const roto of [null, undefined, {}, { daily: [] }, { daily: 'no' }]) {
+        assert.deepEqual(phaseSpansOf(/** @type {*} */ (roto)), []);
+    }
 });
