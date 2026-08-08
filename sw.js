@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0032';
+const CACHE_VERSION = 'tl-v5-0036';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -64,12 +64,15 @@ const PRECACHE = [
     'src/core/training.js',
     'src/data/backup.js',
     'src/data/checkins.js',
+    'src/data/foods-db.js',
     'src/data/migrate.js',
+    'src/data/migrations.js',
     'src/data/nutrition.js',
     'src/data/photos-db.js',
     'src/data/profiles.js',
     'src/data/schema.js',
     'src/data/storage.js',
+    'src/data/version.js',
     'src/data/training.js',
     'src/i18n/en.js',
     'src/i18n/es.js',

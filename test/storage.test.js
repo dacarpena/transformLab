@@ -3,6 +3,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as storage from '../src/data/storage.js';
+import { rootPrefix } from '../src/data/version.js';
 
 /** @type {import('./helpers/local-storage-mock.js').LocalStorageMock} */
 let mock;
@@ -21,9 +22,9 @@ test('set + get hacen la ida y vuelta de un objeto', () => {
     assert.deepEqual(read.ok && read.value, [{ week: 1, weight: 80 }]);
 });
 
-test('las claves llevan el namespace tl.5.<pid>.', () => {
+test('las claves llevan el namespace `tl.<version>.<pid>.`', () => {
     storage.set('settings', { locale: 'es' });
-    assert.equal(mock.getItem('tl.5.p1.settings'), JSON.stringify({ locale: 'es' }));
+    assert.equal(mock.getItem(`${rootPrefix()}p1.settings`), JSON.stringify({ locale: 'es' }));
 });
 
 test('setActiveProfile aísla los datos por perfil', () => {
@@ -54,7 +55,7 @@ test('clave ausente devuelve {ok: true, value: null}, no un error', () => {
 });
 
 test('JSON corrupto degrada a {ok: false} sin lanzar', () => {
-    mock.setItem('tl.5.p1.roto', '{esto no es JSON');
+    mock.setItem(`${rootPrefix()}p1.roto`, '{esto no es JSON');
     const res = storage.get('roto');
     assert.equal(res.ok, false);
     assert.match(!res.ok ? res.error : '', /SyntaxError/);
@@ -87,7 +88,7 @@ test('usageBytes cuenta solo claves tl.* y crece al escribir', () => {
     assert.equal(used.ok, true);
     const bytes = used.ok ? used.value : 0;
     assert.ok(bytes >= 50 * 2, `esperaba ≥100 bytes, obtuve ${bytes}`);
-    const expected = ('tl.5.p1.datos'.length + JSON.stringify('y'.repeat(50)).length) * 2;
+    const expected = (`${rootPrefix()}p1.datos`.length + JSON.stringify('y'.repeat(50)).length) * 2;
     assert.equal(bytes, expected);
 });
 

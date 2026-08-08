@@ -14,8 +14,9 @@
  * @typedef {{ ok: true, value: T } | { ok: false, error: string }} StorageResult
  */
 
-const SCHEMA_VERSION = 5;
-const ROOT_PREFIX = `tl.${SCHEMA_VERSION}.`;
+import { rootPrefix } from './version.js';
+
+const ROOT_PREFIX = rootPrefix();
 
 /** Límite práctico de localStorage en los navegadores actuales (~5 MB). */
 export const QUOTA_LIMIT_BYTES = 5 * 1024 * 1024;
@@ -148,6 +149,33 @@ export function remove(key) {
         backend().removeItem(fullKey(key));
         revisionCounter++;
         return { ok: true, value: undefined };
+    } catch (err) {
+        return { ok: false, error: message(err) };
+    }
+}
+
+/**
+ * Lee una clave del namespace de OTRO perfil, sin cambiar el activo.
+ *
+ * POR QUÉ EXISTE. `get()` solo habla del perfil activo, así que leer otro
+ * obligaba a `setActiveProfile` de ida y vuelta — y ese es justo el patrón que
+ * abrió la fuga entre perfiles de M7 (una caché montada sobre el perfil
+ * equivocado sirviendo los check-ins de otra persona). La sonda de readiness de
+ * la v2 se topó con ello al implementar «comparar dos perfiles»: sin esta
+ * primitiva, la funcionalidad exige malabares con el estado global.
+ *
+ * @param {string} profileId
+ * @param {string} key
+ * @returns {StorageResult<unknown | null>}
+ */
+export function getForProfile(profileId, key) {
+    if (typeof profileId !== 'string' || profileId.trim() === '' || profileId.includes('.')) {
+        return { ok: false, error: `profileId inválido: ${JSON.stringify(profileId)}` };
+    }
+    try {
+        const rawValue = backend().getItem(`${ROOT_PREFIX}${profileId}.${key}`);
+        if (rawValue === null) return { ok: true, value: null };
+        return { ok: true, value: JSON.parse(rawValue) };
     } catch (err) {
         return { ok: false, error: message(err) };
     }

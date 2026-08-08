@@ -10,6 +10,9 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { rootPrefix } from '../../src/data/version.js';
+
+const P = rootPrefix();
 import { readFileSync } from 'node:fs';
 
 async function completeOnboarding(page, over = {}) {
@@ -171,15 +174,15 @@ test('la migración v4 → v5 conserva los datos y NO hereda el objetivo roto', 
     // Arranca en el dashboard: hay perfil migrado, no pide el asistente
     await expect(page.locator('#today-title')).toBeVisible();
 
-    const state = await page.evaluate(() => {
+    const state = await page.evaluate((P) => {
         const keys = Object.keys(localStorage);
         return {
-            v5: keys.filter((k) => k.startsWith('tl.5.')).length,
+            vigente: keys.filter((k) => k.startsWith(P)).length,
             archivo: keys.filter((k) => k.startsWith('tl.legacy')),
             v4Original: keys.filter((k) => k.startsWith('transformlab_'))
         };
-    });
-    expect(state.v5, 'no se escribió nada en el espacio v5').toBeGreaterThan(2);
+    }, P);
+    expect(state.vigente, 'no se escribió nada en el espacio de la versión vigente').toBeGreaterThan(2);
 
     // Los datos v4 no se destruyen: se archivan bajo `tl.legacy.*` más una
     // copia completa en `tl.legacyBackup.v4`. Si la migración salió mal, ahí
@@ -213,25 +216,25 @@ test('migrar dos veces no duplica nada', async ({ page }) => {
 
     await page.reload();
     await expect(page.locator('#today-title')).toBeVisible();
-    const first = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('tl.5.')).sort());
+    const first = await page.evaluate((P) => Object.keys(localStorage).filter((k) => k.startsWith(P)).sort(), P);
 
     await page.reload();
     await expect(page.locator('#today-title')).toBeVisible();
-    const second = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('tl.5.')).sort());
+    const second = await page.evaluate((P) => Object.keys(localStorage).filter((k) => k.startsWith(P)).sort(), P);
 
     expect(second).toEqual(first);
-    const profiles = await page.evaluate(() => {
-        const raw = localStorage.getItem('tl.5.profiles');
+    const profiles = await page.evaluate((P) => {
+        const raw = localStorage.getItem(P + 'profiles');
         return raw ? JSON.parse(raw).profiles.length : 0;
-    });
+    }, P);
     expect(profiles, 'la segunda carga creó otro perfil').toBe(1);
 
-    const checkins = await page.evaluate(() => {
+    const checkins = await page.evaluate((P) => {
         // OJO: `tl.legacy.checkins` también acaba en «.checkins» y guarda el
-        // array crudo de la v4. Aquí queremos el de v5.
-        const key = Object.keys(localStorage).find((k) => k.startsWith('tl.5.') && k.endsWith('.checkins'));
+        // array crudo de la v4. Aquí queremos el de la versión vigente.
+        const key = Object.keys(localStorage).find((k) => k.startsWith(P) && k.endsWith('.checkins'));
         return key ? JSON.parse(localStorage.getItem(key)).items.length : -1;
-    });
+    }, P);
     expect(checkins, 'los check-ins se duplicaron al migrar dos veces').toBe(2);
 });
 

@@ -6,6 +6,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as storage from '../src/data/storage.js';
+import { rootPrefix, SCHEMA_VERSION } from '../src/data/version.js';
 import * as profiles from '../src/data/profiles.js';
 
 const AT = '2026-08-02T10:00:00.000Z';
@@ -46,18 +47,18 @@ test('create() da de alta, deja activo y siembra las colecciones por defecto', (
     assert.deepEqual(/** @type {*} */ (checkins.value).items, []);
 });
 
-test('el índice se guarda en la clave global tl.5.profiles', () => {
+test('el índice se guarda en la clave global `tl.<version>.profiles`', () => {
     profiles.create('Dani', { createdAtISO: AT });
-    const raw = mock.getItem('tl.5.profiles');
-    assert.ok(raw, 'el índice no está en tl.5.profiles');
+    const raw = mock.getItem(`${rootPrefix()}profiles`);
+    assert.ok(raw, `el índice no está en ${rootPrefix()}profiles`);
     const parsed = JSON.parse(raw);
-    assert.equal(parsed.schemaVersion, 5);
+    assert.equal(parsed.schemaVersion, SCHEMA_VERSION);
     assert.equal(parsed.profiles.length, 1);
 });
 
 test('los datos de dos perfiles están aislados por namespace', () => {
     profiles.create('Dani', { createdAtISO: AT });
-    storage.set('checkins', { schemaVersion: 5, items: [{ id: 'a' }] });
+    storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [{ id: 'a' }] });
 
     const second = profiles.create('Ana', { createdAtISO: AT });
     assert.ok(second.ok);
@@ -108,7 +109,7 @@ test('rename() cambia el nombre y respeta la unicidad', () => {
 
 test('C4: borrar exige el nombre EXACTO tecleado; sin él no se toca nada', () => {
     profiles.create('Dani', { createdAtISO: AT });
-    storage.set('checkins', { schemaVersion: 5, items: [{ id: 'a' }] });
+    storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [{ id: 'a' }] });
 
     for (const wrong of ['', 'dani', 'Dan', 'Dani ']) {
         const r = profiles.remove('p1', wrong === 'Dani ' ? 'Dani  x' : wrong);
@@ -125,7 +126,7 @@ test('borrar con el nombre correcto elimina el perfil y TODAS sus claves', () =>
     profiles.create('Dani', { createdAtISO: AT });
     profiles.create('Ana', { createdAtISO: AT });
     assert.ok(profiles.setActive('p1').ok);
-    storage.set('checkins', { schemaVersion: 5, items: [{ id: 'a' }] });
+    storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [{ id: 'a' }] });
 
     const removed = profiles.remove('p1', 'Dani');
     assert.ok(removed.ok, JSON.stringify(!removed.ok && removed.error));
@@ -151,16 +152,16 @@ test('borrar el último perfil deja el índice vacío sin activo', () => {
 });
 
 test('un índice corrupto se reporta, NUNCA se sobrescribe en silencio', () => {
-    mock.setItem('tl.5.profiles', '{"esto no es json');
+    mock.setItem(`${rootPrefix()}profiles`, '{"esto no es json');
     const r = profiles.readIndex();
     assert.equal(r.ok, false);
 
-    mock.setItem('tl.5.profiles', JSON.stringify({ schemaVersion: 5, activeProfileId: 'p9', profiles: [] }));
+    mock.setItem(`${rootPrefix()}profiles`, JSON.stringify({ schemaVersion: SCHEMA_VERSION, activeProfileId: 'p9', profiles: [] }));
     const r2 = profiles.readIndex();
     assert.equal(r2.ok, false);
     assert.ok(!r2.ok && r2.error === 'profiles.indexCorrupt');
     // el dato original sigue intacto para poder recuperarlo
-    assert.ok(mock.getItem('tl.5.profiles')?.includes('p9'));
+    assert.ok(mock.getItem(`${rootPrefix()}profiles`)?.includes('p9'));
 });
 
 test('activateStored() sincroniza el namespace con el perfil guardado', () => {

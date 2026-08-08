@@ -26,7 +26,7 @@ import {
 } from '../src/data/schema.js';
 
 const PROFILE_OK = {
-    schemaVersion: 5,
+    schemaVersion: SCHEMA_VERSION,
     name: 'Dani',
     createdAtISO: '2026-08-02T10:00:00.000Z',
     user: { sex: 'male', age: 35, heightCm: 178, activityLevel: 'moderate', trainingStatus: 'intermediate' },
@@ -36,10 +36,17 @@ const PROFILE_OK = {
     intensity: 'moderate'
 };
 
-test('SCHEMA_VERSION es 5 y COLLECTIONS declara las 8 colecciones por perfil', () => {
-    assert.equal(SCHEMA_VERSION, 5);
+test('COLLECTIONS declara TODAS las colecciones por perfil, y solo esas', () => {
+    // El inventario se fija a mano a propósito: registrar una colección la mete
+    // sola en la siembra de perfil, el export/import de backups y el
+    // presupuesto de cuota, así que añadir una sin querer tiene consecuencias.
+    // Las siete últimas las añadió V2-M0 para la v2.
     const names = Object.keys(COLLECTIONS).sort();
-    assert.deepEqual(names, ['achievements', 'checkins', 'nutrition', 'photos', 'plan', 'profile', 'settings', 'training']);
+    assert.deepEqual(names, [
+        'achievements', 'checkins', 'intakeLog', 'nutrition', 'pantry', 'photos',
+        'plan', 'preferences', 'profile', 'recipes', 'settings', 'steps',
+        'supplementsPlan', 'training', 'volumeLog'
+    ]);
 });
 
 test('todo default generado valida contra su propio validador', () => {
@@ -92,7 +99,7 @@ test('las claves desconocidas se DESCARTAN, no se copian ni hacen fallar', () =>
 });
 
 test('contaminación de prototipo: __proto__ y constructor no pasan al objeto ni al Object.prototype', () => {
-    const hostil = JSON.parse('{"schemaVersion":5,"__proto__":{"pwned":true},"constructor":{"x":1},"activeProfileId":"p1","profiles":[{"id":"p1","name":"a","createdAtISO":"2026-08-02T00:00:00.000Z"}]}');
+    const hostil = JSON.parse(`{"schemaVersion":${SCHEMA_VERSION},"__proto__":{"pwned":true},"constructor":{"x":1},"activeProfileId":"p1","profiles":[{"id":"p1","name":"a","createdAtISO":"2026-08-02T00:00:00.000Z"}]}`);
     const res = validateProfilesIndex(hostil);
     assert.ok(res.ok, JSON.stringify(!res.ok && res.errors));
     assert.equal(/** @type {*} */ ({}).pwned, undefined, 'Object.prototype contaminado');
@@ -147,7 +154,7 @@ test('E10/E11: las cifras de báscula del perfil son opcionales y se guardan tal
 
 test('check-ins: peso obligatorio, resto opcional, subjetivas 1-10, medidas configurables', () => {
     const base = {
-        schemaVersion: 5,
+        schemaVersion: SCHEMA_VERSION,
         items: [{
             id: 'ci_1', dateISO: '2026-08-10', weightKg: 79.4, fatPct: 19.5,
             measuresCm: { waist: 88, hip: null },
@@ -176,7 +183,7 @@ test('check-ins: peso obligatorio, resto opcional, subjetivas 1-10, medidas conf
 
 test('E11: el check-in admite músculo y hueso de báscula, y los de antes siguen valiendo', () => {
     const base = {
-        schemaVersion: 5,
+        schemaVersion: SCHEMA_VERSION,
         items: [{
             id: 'ci_1', dateISO: '2026-08-10', weightKg: 80.4, fatPct: 25.8,
             scaleMuscleKg: 56.9, boneKg: 3.12,
@@ -211,7 +218,7 @@ test('plan: current opcional (aún sin plan) e historial de recalibraciones (E1)
     assert.deepEqual(vacio.history, []);
 
     const conPlan = {
-        schemaVersion: 5,
+        schemaVersion: SCHEMA_VERSION,
         current: { phases: [{ type: 'cut', days: 30, expected: { fatDeltaKg: -2, muscleDeltaKg: -0.1 }, nominalKcal: { targetKcal: 2200, deficitKcal: 500, tdeeKcal: 2700, flooredBySafety: false } }], totalDays: 30, summary: { targetWeightKg: 78, fatDeltaKg: -2, muscleDeltaKg: -0.1 }, warnings: [] },
         params: { startDateISO: '2026-08-03', seed: 12345, fluctuation: false },
         history: [{ plan: null, params: { startDateISO: '2026-01-01', seed: 1, fluctuation: false }, archivedAtISO: '2026-08-02T10:00:00.000Z', reason: 'recalibration' }]
@@ -225,7 +232,7 @@ test('plan: current opcional (aún sin plan) e historial de recalibraciones (E1)
 });
 
 test('settings: locale de la lista, medidas activas del set conocido, recordatorio opcional', () => {
-    const s = { schemaVersion: 5, locale: 'es', activeMeasures: ['waist', 'hip'], fluctuationVisible: false, reminder: { weekday: 1, hour: 9 } };
+    const s = { schemaVersion: SCHEMA_VERSION, locale: 'es', activeMeasures: ['waist', 'hip'], fluctuationVisible: false, reminder: { weekday: 1, hour: 9 } };
     assert.ok(validateSettings(s).ok);
     assert.equal(validateSettings({ ...s, locale: 'fr' }).ok, false);
     assert.equal(validateSettings({ ...s, activeMeasures: ['waist', 'tentacle'] }).ok, false);
@@ -235,7 +242,7 @@ test('settings: locale de la lista, medidas activas del set conocido, recordator
 });
 
 test('índice de perfiles: ids únicos, activo presente en la lista', () => {
-    const idx = { schemaVersion: 5, activeProfileId: 'p1', profiles: [{ id: 'p1', name: 'A', createdAtISO: '2026-08-02T00:00:00.000Z' }] };
+    const idx = { schemaVersion: SCHEMA_VERSION, activeProfileId: 'p1', profiles: [{ id: 'p1', name: 'A', createdAtISO: '2026-08-02T00:00:00.000Z' }] };
     assert.ok(validateProfilesIndex(idx).ok);
     // activo que no existe
     assert.equal(validateProfilesIndex({ ...idx, activeProfileId: 'p9' }).ok, false);
@@ -243,11 +250,11 @@ test('índice de perfiles: ids únicos, activo presente en la lista', () => {
     const dup = { ...idx, profiles: [idx.profiles[0], { ...idx.profiles[0] }] };
     assert.equal(validateProfilesIndex(dup).ok, false);
     // id con punto rompería el namespace tl.5.<pid>.
-    assert.equal(validateProfilesIndex({ activeProfileId: 'a.b', schemaVersion: 5, profiles: [{ id: 'a.b', name: 'A', createdAtISO: '2026-08-02T00:00:00.000Z' }] }).ok, false);
+    assert.equal(validateProfilesIndex({ activeProfileId: 'a.b', schemaVersion: SCHEMA_VERSION, profiles: [{ id: 'a.b', name: 'A', createdAtISO: '2026-08-02T00:00:00.000Z' }] }).ok, false);
 });
 
 test('los errores llevan código y ruta, sin prosa (i18n-ready)', () => {
-    const r = validateProfile({ schemaVersion: 5, name: 123, user: {}, initial: {}, target: {}, startDateISO: 'x', intensity: 'y', createdAtISO: 'z' });
+    const r = validateProfile({ schemaVersion: SCHEMA_VERSION, name: 123, user: {}, initial: {}, target: {}, startDateISO: 'x', intensity: 'y', createdAtISO: 'z' });
     assert.equal(r.ok, false);
     assert.ok(!r.ok && r.errors.length > 0);
     for (const e of !r.ok ? r.errors : []) {

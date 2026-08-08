@@ -18,6 +18,7 @@
 import * as storage from './storage.js';
 import * as profiles from './profiles.js';
 import { SCHEMA_VERSION, COLLECTIONS, validateCollection, sanitizeText } from './schema.js';
+import { MIGRATABLE_FROM } from './version.js';
 
 /**
  * @typedef {import('./schema.js').SchemaIssue} SchemaIssue
@@ -127,7 +128,23 @@ export function inspect(text) {
     if (formatVersion !== BACKUP_FORMAT_VERSION) {
         return { ok: false, error: 'backup.formatUnsupported' };
     }
-    if (parsed.schemaVersion !== SCHEMA_VERSION) {
+    // Un backup de una versión ANTERIOR se acepta y se migra (V2-M0). Antes se
+    // rechazaba de plano, lo que convertía cada subida de esquema en «tus
+    // backups de ayer ya no valen» — justo cuando más falta hacen. Las
+    // colecciones de dentro las migra `validateCollection` una a una, así que
+    // aquí solo hay que dejar pasar la versión.
+    //
+    // Del FUTURO sí se rechaza: un backup escrito por una versión más nueva
+    // puede tener formas que esta no entiende, y adivinarlas es peor que decir
+    // que no.
+    const backupSchema = parsed.schemaVersion;
+    if (typeof backupSchema !== 'number' || !Number.isInteger(backupSchema)) {
+        return { ok: false, error: 'backup.schemaUnsupported' };
+    }
+    if (backupSchema > SCHEMA_VERSION) {
+        return { ok: false, error: 'backup.schemaFromTheFuture' };
+    }
+    if (backupSchema < SCHEMA_VERSION && !MIGRATABLE_FROM.includes(backupSchema)) {
         return { ok: false, error: 'backup.schemaUnsupported' };
     }
     const exportedAtISO = typeof parsed.exportedAtISO === 'string' ? parsed.exportedAtISO : '';

@@ -14,32 +14,38 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { rootPrefix, SCHEMA_VERSION } from '../../src/data/version.js';
+
+// El prefijo y la versión salen del código, no de un literal: así el próximo
+// bump de esquema no vuelve a romper estos specs (lo hizo en V2-M0).
+const P = rootPrefix();
+const V = SCHEMA_VERSION;
 
 const PROFILE_ID = 'p1';
 
 /** Siembra un perfil canónico que empezó hace `weeksAgo` semanas. */
 async function seedProfile(page, { weeksAgo, checkinWeights }) {
     await page.goto('/');
-    await page.evaluate(({ weeksAgo, checkinWeights, PROFILE_ID }) => {
+    await page.evaluate(({ weeksAgo, checkinWeights, PROFILE_ID, P, V }) => {
         localStorage.clear();
         const days = weeksAgo * 7;
         const iso = (offsetDays) =>
             new Date(Date.now() - offsetDays * 86400000).toISOString().slice(0, 10);
         const start = iso(days);
 
-        localStorage.setItem('tl.5.profiles', JSON.stringify({
-            schemaVersion: 5, activeProfileId: PROFILE_ID,
+        localStorage.setItem(`${P}profiles`, JSON.stringify({
+            schemaVersion: V, activeProfileId: PROFILE_ID,
             profiles: [{ id: PROFILE_ID, name: 'Dani', createdAtISO: '2026-01-01T00:00:00.000Z' }]
         }));
-        localStorage.setItem(`tl.5.${PROFILE_ID}.profile`, JSON.stringify({
-            schemaVersion: 5, name: 'Dani', createdAtISO: '2026-01-01T00:00:00.000Z',
+        localStorage.setItem(`${P}${PROFILE_ID}.profile`, JSON.stringify({
+            schemaVersion: V, name: 'Dani', createdAtISO: '2026-01-01T00:00:00.000Z',
             user: { sex: 'male', age: 30, heightCm: 175, activityLevel: 'moderate', trainingStatus: 'intermediate' },
             initial: { weightKg: 75, fatPct: 20, muscleKg: null, muscleSource: 'estimated' },
             target: { fatPct: 12, muscleKg: 30 },
             startDateISO: start, intensity: 'moderate'
         }));
-        localStorage.setItem(`tl.5.${PROFILE_ID}.settings`, JSON.stringify({
-            schemaVersion: 5, locale: 'es', activeMeasures: ['waist'],
+        localStorage.setItem(`${P}${PROFILE_ID}.settings`, JSON.stringify({
+            schemaVersion: V, locale: 'es', activeMeasures: ['waist'],
             fluctuationVisible: false, reminder: null
         }));
         const items = checkinWeights.map((weightKg, i) => {
@@ -51,9 +57,9 @@ async function seedProfile(page, { weeksAgo, checkinWeights }) {
                 notes: '', createdAtISO: '2026-01-01T00:00:00.000Z', editedAtISO: null
             };
         });
-        localStorage.setItem(`tl.5.${PROFILE_ID}.checkins`, JSON.stringify({ schemaVersion: 5, items }));
-        localStorage.setItem(`tl.5.${PROFILE_ID}.ui.activeView`, '"today"');
-    }, { weeksAgo, checkinWeights, PROFILE_ID });
+        localStorage.setItem(`${P}${PROFILE_ID}.checkins`, JSON.stringify({ schemaVersion: V, items }));
+        localStorage.setItem(`${P}${PROFILE_ID}.ui.activeView`, '"today"');
+    }, { weeksAgo, checkinWeights, PROFILE_ID, P, V });
     await page.reload();
 }
 
@@ -75,8 +81,8 @@ test('el guion completo: estancamiento → oferta → recalibrar → historial',
     await expect(dialog).toContainText(/por encima del plan/i);
 
     // 2 · el plan anterior, antes de tocar nada
-    const before = await page.evaluate(() =>
-        JSON.parse(localStorage.getItem('tl.5.p1.plan') ?? 'null')?.current?.totalDays ?? null);
+    const before = await page.evaluate((P) =>
+        JSON.parse(localStorage.getItem(P + 'p1.plan') ?? 'null')?.current?.totalDays ?? null, P);
 
     // 3 · recalibrar
     await page.click('[data-accept]');
@@ -84,10 +90,10 @@ test('el guion completo: estancamiento → oferta → recalibrar → historial',
     await expect(page.locator('#today-title')).toBeVisible();
 
     // 4 · el historial conserva el plan anterior
-    const after = await page.evaluate(() => {
-        const plan = JSON.parse(localStorage.getItem('tl.5.p1.plan') ?? 'null');
-        const profile = JSON.parse(localStorage.getItem('tl.5.p1.profile') ?? 'null');
-        const checkins = JSON.parse(localStorage.getItem('tl.5.p1.checkins') ?? 'null');
+    const after = await page.evaluate((P) => {
+        const plan = JSON.parse(localStorage.getItem(P + 'p1.plan') ?? 'null');
+        const profile = JSON.parse(localStorage.getItem(P + 'p1.profile') ?? 'null');
+        const checkins = JSON.parse(localStorage.getItem(P + 'p1.checkins') ?? 'null');
         return {
             history: plan?.history?.length ?? 0,
             archivedReason: plan?.history?.[0]?.reason ?? null,
@@ -99,7 +105,7 @@ test('el guion completo: estancamiento → oferta → recalibrar → historial',
             muscleSource: profile?.initial?.muscleSource ?? null,
             checkinsKept: checkins?.items?.length ?? 0
         };
-    });
+    }, P);
 
     expect(after.history).toBe(1);
     expect(after.archivedReason).toBe('recalibration');
@@ -122,15 +128,15 @@ test('rechazar mantiene el plan intacto y no vuelve a preguntar', async ({ page 
     await seedProfile(page, { weeksAgo: 9, checkinWeights: [75, 75, 75, 75, 75, 75, 75, 75] });
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    const before = await page.evaluate(() =>
-        JSON.parse(localStorage.getItem('tl.5.p1.plan') ?? 'null'));
+    const before = await page.evaluate((P) =>
+        JSON.parse(localStorage.getItem(P + 'p1.plan') ?? 'null'), P);
 
     await page.click('[data-decline]');
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
 
     // el plan no ha cambiado
-    const after = await page.evaluate(() =>
-        JSON.parse(localStorage.getItem('tl.5.p1.plan') ?? 'null'));
+    const after = await page.evaluate((P) =>
+        JSON.parse(localStorage.getItem(P + 'p1.plan') ?? 'null'), P);
     expect(after).toEqual(before);
 
     // y al recargar NO se vuelve a insistir con los mismos datos
@@ -193,8 +199,8 @@ test('borrar un check-in pide confirmación y lo elimina', async ({ page }) => {
     await page.click('[data-delete]');
     await page.click('[data-confirm-go]');
 
-    const remaining = await page.evaluate(() =>
-        JSON.parse(localStorage.getItem('tl.5.p1.checkins') ?? 'null')?.items?.length ?? -1);
+    const remaining = await page.evaluate((P) =>
+        JSON.parse(localStorage.getItem(P + 'p1.checkins') ?? 'null')?.items?.length ?? -1, P);
     expect(remaining).toBe(1);
 });
 

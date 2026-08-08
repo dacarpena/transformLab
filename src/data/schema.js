@@ -16,7 +16,9 @@
  *   Aquí el texto se guarda como texto literal.
  */
 
-export const SCHEMA_VERSION = 5;
+export { SCHEMA_VERSION } from './version.js';
+import { SCHEMA_VERSION } from './version.js';
+import { migrateValue } from './migrations.js';
 
 /**
  * @typedef {{ code: string, path: string, params?: Record<string, string | number> }} SchemaIssue
@@ -469,6 +471,91 @@ export const validateSettings = rootValidator({
 });
 
 // ============================================================
+// Colecciones de la v2 (registradas en V2-M0, pobladas por su milestone)
+// ============================================================
+//
+// Se registran VACÍAS y desde el primer día por una razón concreta: en cuanto
+// una colección está en `COLLECTIONS`, queda cubierta SOLA por la siembra de
+// perfil (`profiles.js`), el export/import de backups (que itera las claves de
+// COLLECTIONS), el presupuesto de cuota y el namespace del almacén. Registrarlas
+// después obligaría a otra migración; registrarlas ahora es gratis.
+//
+// Cada milestone AMPLÍA la suya con los campos que necesite: añadir campos
+// `opt()` es compatible hacia atrás y no exige subir el esquema.
+
+/** Ingesta diaria registrada; alimenta el gasto adaptativo (V2-M1). */
+export const validateIntakeLog = rootValidator({
+    items: arrayOf(objectOf({
+        dateISO: isoDate,
+        kcal: num({ min: 0, max: 20000 }),
+        proteinG: opt(num({ min: 0, max: 2000 })),
+        carbsG: opt(num({ min: 0, max: 2000 })),
+        fatG: opt(num({ min: 0, max: 2000 }))
+    }), { maxItems: 3000 })
+});
+
+/** Preferencias del onboarding profundo: dieta, restricciones, equipo (V2-M10). */
+export const validatePreferences = rootValidator({
+    // Restricciones DURAS (alergias) frente a BLANDAS (desagrados): la
+    // distinción es lo que permite que el solver del menú tenga solución.
+    hardExclusions: arrayOf(str({ maxLength: 60 }), { maxItems: 100 }),
+    softExclusions: arrayOf(str({ maxLength: 60 }), { maxItems: 200 }),
+    dietType: opt(str({ maxLength: 40 })),
+    mealsPerDay: opt(num({ min: 1, max: 10, integer: true })),
+    householdSize: opt(num({ min: 1, max: 20, integer: true })),
+    controlLevel: opt(str({ maxLength: 20 }))
+});
+
+/** Lo que ya hay en casa; se descuenta de la lista de la compra (V2-M4). */
+export const validatePantry = rootValidator({
+    items: arrayOf(objectOf({
+        id: str({ maxLength: 80 }),
+        name: str({ maxLength: 120 }),
+        quantity: num({ min: 0, max: 100000 }),
+        unit: str({ maxLength: 20 }),
+        expiresISO: opt(isoDate)
+    }), { maxItems: 500 })
+});
+
+/** Recetas propias del usuario (V2-M2). */
+export const validateRecipes = rootValidator({
+    items: arrayOf(objectOf({
+        id: str({ maxLength: 80 }),
+        name: str({ maxLength: 120 }),
+        servings: num({ min: 1, max: 50 }),
+        ingredients: arrayOf(objectOf({
+            name: str({ maxLength: 120 }),
+            quantity: num({ min: 0, max: 100000 }),
+            unit: str({ maxLength: 20 })
+        }), { maxItems: 60 }),
+        notes: opt(str({ maxLength: 2000 }))
+    }), { maxItems: 300 })
+});
+
+/** Elecciones del usuario sobre suplementos; el stack se deriva (V2-M5). */
+export const validateSupplementsPlan = rootValidator({
+    excluded: arrayOf(str({ maxLength: 60 }), { maxItems: 100 }),
+    chosen: arrayOf(str({ maxLength: 60 }), { maxItems: 100 })
+});
+
+/** Volumen semanal por grupo muscular, medido (V2-M6). */
+export const validateVolumeLog = rootValidator({
+    items: arrayOf(objectOf({
+        weekStartISO: isoDate,
+        muscleGroup: str({ maxLength: 40 }),
+        sets: num({ min: 0, max: 200 })
+    }), { maxItems: 3000 })
+});
+
+/** Pasos diarios; covariable del gasto medido (V2-M7). */
+export const validateSteps = rootValidator({
+    items: arrayOf(objectOf({
+        dateISO: isoDate,
+        steps: num({ min: 0, max: 200000, integer: true })
+    }), { maxItems: 3000 })
+});
+
+// ============================================================
 // Registro de colecciones y valores por defecto
 // ============================================================
 
@@ -524,6 +611,44 @@ export const COLLECTIONS = Object.freeze({
             fluctuationVisible: false,
             reminder: null
         })
+    }),
+
+    // --- Colecciones de la v2 (V2-M0) ---
+    intakeLog: Object.freeze({
+        validate: validateIntakeLog,
+        makeDefault: () => ({ schemaVersion: SCHEMA_VERSION, items: [] })
+    }),
+    preferences: Object.freeze({
+        validate: validatePreferences,
+        makeDefault: () => ({
+            schemaVersion: SCHEMA_VERSION,
+            hardExclusions: [],
+            softExclusions: [],
+            dietType: null,
+            mealsPerDay: null,
+            householdSize: null,
+            controlLevel: null
+        })
+    }),
+    pantry: Object.freeze({
+        validate: validatePantry,
+        makeDefault: () => ({ schemaVersion: SCHEMA_VERSION, items: [] })
+    }),
+    recipes: Object.freeze({
+        validate: validateRecipes,
+        makeDefault: () => ({ schemaVersion: SCHEMA_VERSION, items: [] })
+    }),
+    supplementsPlan: Object.freeze({
+        validate: validateSupplementsPlan,
+        makeDefault: () => ({ schemaVersion: SCHEMA_VERSION, excluded: [], chosen: [] })
+    }),
+    volumeLog: Object.freeze({
+        validate: validateVolumeLog,
+        makeDefault: () => ({ schemaVersion: SCHEMA_VERSION, items: [] })
+    }),
+    steps: Object.freeze({
+        validate: validateSteps,
+        makeDefault: () => ({ schemaVersion: SCHEMA_VERSION, items: [] })
     })
 });
 
@@ -547,5 +672,18 @@ export function makeDefault(collection) {
 export function validateCollection(collection, value) {
     const spec = Object.hasOwn(COLLECTIONS, String(collection)) ? COLLECTIONS[String(collection)] : undefined;
     if (!spec) return { ok: false, errors: [{ code: 'schema.unknownCollection', path: String(collection) }] };
+
+    // RED DE SEGURIDAD DE VERSIÓN (V2-M0). Un valor de una versión anterior se
+    // migra EN MEMORIA antes de validarse, así que cualquier lectura funciona
+    // desde el primer instante — incluso antes de que `migrations.migrateStore`
+    // haya corrido, o si nunca corre. Sin esto, `rootValidator` rechazaba por
+    // `schemaVersion !== 5` y la colección degradaba a vacía: pérdida
+    // silenciosa, reproducida antes de escribir esto.
+    //
+    // Si la migración no es aplicable (no es objeto, falta la versión, viene
+    // del futuro) se pasa el valor ORIGINAL al validador, para que produzca sus
+    // códigos de error precisos en vez de uno genérico de migración.
+    const upgraded = migrateValue(String(collection), value);
+    if (upgraded.ok) return spec.validate(upgraded.value);
     return spec.validate(value);
 }

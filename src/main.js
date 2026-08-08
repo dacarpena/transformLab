@@ -12,6 +12,7 @@
 import * as storage from './data/storage.js';
 import * as profiles from './data/profiles.js';
 import * as migrate from './data/migrate.js';
+import * as migrations from './data/migrations.js';
 import { validateCollection } from './data/schema.js';
 import { t, setLocale, getLocale } from './i18n/i18n.js';
 import { html, render } from './ui/dom.js';
@@ -237,6 +238,28 @@ async function boot() {
     } catch (err) {
         console.error('[main] no se pudo pintar el armazón', err);
         return;
+    }
+
+    // 0 · migración de ESQUEMA (v5 → v6), y va la primera de todas.
+    //
+    // El namespace del almacén incluye la versión (`tl.6.p1.checkins`), así que
+    // para un usuario que venga de la v1 TODAS sus claves están bajo `tl.5.` y
+    // son invisibles hasta que se copian. Si esto corriera después de leer el
+    // índice de perfiles, la aplicación vería cero perfiles, arrancaría el
+    // onboarding y el usuario SOBRESCRIBIRÍA sus propios datos — reproducido
+    // antes de escribirlo. Copia, nunca mueve, y con copia de seguridad previa.
+    const schemaMigration = migrations.migrateStore({ nowISO: new Date().toISOString() });
+    if (!schemaMigration.ok) {
+        console.error('[main] migración de esquema fallida:', schemaMigration.error);
+        // No se sigue: arrancar sobre un almacén a medio migrar es justo cómo
+        // se pierden datos. Se ofrece recargar, nunca borrar (ficha H-013).
+        render(roots.viewRoot, errorState({ titleKey: 'error.viewTitle', bodyKey: 'error.viewBody' }));
+        wireReload(roots.viewRoot);
+        return;
+    }
+    if (schemaMigration.value.migrated) {
+        console.info(`[main] esquema migrado de v${schemaMigration.value.from}: ` +
+            `${schemaMigration.value.keysMigrated} claves`);
     }
 
     // 1 · perfiles: el namespace del almacén depende del perfil activo, así

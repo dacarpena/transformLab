@@ -12,6 +12,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as storage from '../src/data/storage.js';
+import { rootPrefix, SCHEMA_VERSION } from '../src/data/version.js';
 import * as nutrition from '../src/data/nutrition.js';
 
 /** @type {import('./helpers/local-storage-mock.js').LocalStorageMock} */ let mock;
@@ -95,7 +96,7 @@ test('borrar algo que no existe falla explícitamente', () => {
 });
 
 test('un almacén corrupto degrada a lista vacía', () => {
-    mock.setItem('tl.5.p1.nutrition', '{"schemaVersion":5,"mealTemplates":"no soy un array"}');
+    mock.setItem(`${rootPrefix()}p1.nutrition`, `{"schemaVersion":${SCHEMA_VERSION},"mealTemplates":"no soy un array"}`);
     assert.deepEqual(nutrition.listTemplates(), []);
 });
 

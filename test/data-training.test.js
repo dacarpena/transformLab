@@ -13,6 +13,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as storage from '../src/data/storage.js';
+import { rootPrefix, SCHEMA_VERSION } from '../src/data/version.js';
 import * as training from '../src/data/training.js';
 
 /** @type {import('./helpers/local-storage-mock.js').LocalStorageMock} */ let mock;
@@ -114,7 +115,7 @@ test('lo que no pasa el esquema NO se escribe, y lo anterior sobrevive', () => {
 });
 
 test('un almacén corrupto degrada a vacío en vez de reventar la vista', () => {
-    mock.setItem('tl.5.p1.training', '{"schemaVersion":5,"routine":"no soy un objeto"}');
+    mock.setItem(`${rootPrefix()}p1.training`, `{"schemaVersion":${SCHEMA_VERSION},"routine":"no soy un objeto"}`);
     assert.deepEqual(training.read(), { routine: null, sessions: [] });
 });
 

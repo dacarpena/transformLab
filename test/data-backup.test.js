@@ -128,7 +128,7 @@ test('contaminación de prototipo en el fichero importado no toca Object.prototy
         exportedAtISO: NOW,
         profiles: [{
             id: 'p1', name: 'Hostil', createdAtISO: NOW,
-            collections: JSON.parse('{"__proto__":{"pwned":true},"checkins":{"schemaVersion":5,"items":[]}}')
+            collections: JSON.parse(`{"__proto__":{"pwned":true},"checkins":{"schemaVersion":${SCHEMA_VERSION},"items":[]}}`)
         }]
     });
     const inspected = backup.inspect(hostil);
@@ -148,9 +148,9 @@ test('las colecciones desconocidas o corruptas se DESCARTAN con aviso, no rompen
         profiles: [{
             id: 'p1', name: 'Mixto', createdAtISO: NOW,
             collections: {
-                checkins: { schemaVersion: 5, items: [] },
+                checkins: { schemaVersion: SCHEMA_VERSION, items: [] },
                 coleccionInventada: { hola: 1 },
-                settings: { schemaVersion: 5, locale: 'klingon', activeMeasures: [], fluctuationVisible: false, reminder: null }
+                settings: { schemaVersion: SCHEMA_VERSION, locale: 'klingon', activeMeasures: [], fluctuationVisible: false, reminder: null }
             }
         }]
     });
@@ -168,9 +168,9 @@ test('ficheros inválidos se rechazan con error tipado, sin lanzar', () => {
         ['no es json', 'backup.notJson'],
         ['[]', 'backup.notObject'],
         ['null', 'backup.notObject'],
-        [JSON.stringify({ formatVersion: 99, schemaVersion: 5, profiles: [] }), 'backup.formatUnsupported'],
+        [JSON.stringify({ formatVersion: 99, schemaVersion: SCHEMA_VERSION, profiles: [] }), 'backup.formatUnsupported'],
         [JSON.stringify({ formatVersion: 1, schemaVersion: 4, profiles: [] }), 'backup.schemaUnsupported'],
-        [JSON.stringify({ formatVersion: 1, schemaVersion: 5, profiles: [] }), 'backup.noProfiles'],
+        [JSON.stringify({ formatVersion: 1, schemaVersion: SCHEMA_VERSION, profiles: [] }), 'backup.noProfiles'],
         [42, 'backup.notText'],
         [null, 'backup.notText']
     ])) {

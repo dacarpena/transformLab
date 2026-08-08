@@ -16,6 +16,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as storage from '../src/data/storage.js';
+import { rootPrefix, SCHEMA_VERSION } from '../src/data/version.js';
 
 /** @type {*} */ let checkins;
 /** @type {import('./helpers/local-storage-mock.js').LocalStorageMock} */ let mock;
@@ -96,14 +97,14 @@ test('la caché NO cruza perfiles: cada uno ve los suyos', () => {
 });
 
 test('un almacén corrupto NO se cachea: se puede arreglar sin recargar', () => {
-    mock.setItem('tl.5.p1.checkins', '{"schemaVersion":5,"items":"no soy un array"}');
+    mock.setItem(`${rootPrefix()}p1.checkins`, `{"schemaVersion":${SCHEMA_VERSION},"items":"no soy un array"}`);
     assert.deepEqual(checkins.list(), [], 'no degradó a lista vacía');
     assert.deepEqual(checkins.list(), [], 'la segunda lectura tampoco');
 
     // Reparar el almacén (importar un backup) tiene que verse sin recargar: si
     // el fallo se hubiera cacheado, el usuario restauraría sus datos y seguiría
     // viendo la pantalla vacía.
-    storage.set('checkins', { schemaVersion: 5, items: [
+    storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [
         { id: 'ci_2026-07-07', dateISO: '2026-07-07', weightKg: 77, fatPct: null, scaleMuscleKg: null,
             boneKg: null, measuresCm: {}, subjective: {}, notes: '',
             createdAtISO: '2026-07-07T08:00:00.000Z', editedAtISO: null }
@@ -119,7 +120,7 @@ test('la caché caduca con las escrituras de OTROS módulos, no solo las suyas',
     seed(2);
     assert.equal(checkins.list().length, 2, 'precondición: la caché está caliente');
 
-    storage.set('checkins', { schemaVersion: 5, items: [] });   // como un import
+    storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [] });   // como un import
     assert.deepEqual(checkins.list(), [], 'la caché sobrevivió a una escritura ajena');
     assert.equal(checkins.findByDate('2026-01-01'), null, 'y el índice por fecha también');
 });
@@ -140,7 +141,7 @@ test('RENDIMIENTO: el patrón de las vistas no puede volver a ser cuadrático', 
         measuresCm: {}, subjective: {}, notes: '',
         createdAtISO: '2026-01-01T00:00:00.000Z', editedAtISO: null
     }));
-    assert.ok(storage.set('checkins', { schemaVersion: 5, items }).ok);
+    assert.ok(storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items }).ok);
 
     const fechas = checkins.list().map((/** @type {*} */ c) => c.dateISO);
     assert.equal(fechas.length, N, 'la siembra no cuadra con el esquema');

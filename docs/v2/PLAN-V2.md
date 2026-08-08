@@ -163,7 +163,7 @@ siempre en las costuras que los invariantes no ven).
 
 | # | Título | Entrega | Depende de |
 |---|---|---|---|
-| **V2-M0** | Datos y versionado | Fuente única de `SCHEMA_VERSION`, migrador por-colección v5→v6, compat. en backup, andamiaje de IndexedDB. **Cero pérdida de datos al subir a v6.** | — |
+| **V2-M0** ✅ | Datos y versionado | Fuente única de `SCHEMA_VERSION`, migrador por-colección v5→v6, compat. en backup, andamiaje de IndexedDB. **Cero pérdida de datos al subir a v6.** | — |
 | **V2-M1** | Gasto adaptativo + registro de ingesta | `expenditure.js`, colección `intakeLog`, oferta de recalibrar calorías desde el gasto medido | M0 |
 | **V2-M2** | Alimentos y recetas (BD local) | `foods-db.js` (IndexedDB), `foods.js` (buscador puro), CRUD de recetas y despensa | M0 |
 | **V2-M3** | Menú que cuadra macros | `menu.js` (solver determinista contra bandas, duras/blandas) | M2 (+M1) |
@@ -255,6 +255,38 @@ ejecutando, y ya repartido por los milestones:
 
 Ya arreglado de la lista: el duplicado de iCloud que ponía `npm test` en rojo
 (`test/helpers/tree.js`, filtro en los seis recorridos del árbol).
+
+## Bitácora de la v2
+
+**V2-M0 cerrada (2026-08-08).** El esquema sube a 6 con cero pérdida de datos.
+`SCHEMA_VERSION` vive ahora en `src/data/version.js`, en un solo sitio, con test
+que lo vigila. `src/data/migrations.js` migra en dos capas: en memoria
+(`migrateValue`, pura, la llama `validateCollection` para que cualquier lectura
+funcione aunque el almacén no se haya migrado) y en el almacén (`migrateStore`,
+una vez al arrancar, con copia de seguridad previa y **sin borrar nunca** el
+origen). Registradas las siete colecciones de la v2, `getForProfile` para leer
+otro perfil sin cambiar el activo, `foods-db.js` andamiado, y los backups de v5
+ya se importan en vez de rechazarse.
+
+**Dos defectos que solo aparecieron al abrirlo en el navegador**, con todos los
+tests en verde:
+
+1. **El índice de perfiles se quedaba en la versión vieja.** No es una colección
+   de `COLLECTIONS`, así que lo copiaba tal cual — pero sí lleva `schemaVersion`
+   y `validateProfilesIndex` lo exige. Resultado: todos los datos migrados
+   correctamente, `readIndex()` devolviendo `profiles.indexCorrupt`, y la
+   aplicación pintando un estado de error. Ningún test unitario lo tocaba porque
+   el fixture del índice no llevaba `schemaVersion`.
+2. **La migración se repetía en cada arranque.** Como no borra el origen,
+   `needsMigration()` decía «sí» siempre: cada carga rehacía el bucle y
+   **reescribía la copia de seguridad**, machacando la del día de la migración
+   real. Cerrado con un testigo `tl.migrationDone.v5`.
+
+Los tests de la v1 que fijaban el `5` a mano se reescribieron contra
+`rootPrefix()` y `SCHEMA_VERSION`, así que el próximo bump no volverá a
+romperlos. **473 unitarios · 82 E2E · typecheck limpio.** Verificado en
+navegador con un usuario v1 completo: aterriza en su dashboard («Día 99 de 208»)
+con sus cuatro check-ins y sus ajustes intactos.
 
 ## 10. Cómo se trabaja la v2
 

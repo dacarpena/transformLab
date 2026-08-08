@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as storage from '../src/data/storage.js';
+import { rootPrefix } from '../src/data/version.js';
 import * as profiles from '../src/data/profiles.js';
 import * as migrate from '../src/data/migrate.js';
 import * as backup from '../src/data/backup.js';
@@ -45,7 +46,7 @@ test('borrar el ÚLTIMO perfil resincroniza el namespace: nada se escribe en el 
 
     assert.notEqual(storage.getActiveProfile(), 'p1', 'el namespace sigue apuntando al perfil borrado');
     storage.set('loQueSea', { x: 1 });
-    assert.equal(mock.getItem('tl.5.p1.loQueSea'), null, 'se resucitó una clave en el namespace borrado');
+    assert.equal(mock.getItem(`${rootPrefix()}p1.loQueSea`), null, 'se resucitó una clave en el namespace borrado');
 });
 
 test('el perfil creado tras borrar NO hereda los datos personales del anterior', () => {
@@ -145,7 +146,7 @@ test('storage.set rechaza valores no serializables en vez de escribir "undefined
         const r = storage.set('x', value);
         assert.equal(r.ok, false, `aceptó ${String(value)}`);
         assert.ok(!r.ok && r.error === 'storage.notSerializable');
-        assert.equal(mock.getItem('tl.5.p1.x'), null, 'escribió pese a rechazar');
+        assert.equal(mock.getItem(`${rootPrefix()}p1.x`), null, 'escribió pese a rechazar');
     }
     // y la variante grave: dejar el índice de perfiles ilegible
     assert.equal(storage.setGlobal('profiles', undefined).ok, false);
@@ -179,9 +180,9 @@ test('lo que inspect() acepta, apply() lo aplica: mismo criterio de fecha', () =
         schemaVersion: SCHEMA_VERSION,
         exportedAtISO: NOW,
         profiles: [
-            { id: 'a', name: 'Uno', createdAtISO: NOW, collections: { checkins: { schemaVersion: 5, items: [] } } },
-            { id: 'b', name: 'Dos', createdAtISO: '2026-01-01', collections: { checkins: { schemaVersion: 5, items: [] } } },
-            { id: 'c', name: 'Tres', createdAtISO: 'Jan 5, 2026', collections: { checkins: { schemaVersion: 5, items: [] } } }
+            { id: 'a', name: 'Uno', createdAtISO: NOW, collections: { checkins: { schemaVersion: SCHEMA_VERSION, items: [] } } },
+            { id: 'b', name: 'Dos', createdAtISO: '2026-01-01', collections: { checkins: { schemaVersion: SCHEMA_VERSION, items: [] } } },
+            { id: 'c', name: 'Tres', createdAtISO: 'Jan 5, 2026', collections: { checkins: { schemaVersion: SCHEMA_VERSION, items: [] } } }
         ]
     });
     const inspected = backup.inspect(file);
@@ -201,7 +202,7 @@ test('si apply() falla a mitad, informa de lo que YA escribió', () => {
         schemaVersion: SCHEMA_VERSION,
         exportedAtISO: NOW,
         profiles: ['A', 'B', 'C'].map((n, i) => ({
-            id: `x${i}`, name: n, createdAtISO: NOW, collections: { checkins: { schemaVersion: 5, items: [] } }
+            id: `x${i}`, name: n, createdAtISO: NOW, collections: { checkins: { schemaVersion: SCHEMA_VERSION, items: [] } }
         }))
     });
     const inspected = backup.inspect(file);
@@ -214,7 +215,7 @@ test('si apply() falla a mitad, informa de lo que YA escribió', () => {
 
 test('apply() restaura el perfil activo TAMBIÉN en el índice persistido', () => {
     profiles.create('Mío', { createdAtISO: NOW });
-    storage.set('settings', { schemaVersion: 5, locale: 'es', activeMeasures: ['waist'], fluctuationVisible: false, reminder: null });
+    storage.set('settings', { schemaVersion: SCHEMA_VERSION, locale: 'es', activeMeasures: ['waist'], fluctuationVisible: false, reminder: null });
 
     const file = JSON.stringify({
         formatVersion: backup.BACKUP_FORMAT_VERSION,
@@ -222,7 +223,7 @@ test('apply() restaura el perfil activo TAMBIÉN en el índice persistido', () =
         exportedAtISO: NOW,
         profiles: [{
             id: 'x', name: 'Ajeno', createdAtISO: NOW,
-            collections: { settings: { schemaVersion: 5, locale: 'en', activeMeasures: [], fluctuationVisible: true, reminder: null } }
+            collections: { settings: { schemaVersion: SCHEMA_VERSION, locale: 'en', activeMeasures: [], fluctuationVisible: true, reminder: null } }
         }]
     });
     const inspected = backup.inspect(file);
@@ -246,7 +247,7 @@ test('apply() NO fabrica un perfil corporal que nadie introdujo', () => {
         formatVersion: backup.BACKUP_FORMAT_VERSION,
         schemaVersion: SCHEMA_VERSION,
         exportedAtISO: NOW,
-        profiles: [{ id: 'y', name: 'SinPerfil', createdAtISO: NOW, collections: { checkins: { schemaVersion: 5, items: [] } } }]
+        profiles: [{ id: 'y', name: 'SinPerfil', createdAtISO: NOW, collections: { checkins: { schemaVersion: SCHEMA_VERSION, items: [] } } }]
     });
     const inspected = backup.inspect(file);
     assert.ok(inspected.ok);
