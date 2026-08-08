@@ -937,4 +937,11 @@ export const es = {
     'series.est_muscle_core': 'Músculo del core',
     'series.meas_tonnage': 'Tonelaje movido',
     'series.est_e1rm': '1RM estimado',
+
+    'series.reason.noScale': 'Solo con báscula de bioimpedancia',
+    'analysis.readout.point': '{date}: {series}, {value} {unit}.',
+    'analysis.readout.noValue': '{date}: {series} no tiene dato ese día.',
+    'analysis.readout.seriesChanged': 'Serie {index} de {total}: {series}. {provenance}. Unidad {unit}.',
+    'analysis.readout.empty': 'Elige al menos una serie para poder recorrer la gráfica.',
+    'series.reason.deltaNotRelative': 'Ya es un cambio: no tiene cambio porcentual',
 };

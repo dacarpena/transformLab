@@ -937,4 +937,11 @@ export const en = {
     'series.est_muscle_core': 'Core muscle',
     'series.meas_tonnage': 'Tonnage lifted',
     'series.est_e1rm': 'Estimated 1RM',
+
+    'series.reason.noScale': 'Only with a bioimpedance scale',
+    'analysis.readout.point': '{date}: {series}, {value} {unit}.',
+    'analysis.readout.noValue': '{date}: {series} has no value that day.',
+    'analysis.readout.seriesChanged': 'Series {index} of {total}: {series}. {provenance}. Unit {unit}.',
+    'analysis.readout.empty': 'Pick at least one series to move through the chart.',
+    'series.reason.deltaNotRelative': 'Already a change: it has no percentage change',
 };

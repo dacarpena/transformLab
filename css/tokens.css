@@ -48,6 +48,41 @@
     --color-phase-transition: #f0b350;
     --color-phase-maintenance: #4fd1c5;
 
+    /* ---- Series de la vista Analizar: CATEGÓRICAS, no semánticas (E13) ----
+
+       Cuatro colores para distinguir hasta cuatro series superpuestas. NO
+       codifican procedencia —eso lo hace el patrón de trazo—, solo el hueco que
+       ocupa cada serie. El doble canal es lo que hace legible la gráfica en
+       escala de grises y con daltonismo.
+
+       Medidos, no elegidos a ojo (`test/tokens-contrast.test.js` los vigila):
+
+         token               bg / surface / surface-2
+         --color-series-1    5,90 / 5,47 / 4,92
+         --color-series-2   13,21 / 12,24 / 11,01
+         --color-series-3   10,24 / 9,49 / 8,53
+         --color-series-4    7,23 / 6,70 / 6,03
+
+       · ΔE ≥ 40,1 entre CUALQUIER par, midiendo visión normal Y simulaciones de
+         protanopía, deuteranopía y tritanopía. El peor par es 2~4 bajo
+         deuteranopía. (La primera propuesta, elegida por buen gusto, bajaba a
+         ΔE 25,0 bajo deuteranopía: indistinguibles.)
+       · ΔE ≥ 32,1 frente a los cinco tokens que YA significan algo —text,
+         accent, success, warning, danger—. Sin esto, una serie del color del
+         acento se lee como «pulsable» y una verde como «va bien».
+       · Separación de tono ≥ 60°: cuatro familias que una persona nombraría
+         distinto (azul, lima, rosa, terracota), no cuatro variantes de dos.
+
+       HALLAZGO HONESTO: 32,1 es el MÁXIMO alcanzable, no una cifra cómoda. Solo
+       cuatro cuartetos del espacio de búsqueda lo consiguen, y por encima de 34
+       no existe ninguno: la paleta semántica ya ocupa casi todo el círculo de
+       tono usable sobre fondo oscuro. Por eso el color NUNCA carga con el
+       significado en esta gráfica: solo desempata entre series. */
+    --color-series-1: #6788e9;
+    --color-series-2: #a6e64c;
+    --color-series-3: #e6a8d1;
+    --color-series-4: #c7916b;
+
     /* NOTA PARA LA PRÓXIMA AUDITORÍA (M7-8). Cinco de estos tokens no los usa
        hoy nadie: --font-mono, --weight-regular, --space-12, --shadow-sm y
        --breakpoint-desktop. Se quedan a propósito. Los cuatro primeros son

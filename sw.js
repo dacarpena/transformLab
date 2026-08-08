@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0072';
+const CACHE_VERSION = 'tl-v5-0073';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -107,6 +107,7 @@ const PRECACHE = [
     'src/ui/plan-summary.js',
     'src/ui/muscle-units.js',
     'src/ui/plan-chart.js',
+    'src/ui/series-style.js',
     'src/ui/plan-state.js',
     'src/ui/pwa.js',
     'src/ui/reminder.js',

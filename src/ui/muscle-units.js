@@ -110,3 +110,62 @@ export function muscleUnitsFor(initial) {
 export function muscleUnitsOf(bundle) {
     return muscleUnitsFor(bundle?.profile?.initial);
 }
+
+/**
+ * La ADUANA de las series (E13-3): el ÚNICO sitio donde una serie cambia de
+ * unidad de músculo.
+ *
+ * Qué hace y qué NO hace, que es lo importante:
+ *
+ * - **Traduce `kgMuscleSkeletal` → `kgMuscleScale`** cuando el perfil es de
+ *   báscula, porque entonces el usuario piensa en las cifras de su báscula y el
+ *   eje ya está en esa unidad. Es la única serie marcada `muscleUnitAware`.
+ * - **No toca el músculo por GRUPO.** Un grupo suelto no tiene equivalente en la
+ *   escala de una báscula doméstica, y no convertir es más honesto que convertir
+ *   mal (mismo criterio que la rejilla de V2-M9).
+ * - **No toca lo medido.** `meas_scale_muscle` YA viene en unidad de báscula: es
+ *   lo que el usuario copió de su aparato. Traducirlo sería traducir dos veces.
+ * - **Declara indisponible el músculo de báscula si el perfil no lo es.** Sin
+ *   báscula no existe esa cifra, y ofrecer una serie que nunca tendrá datos es
+ *   prometer algo que no va a pasar. Es el mismo filtro que `chart.js` aplica
+ *   hoy a los check-ins de músculo.
+ *
+ * Se traducen NIVELES absolutos. Los INCREMENTOS son iguales en las dos unidades
+ * (el desfase es constante) y no se tocan — por eso el modo «cambio desde el
+ * inicio» no necesita pasar por aquí.
+ *
+ * @param {import('../core/series-catalog.js').ResolvedSeries[]} resolved
+ * @param {MuscleUnits} units
+ * @returns {import('../core/series-catalog.js').ResolvedSeries[]}
+ */
+export function translateSeries(resolved, units) {
+    if (!Array.isArray(resolved)) return [];
+    return resolved.map((r) => {
+        if (!r?.spec) return r;
+
+        if (r.spec.unit === 'kgMuscleScale' && !units.isScale) {
+            return { ...r, points: [], band: null, extent: null, reason: 'series.reason.noScale' };
+        }
+        if (!r.spec.muscleUnitAware || !units.isScale) return r;
+
+        const points = r.points.map((p) => ({ x: p.x, y: units.toDisplay(p.y) }));
+        const band = r.band ? {
+            pessimist: r.band.pessimist.map((p) => ({ x: p.x, y: units.toDisplay(p.y) })),
+            optimist: r.band.optimist.map((p) => ({ x: p.x, y: units.toDisplay(p.y) }))
+        } : null;
+        let extent = null;
+        if (points.length > 0) {
+            let min = Infinity;
+            let max = -Infinity;
+            for (const p of points) {
+                if (p.y < min) min = p.y;
+                if (p.y > max) max = p.y;
+            }
+            extent = { min, max };
+        }
+        // La unidad cambia CON los datos, en el mismo sitio: así el planificador
+        // de ejes ve `kgMuscleScale` y puede juntar esta serie con la medida,
+        // que es exactamente lo que el usuario quiere comparar.
+        return { ...r, unit: /** @type {*} */ ('kgMuscleScale'), points, band, extent };
+    });
+}

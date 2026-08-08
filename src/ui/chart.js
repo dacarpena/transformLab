@@ -21,6 +21,8 @@ import { t } from '../i18n/i18n.js';
 import { muscleUnitsFor } from './muscle-units.js';
 import { axisLabel, longDate } from './dates.js';
 import { num } from './format.js';
+import { UNITS } from '../core/series-catalog.js';
+import { planAxes, axisIdFor, styleFor, rebase, MAX_SERIES } from './series-style.js';
 
 /** @typedef {import('../core/generator.js').Projection} Projection */
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
@@ -49,6 +51,33 @@ import { num } from './format.js';
  * @property {number} [maxTicks]
  * @property {number} [clickDatasetIndex] dataset cuyos puntos abren ficha; -1 = ninguno
  * @property {(index: number) => void} [onPointClick]
+ *
+ * @typedef {Object} RenderedSeries
+ * @property {string} id
+ * @property {number} slot 0..3, y por tanto qué color le tocó
+ * @property {number} pointCount cuántos puntos ENTRARON en el lienzo
+ * @property {string} axis 'y' o 'y2'
+ * @property {import('../core/series-catalog.js').UnitId} unit
+ * @property {import('../core/series-catalog.js').Provenance} provenance
+ * @property {string|null} reason clave i18n si quedó vacía, o null
+ *
+ * @typedef {Object} DrawManifest
+ * @property {boolean} ok
+ * @property {RenderedSeries[]} rendered lo que se dibujó DE VERDAD
+ * @property {Array<{ id: string, unit: string, position: string, series: number[] }>} axes
+ * @property {'ok'|'empty'|'tooManyUnits'|'noChart'} status
+ * @property {number|null} baselineX día desde el que se mide el cambio, o null
+ *
+ * @typedef {Object} DrawMultiOptions
+ * @property {HTMLCanvasElement} canvas
+ * @property {Readout} [readout]
+ * @property {Projection} projection
+ * @property {import('../core/series-catalog.js').ResolvedSeries[]} series 1..4, YA
+ *   pasadas por la aduana de músculo
+ * @property {number} todayIndex
+ * @property {{ from: number, to: number }} range
+ * @property {'raw'|'delta'} [normalize]
+ * @property {number} [maxTicks]
  */
 
 /** @returns {*} el global Chart, o null si el vendor no cargó */
@@ -300,10 +329,14 @@ export function seriesAnchors(projection, grain) {
 /**
  * @typedef {Object} ChartInstance
  * @property {(options: *) => boolean} draw
+ * @property {(options: DrawMultiOptions) => DrawManifest} drawMulti
  * @property {(options: DrawSeriesOptions) => boolean} drawSeries
  * @property {() => void} destroy
  * @property {(from: number, to: number) => boolean} setWindow
  * @property {(readout: Readout, projection: Projection, index: number) => void} announce
+ * @property {(readout: Readout, projection: Projection, index: number) => void} announceMulti
+ * @property {(readout: Readout, projection: Projection, delta: number) => boolean} focusSeries
+ * @property {() => number} activeSeriesIndex
  * @property {() => number} cursorIndex
  * @property {(readout: Readout, projection: Projection, index: number, range: {from: number, to: number}) => void} focusDay
  * @property {(options: *) => boolean} handleKey
@@ -359,6 +392,23 @@ export function createChart() {
     let announceMetric = 'weight';
 
     /**
+     * En qué modo se dibujó: una métrica del plan, o series del catálogo.
+     * Lo mismo que `announceMetric` pero un escalón arriba — el recorrido con
+     * teclado tiene que recitar lo que hay en el lienzo, no lo que había antes.
+     * @type {'metric'|'multi'}
+     */
+    let announceMode = 'metric';
+
+    /** Las series del último `drawMulti`, para poder anunciarlas. @type {import('../core/series-catalog.js').ResolvedSeries[]} */
+    let multiSeries = [];
+
+    /** Si el lienzo muestra valores reales o el cambio desde el inicio. @type {'raw'|'delta'} */
+    let multiNormalize = 'raw';
+
+    /** Cuál de las series recorre el teclado (flechas arriba/abajo). */
+    let activeSeries = 0;
+
+    /**
      * Mata SOLO la instancia de Chart.js, sin tocar el estado de anuncio.
      *
      * Existe separado de `destroy()` porque `drawSeries` tiene que limpiar la
@@ -387,6 +437,10 @@ export function createChart() {
         // La métrica de anuncio, por lo mismo.
         cursor = 0;
         announceMetric = 'weight';
+        announceMode = 'metric';
+        multiSeries = [];
+        multiNormalize = 'raw';
+        activeSeries = 0;
     }
 
 /**
@@ -409,9 +463,31 @@ export function createChart() {
         if (!x) return false;
         x.min = from;
         x.max = to;
+        // En modo relativo, mover la ventana MUEVE EL ORIGEN: el cambio se mide
+        // desde el primer día visible, así que hay que recalcular las Y. Son
+        // como mucho cuatro series × mil puntos de división, décimas de ms — y
+        // sobre todo NO se reconstruye la instancia, así que la gráfica sigue
+        // siendo la misma y el contrato de «la misma instancia tras veinte
+        // cambios de ventana» se mantiene.
+        if (announceMode === 'multi' && multiNormalize === 'delta') rebaseDatasets(from);
         // 'none' es a la vez lo rápido y lo que respeta `prefers-reduced-motion`
         chartInstance.update('none');
         return true;
+    }
+
+    /**
+     * Recalcula las Y de los datasets con el origen puesto en `from`.
+     * @param {number} from
+     */
+    function rebaseDatasets(from) {
+        const datasets = chartInstance?.data?.datasets;
+        if (!Array.isArray(datasets)) return;
+        multiSeries.forEach((serie, slot) => {
+            const dataset = datasets[slot];
+            if (!dataset) return;
+            const r = rebase(serie.points, from);
+            dataset.data = r && r.points ? r.points.map((p) => ({ x: p.x, y: p.y })) : [];
+        });
     }
 
 /**
@@ -614,6 +690,195 @@ export function createChart() {
         cursor = Math.min(Math.max(options.todayIndex, range.from), range.to);
         announce(options.readout, projection, cursor);
         return true;
+    }
+
+/**
+     * Dibuja hasta cuatro series arbitrarias del catálogo.
+     *
+     * HERMANA de `draw()`, no su implementación: las dos construyen sus
+     * datasets y las dos delegan en `drawSeries`. Reexpresar `draw` sobre esta
+     * sería apostar a que produce el mismo array, y sus contratos de test son
+     * posicionales.
+     *
+     * **Devuelve un MANIFIESTO de lo que ha dibujado de verdad**, no un
+     * booleano. Es el arreglo estructural de la leyenda mentirosa: toda leyenda
+     * se renderiza desde `rendered`, así que no puede anunciar una serie que el
+     * lienzo no pintó. Con un booleano, la vista tendría que volver a decidir
+     * qué se dibujó — y eso es, literalmente, el segundo sitio calculando el
+     * mismo hecho.
+     *
+     * @param {DrawMultiOptions} options
+     * @returns {DrawManifest}
+     */
+    function drawMulti(options) {
+        /** @type {DrawManifest} */
+        const fallo = { ok: false, rendered: [], axes: [], status: 'noChart', baselineX: null };
+        const series = (options.series ?? []).slice(0, MAX_SERIES);
+        if (series.length === 0) return { ...fallo, status: 'empty' };
+        const relativo = options.normalize === 'delta';
+
+        // En modo relativo TODO está en porcentaje de cambio, así que hay una
+        // sola unidad y un solo eje: es lo que desbloquea comparar cuatro series
+        // cualesquiera. En modo de valores reales manda la unidad de cada una.
+        const plan = relativo
+            ? planAxes(series.map((s) => ({ ...s, unit: /** @type {*} */ ('pct') })))
+            : planAxes(series);
+        if (plan.status === 'tooManyUnits') {
+            // NO se dibuja, y se dice por qué. Meter tres unidades en dos ejes
+            // obliga a elegir cuál miente sobre su escala; normalizar en
+            // silencio cambiaría lo que significan los números sin pedirlo. La
+            // salida es el modo relativo, que el usuario enciende a propósito.
+            return { ...fallo, status: 'tooManyUnits', axes: [], rendered: [] };
+        }
+
+        const palette = [
+            cssVar('--color-series-1'), cssVar('--color-series-2'),
+            cssVar('--color-series-3'), cssVar('--color-series-4')
+        ];
+        const { projection, range } = options;
+
+        /** @type {*[]} */ const datasets = [];
+        /** @type {RenderedSeries[]} */ const rendered = [];
+        /** @type {number | null} */ let baselineX = null;
+
+        series.forEach((serie, slot) => {
+            const rebased = relativo ? rebase(serie.points, range.from) : null;
+            /** @type {string | null} */ let motivoRelativo = null;
+            /** @type {import('../core/series-catalog.js').SeriesPoint[]} */ let points;
+            if (!relativo) {
+                points = serie.points;
+            } else if (rebased && rebased.points) {
+                points = rebased.points;
+                if (baselineX === null) baselineX = rebased.baselineX;
+            } else {
+                // Una serie que ya es un delta no tiene cambio porcentual: se
+                // queda vacía CON motivo, no dibujada como un número absurdo.
+                points = [];
+                motivoRelativo = (rebased && 'reason' in rebased ? rebased.reason : null)
+                    ?? 'series.reason.outOfWindow';
+            }
+            const axisId = axisIdFor(plan, slot);
+
+            datasets.push({
+                label: t(serie.spec.labelKey),
+                data: points.map((p) => ({ x: p.x, y: p.y })),
+                ...styleFor(serie.spec.provenance, slot, palette, points.length),
+                ...(axisId ? { yAxisID: axisId } : {}),
+                order: slot
+            });
+            rendered.push({
+                id: serie.spec.id,
+                slot,
+                pointCount: points.length,
+                axis: axisId ?? 'y',
+                unit: relativo ? /** @type {*} */ ('pct') : serie.unit,
+                provenance: serie.spec.provenance,
+                reason: points.length === 0
+                    ? (motivoRelativo ?? serie.reason ?? 'series.reason.outOfWindow')
+                    : null
+            });
+        });
+
+        const ok = drawSeries({
+            canvas: options.canvas,
+            datasets,
+            range,
+            yAxes: plan.axes.map((a) => ({
+                id: a.id,
+                position: a.position,
+                // El cero solo se fuerza donde significa algo. Forzarlo en un
+                // peso corporal aplasta la serie contra el techo y esconde justo
+                // la variación que se quiere ver.
+                beginAtZero: options.normalize === 'delta' ? false : UNITS[a.unit]?.zeroMeaningful === true
+            })),
+            xTickLabel: (value, span) => {
+                const point = projection.daily[Math.round(value)];
+                return point ? axisLabel(point.dateISO, span) : '';
+            },
+            tooltipTitle: (items) => {
+                const point = projection.daily[Number(items[0]?.parsed?.x ?? 0)];
+                return point ? `${point.dateISO} · ${t('phase.' + point.phaseType)}` : '';
+            },
+            extraPlugins: [phaseBandsPlugin(projection), todayLinePlugin(() => options.todayIndex)],
+            maxTicks: options.maxTicks
+        });
+        if (!ok) return { ...fallo, rendered, axes: plan.axes };
+
+        announceMode = 'multi';
+        multiSeries = series;
+        multiNormalize = options.normalize === 'delta' ? 'delta' : 'raw';
+        activeSeries = 0;
+        cursor = Math.min(Math.max(options.todayIndex, range.from), range.to);
+        if (options.readout) announceMulti(options.readout, projection, cursor);
+
+        return { ok: true, rendered, axes: plan.axes, status: 'ok', baselineX };
+    }
+
+    /**
+     * Anuncia el punto bajo el cursor en modo multi-serie.
+     *
+     * SOLO la serie activa, no las cuatro. Recitar cuatro series completas en
+     * cada pulsación de flecha son dos docenas de palabras por tecla, que es
+     * inusable. Las otras tres viven en la leyenda, que es texto normal del DOM
+     * —no `aria-live`— y un lector la recorre cuando quiere.
+     *
+     * @param {Readout} readout
+     * @param {Projection} projection
+     * @param {number} index
+     */
+    function announceMulti(readout, projection, index) {
+        const point = projection.daily[index];
+        if (!point) return;
+        const serie = multiSeries[activeSeries];
+        if (!serie) {
+            readout.textContent = t('analysis.readout.empty');
+            return;
+        }
+        const nombre = t(serie.spec.labelKey);
+        const hit = serie.points.find((p) => p.x === index);
+        if (!hit) {
+            // Se dice que no hay dato ese día. NUNCA un cero: un cero es una
+            // afirmación sobre el cuerpo del usuario, y un hueco no lo es.
+            readout.textContent = t('analysis.readout.noValue', {
+                date: longDate(point.dateISO), series: nombre
+            });
+            return;
+        }
+        const unidad = UNITS[serie.unit];
+        readout.textContent = t('analysis.readout.point', {
+            date: longDate(point.dateISO),
+            series: nombre,
+            value: num(hit.y, unidad?.decimals ?? 1),
+            unit: t(unidad?.key ?? 'unit.kg')
+        });
+    }
+
+    /**
+     * Cambia de serie activa y anuncia su identidad completa.
+     * @param {Readout} readout
+     * @param {Projection} projection
+     * @param {number} delta +1 / −1
+     * @returns {boolean} false si no hay series que recorrer
+     */
+    function focusSeries(readout, projection, delta) {
+        if (multiSeries.length === 0) return false;
+        const total = multiSeries.length;
+        activeSeries = ((activeSeries + delta) % total + total) % total;
+        const serie = multiSeries[activeSeries];
+        const unidad = UNITS[serie.unit];
+        readout.textContent = t('analysis.readout.seriesChanged', {
+            index: activeSeries + 1,
+            total,
+            series: t(serie.spec.labelKey),
+            provenance: t(`series.provenance.${serie.spec.provenance}`),
+            unit: t(unidad?.key ?? 'unit.kg')
+        });
+        return true;
+    }
+
+    /** Qué serie recorre el teclado ahora mismo (0..3). Para los tests. */
+    function activeSeriesIndex() {
+        return activeSeries;
     }
 
 /**
@@ -820,6 +1085,16 @@ export function createChart() {
      */
     function handleKey(options) {
         const { key, range } = options;
+
+        // Arriba/abajo cambian de SERIE, no de fecha, y solo cuando hay series
+        // que recorrer. En el camino de una métrica `focusSeries` devuelve
+        // false, así que estas teclas se siguen devolviendo al navegador — que
+        // es lo que exige el contrato de `ui-chart.test.js`.
+        if (key === 'ArrowUp' || key === 'ArrowDown') {
+            if (announceMode !== 'multi') return false;
+            return focusSeries(options.readout, options.projection, key === 'ArrowUp' ? -1 : 1);
+        }
+
         const step = key === 'PageUp' || key === 'PageDown' ? 7 : 1;
         let next = cursor;
         if (key === 'ArrowRight' || key === 'PageUp') next = cursor + step;
@@ -827,9 +1102,10 @@ export function createChart() {
         else if (key === 'Home') next = range.from;
         else if (key === 'End') next = range.to;
         else return false;
-    
+
         cursor = Math.min(Math.max(next, range.from), range.to);
-        announce(options.readout, options.projection, cursor);
+        if (announceMode === 'multi') announceMulti(options.readout, options.projection, cursor);
+        else announce(options.readout, options.projection, cursor);
         return true;
     }
 
@@ -859,7 +1135,8 @@ export function createChart() {
         return out.toDataURL('image/png');
     }
 
-    return { draw, drawSeries, destroy, setWindow, announce, cursorIndex, focusDay, handleKey, toPng };
+    return { draw, drawMulti, drawSeries, destroy, setWindow, announce, announceMulti,
+        focusSeries, activeSeriesIndex, cursorIndex, focusDay, handleKey, toPng };
 }
 
 /** Estado de error de la gráfica: recarga, jamás borrado (H-013). */

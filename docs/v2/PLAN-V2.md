@@ -860,8 +860,8 @@ etiquetadas de estimación · legibilidad primero.
 - [x] **E13-0 · Los tres defectos de datos**
 - [x] **E13-1 · Catálogo de series puro + las 3 funciones que faltan**
 - [x] **E13-2 · `drawSeries` por extracción + invariante de hitos + precálculo de fases**
-- [ ] E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta
-- [ ] E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`
+- [x] **E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta**
+- [x] **E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`**
 - [ ] E13-5 · Vista «Analizar»: selector, leyenda y procedencia
 - [ ] E13-6 · Lectura accesible con N series, tabla y CSV
 - [ ] E13-7 · Gestos, tira de contexto y preset «custom»
@@ -1000,3 +1000,58 @@ suite completa y pasó tres aislado, que es la firma de una carrera. Ahora usa
 es peor que ninguno: enseña a ignorarlo, y este es el que vigila esta etapa.
 
 **767 unitarios · 156 E2E · typecheck limpio.**
+
+### E13-3/4 — cuatro series, y dos correcciones de diseño que hicieron los tests
+
+`drawMulti` dibuja hasta cuatro series del catálogo y **devuelve un manifiesto de
+lo que ha pintado de verdad**, no un booleano: `{ id, slot, pointCount, axis,
+unit, provenance, reason }`. Ahí está el arreglo estructural de la leyenda
+mentirosa — toda leyenda se renderiza desde ese array, así que no puede anunciar
+una serie que el lienzo no dibujó. Con un booleano, la vista tendría que volver a
+decidir qué se dibujó, y eso es literalmente el segundo sitio calculando el mismo
+hecho.
+
+**Ejes.** Una unidad → un eje y **cero `yAxisID`**, la configuración exacta que
+produce hoy el camino de una métrica. Dos → izquierda y derecha, mandando la
+unidad del hueco 0 (reordenar la selección cambia el lado: determinista y
+controlable). Tres o más → **no se dibuja**, y se dice por qué: meterlas en dos
+ejes obliga a elegir cuál miente sobre su escala.
+
+**Corrección de diseño 1, encontrada por un test que escribí para otra cosa.** El
+modo «cambio desde el inicio» iba a ser un delta ABSOLUTO, y eso no resuelve
+nada: −5 kg y −300 kcal en el mismo eje siguen sin ser comparables, y las kcal
+aplastan al resto por dos órdenes de magnitud. El modo es **porcentual**, y así
+sí desbloquea comparar cuatro series cualesquiera en un solo eje. Las series que
+YA son un delta —fluctuación, déficit, desviación— quedan fuera **con motivo**:
+un déficit que pasa de −5 a −300 kcal no es «un aumento del 5 900 %».
+
+El origen es el primer día de la ventana VISIBLE, no el día 0 — comparar formas
+en los últimos 30 días con la referencia de hace ocho meses compara acumulados,
+no formas. Y `setWindow` rebasa al mover la ventana **sin reconstruir la
+instancia**, así que «la misma gráfica tras veinte cambios» sigue en pie.
+
+**Corrección de diseño 2:** la banda de escenarios pasó a llamarse
+`pessimist`/`optimist` en E13-1 y aquí se cobró: la aduana traduce las dos ramas
+y recalcula el `extent`, porque con las cifras viejas el eje se dimensionaría mal
+y la línea se saldría del área.
+
+**La paleta se midió, no se eligió.** La primera propuesta —cuatro colores de
+buen gusto— medía **ΔE 25,0 bajo deuteranopía**: dos de las cuatro series,
+indistinguibles para el 6 % de los hombres. Una búsqueda con tres restricciones
+simultáneas (contraste ≥ 4,5 sobre las tres superficies · ΔE ≥ 40 entre pares
+bajo visión normal y las tres dicromacias · ΔE ≥ 32 frente a los cinco tokens que
+ya significan algo · separación de tono ≥ 60°) da `#6788e9 #a6e64c #e6a8d1
+#c7916b`, con **ΔE 40,1** en el peor par.
+
+Hallazgo honesto del barrido: **32 es el máximo alcanzable frente a los
+semánticos**, y por encima de 34 no existe ningún cuarteto. La paleta semántica
+ya ocupa casi todo el círculo de tono usable sobre fondo oscuro. Por eso el color
+**nunca carga con el significado** aquí: la procedencia va en el patrón de trazo
+(cuatro distintos) y el color solo desempata entre huecos. `tokens-contrast.test.js`
+vigila las tres cifras, con simulación de dicromacias incluida.
+
+**Un defecto mío que atrapó un test:** `markerEvery` usaba `ceil` donde iba
+`floor`, así que con siete puntos salían cuatro marcadores en vez de seis. El
+error solo aparece justo por encima del umbral, que es donde nadie mira.
+
+**786 unitarios · 166 E2E · typecheck limpio.**

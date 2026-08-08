@@ -113,3 +113,99 @@ test('la corrección de H-047 se sostiene: el muted del legacy no volvería a pa
     assert.ok(contrast(legacyMuted, token('color-bg')) < AA_TEXT, 'el valor del legacy debería fallar');
     assert.ok(contrast(token('color-text-muted'), token('color-bg')) >= AA_TEXT, 'el de v5 debe pasar');
 });
+
+/* ---------------------------------------------------------------------- *
+ * La paleta de series (E13-3)
+ * ---------------------------------------------------------------------- */
+
+/**
+ * sRGB → CIE Lab (D65). Hace falta para medir distancia PERCEPTUAL: dos
+ * colores pueden tener el mismo contraste WCAG contra el fondo y ser
+ * indistinguibles ENTRE SÍ, que es justo el fallo que arruina una gráfica de
+ * cuatro líneas.
+ * @param {string} hex @returns {number[]}
+ */
+function lab(hex) {
+    const [r, g, b] = channels(hex).map(linear);
+    const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+    const Y = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+    const Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+    const f = (/** @type {number} */ t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const [fx, fy, fz] = [X, Y, Z].map(f);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/** @param {string} a @param {string} b @returns {number} */
+function deltaE(a, b) {
+    const A = lab(a);
+    const B = lab(b);
+    return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+}
+
+/**
+ * Simulación de las tres dicromacias (matrices de Viénot-Brettel-Mollon sobre
+ * RGB lineal). Sin esto, «los colores se distinguen» solo significa «se
+ * distinguen para quien escribió el test».
+ * @type {Record<string, number[][]>}
+ */
+const DICROMACIAS = {
+    protanopia: [[0.1121, 0.8853, -0.0005], [0.1127, 0.8897, -0.0001], [0.0045, 0.0085, 1.0]],
+    deuteranopia: [[0.2920, 0.7054, -0.0003], [0.2934, 0.7089, 0.0], [-0.0209, 0.0270, 0.9942]],
+    tritanopia: [[1.0175, 0.1130, -0.1305], [0.0113, 0.9856, 0.0027], [0.0754, -0.7724, 1.6969]]
+};
+
+/** @param {string} hex @param {number[][]} m @returns {string} */
+function simulate(hex, m) {
+    const v = channels(hex);
+    const out = m.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
+    return '#' + out
+        .map((c) => Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16).padStart(2, '0'))
+        .join('');
+}
+
+const SERIES_TOKENS = ['color-series-1', 'color-series-2', 'color-series-3', 'color-series-4'];
+
+/** Umbrales MEDIDOS, no aspiracionales: ver el comentario de `tokens.css`. */
+const SERIES_MIN_CONTRAST = 4.5;
+const SERIES_MIN_DELTA_E = 40;
+const SERIES_MIN_DELTA_E_SEMANTIC = 32;
+
+test('las cuatro series alcanzan AA sobre las tres superficies', () => {
+    for (const c of SERIES_TOKENS) {
+        for (const s of ['color-bg', 'color-surface', 'color-surface-2']) {
+            const ratio = contrast(token(c), token(s));
+            assert.ok(ratio >= SERIES_MIN_CONTRAST, `--${c} sobre --${s} = ${ratio.toFixed(2)}:1`);
+        }
+    }
+});
+
+test('las cuatro series se distinguen entre sí TAMBIÉN con daltonismo', () => {
+    // El caso que este test existe para impedir: una paleta elegida por buen
+    // gusto que bajaba a ΔE 25 bajo deuteranopía — dos series indistinguibles
+    // para el 6 % de los hombres. La actual mide 40,1 en el peor par.
+    const vistas = { normal: null, ...DICROMACIAS };
+    for (const [nombre, matriz] of Object.entries(vistas)) {
+        for (let i = 0; i < SERIES_TOKENS.length; i++) {
+            for (let j = i + 1; j < SERIES_TOKENS.length; j++) {
+                const a = matriz ? simulate(token(SERIES_TOKENS[i]), matriz) : token(SERIES_TOKENS[i]);
+                const b = matriz ? simulate(token(SERIES_TOKENS[j]), matriz) : token(SERIES_TOKENS[j]);
+                const d = deltaE(a, b);
+                assert.ok(d >= SERIES_MIN_DELTA_E,
+                    `${SERIES_TOKENS[i]} ~ ${SERIES_TOKENS[j]} bajo ${nombre}: ΔE ${d.toFixed(1)} (mínimo ${SERIES_MIN_DELTA_E})`);
+            }
+        }
+    }
+});
+
+test('ninguna serie se confunde con un color que YA significa algo', () => {
+    // Una serie del color del acento se lee como «pulsable»; una verde, como
+    // «va bien». El color de una serie no significa nada: solo desempata.
+    const semanticos = ['color-text', 'color-accent', 'color-success', 'color-warning', 'color-danger'];
+    for (const c of SERIES_TOKENS) {
+        for (const s of semanticos) {
+            const d = deltaE(token(c), token(s));
+            assert.ok(d >= SERIES_MIN_DELTA_E_SEMANTIC,
+                `--${c} se parece demasiado a --${s}: ΔE ${d.toFixed(1)} (mínimo ${SERIES_MIN_DELTA_E_SEMANTIC})`);
+        }
+    }
+});
