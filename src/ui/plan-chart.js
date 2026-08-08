@@ -29,6 +29,13 @@ import * as checkins from '../data/checkins.js';
 import { muscleUnitsOf } from './muscle-units.js';
 import { longDate } from './dates.js';
 import { evaluateSeries } from '../core/tracking.js';
+import * as intakeLog from '../data/intake-log.js';
+import * as stepsLog from '../data/steps.js';
+import * as trainingStore from '../data/training.js';
+import { exercisesOf } from '../data/training.js';
+import * as exercisesDb from '../data/exercises-db.js';
+import { volumeReport } from '../core/muscle-volume.js';
+import { projectByGroup, checkReparto } from '../core/muscle-groups.js';
 
 /**
  * Una instancia de gráfica por LIENZO.
@@ -149,4 +156,111 @@ export async function drawPlanChart(container, options = {}) {
     if (!ok) chart.renderFallback(host);
     const drawn = checkinPoints.filter((c) => chart.checkinAppliesTo(metric, muscle.isScale, c));
     return { ok, checkinCount: drawn.length, chart: instance };
+}
+
+/**
+ * Ensambla el contexto que consume el catálogo de series (E13).
+ *
+ * ÚNICO sitio que toca todos los almacenes para esto, por la misma razón que
+ * existe este módulo: si cada vista reuniera sus propios datos, dos vistas
+ * acabarían con dos ideas distintas de qué es «la serie de pasos».
+ *
+ * Las colecciones llegan al catálogo ya resueltas a `dayIndex`. La traducción de
+ * fecha a índice es de la INTERFAZ, no del motor: el motor no sabe cuándo
+ * empezó el plan de este usuario, y hacerlo aquí una vez evita que cada
+ * productor del catálogo repita el mismo `findIndex`.
+ *
+ * Degrada por partes: un almacén ilegible deja SU serie sin datos, no la vista
+ * entera. El usuario verá «sin datos todavía» en esa fila y las otras tres
+ * seguirán dibujándose.
+ *
+ * @param {*} data el `PlanBundle` de `plan-state`
+ * @returns {Promise<import('../core/series-catalog.js').SeriesContext>}
+ */
+export async function buildSeriesContext(data) {
+    /** @type {import('../core/series-catalog.js').SeriesContext} */
+    const ctx = { projection: data.projection };
+    /** @type {Map<string, number>} */ const dayOf = new Map();
+    data.projection.daily.forEach((/** @type {*} */ d, /** @type {number} */ i) => dayOf.set(d.dateISO, i));
+
+    // Check-ins, con su evaluación contra el plan: de ahí salen la tendencia y
+    // la desviación, que son series `derived` y no medidas.
+    try {
+        const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
+        ctx.checkins = evaluations.map((/** @type {*} */ e) => {
+            const record = checkins.findByDate(e.dateISO);
+            return {
+                dayIndex: e.dayIndex,
+                weightKg: e.actualKg,
+                fatPct: record?.fatPct ?? null,
+                scaleMuscleKg: record?.scaleMuscleKg ?? null,
+                measuresCm: record?.measuresCm ?? {},
+                subjective: record?.subjective ?? {},
+                trendKg: e.trendKg ?? null,
+                deviationKg: e.deviationKg ?? null
+            };
+        });
+    } catch { /* sin check-ins, esas series salen vacías con su motivo */ }
+
+    try {
+        ctx.intake = intakeLog.list()
+            .map((/** @type {*} */ r) => ({ ...r, dayIndex: dayOf.get(r.dateISO) ?? -1 }))
+            .filter((/** @type {*} */ r) => r.dayIndex >= 0);
+    } catch { /* idem */ }
+
+    try {
+        ctx.steps = stepsLog.list()
+            .map((/** @type {*} */ r) => ({ dayIndex: dayOf.get(r.dateISO) ?? -1, steps: r.steps }))
+            .filter((/** @type {*} */ r) => r.dayIndex >= 0);
+    } catch { /* idem */ }
+
+    try {
+        const training = trainingStore.read();
+        if (Array.isArray(training?.sessions) && training.sessions.length > 0) {
+            ctx.sessions = training.sessions;
+        }
+    } catch { /* idem */ }
+
+    // Músculo por grupo. Pasa por el MISMO cortafuegos que la rejilla de V2-M9:
+    // si la suma de los grupos no reconstituye el músculo global, no se ofrecen.
+    // Once gráficas que se contradicen entre sí son peores que ninguna.
+    try {
+        const desagregada = await muscleByGroup(data);
+        if (desagregada) ctx.muscleByGroup = desagregada;
+    } catch { /* idem */ }
+
+    return ctx;
+}
+
+/**
+ * Las series por grupo muscular, o `null` si el reparto no cuadra.
+ * @param {*} data
+ * @returns {Promise<Record<string, import('../core/series-catalog.js').SeriesPoint[]> | null>}
+ */
+async function muscleByGroup(data) {
+    const training = trainingStore.read();
+    /** @type {Record<string, *>} */ const porRutina = {};
+    const loaded = await exercisesDb.load();
+    if (loaded.ok) {
+        for (const ex of exercisesOf(training.routine)) {
+            if (ex.catalogId && loaded.value[ex.catalogId]) porRutina[ex.id] = loaded.value[ex.catalogId];
+        }
+    }
+    const report = volumeReport({
+        sessions: training.sessions,
+        catalog: porRutina,
+        trainingStatus: data.profile?.user?.trainingStatus ?? 'intermediate',
+        weeks: 1
+    });
+    /** @type {Record<string, number>} */ const stimulusByGroup = {};
+    for (const g of report.groups) stimulusByGroup[g.group] = g.stimulus;
+
+    const desagregada = projectByGroup({ daily: data.projection.daily, stimulusByGroup });
+    if (!checkReparto(desagregada, data.projection.daily, 1e-6).ok) return null;
+
+    /** @type {Record<string, import('../core/series-catalog.js').SeriesPoint[]>} */ const out = {};
+    for (const g of desagregada.groups) {
+        out[g.group] = g.daily.map((/** @type {*} */ p) => ({ x: p.dayIndex, y: p.muscleKg }));
+    }
+    return out;
 }

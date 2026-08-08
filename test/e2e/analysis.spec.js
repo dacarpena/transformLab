@@ -1,0 +1,310 @@
+// @ts-check
+
+/**
+ * La vista Analizar (E13-5).
+ *
+ * El test que da sentido al fichero es el primero: **la leyenda no puede
+ * mentir**. Se comprueba en las DOS direcciones —toda fila corresponde a un
+ * dataset y todo dataset a una fila— porque el defecto real de Proyección era
+ * justo una de las dos: la leyenda anunciaba una serie que el lienzo no pintaba.
+ */
+
+import { test, expect } from '@playwright/test';
+
+const daysAgoISO = (/** @type {number} */ n) =>
+    new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+
+async function onboard(page) {
+    await page.fill('[data-field="name"]', 'Dani');
+    await page.selectOption('[data-field="trainingStatus"]', 'intermediate');
+    await page.click('[data-next]');
+    await page.fill('[data-field="weightKg"]', '80');
+    await page.fill('[data-field="fatPct"]', '20');
+    await page.click('[data-next]');
+    await page.fill('[data-field="targetFatPct"]', '13');
+    await page.fill('[data-field="targetMuscleKg"]', '32');
+    await page.fill('[data-field="startDateISO"]', daysAgoISO(60));
+    await page.click('[data-next]');
+    await page.click('[data-next]');
+    await expect(page.locator('#today-title')).toBeVisible();
+}
+
+/** Ocho check-ins semanales: hacen falta series MEDIDAS para comparar de verdad. */
+async function seedCheckins(page) {
+    await page.evaluate(() => {
+        const clave = Object.keys(localStorage).find((k) => k.endsWith('.checkins'));
+        const pk = Object.keys(localStorage).find((k) => k.endsWith('.profile'));
+        if (!clave || !pk) throw new Error('sin perfil');
+        const perfil = JSON.parse(localStorage.getItem(pk) ?? '{}');
+        const inicio = new Date(`${perfil.startDateISO}T00:00:00Z`);
+        const items = [];
+        for (let w = 1; w <= 8; w++) {
+            const d = new Date(inicio);
+            d.setUTCDate(d.getUTCDate() + w * 7);
+            const dateISO = d.toISOString().slice(0, 10);
+            items.push({
+                id: `ci_${dateISO}`, dateISO,
+                weightKg: 80 - w * 0.45, fatPct: 20 - w * 0.25,
+                measuresCm: { waist: 88 - w * 0.4 },
+                subjective: { energy: 7, sleep: 7, adherence: 8, motivation: 7 },
+                notes: '', createdAtISO: '2026-01-01T00:00:00.000Z', editedAtISO: null
+            });
+        }
+        const prev = JSON.parse(localStorage.getItem(clave) ?? 'null');
+        localStorage.setItem(clave, JSON.stringify({ schemaVersion: prev?.schemaVersion ?? 6, items }));
+    });
+    await page.reload();
+}
+
+/**
+ * Navega a la vista. A ancho de escritorio el botón está siempre en la barra
+ * lateral; a 320 px vive detrás de «más» (`primary: false`).
+ */
+async function navToAnalysis(page) {
+    const directo = page.locator('[data-view="analysis"]');
+    if (await directo.count() === 0 || !(await directo.first().isVisible())) {
+        await page.locator('[data-nav-more]').click();
+    }
+    await page.locator('[data-view="analysis"]').first().click();
+    await expect(page.locator('.view[data-view-id="analysis"]')).toBeVisible();
+}
+
+async function goToAnalysis(page) {
+    await navToAnalysis(page);
+    await expect(page.locator('.view[data-view-id="analysis"] canvas')).toBeVisible();
+    // El primer dibujado es asíncrono (el vendor llega bajo demanda).
+    await expect.poll(() => page.locator('[data-legend-row]').count()).toBeGreaterThan(0);
+}
+
+/** Los datasets que hay en el lienzo ahora mismo. */
+function datasets(page) {
+    return page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+        const c = /** @type {*} */ (globalThis).Chart?.getChart(cv);
+        if (!c) return null;
+        return c.data.datasets.map((/** @type {*} */ d) => ({
+            label: d.label, n: d.data.length, axis: d.yAxisID ?? null,
+            dash: JSON.stringify(d.borderDash), color: d.borderColor, point: d.pointStyle
+        }));
+    });
+}
+
+test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await onboard(page);
+    await seedCheckins(page);
+});
+
+test('la leyenda no puede mentir: filas ↔ datasets, en las dos direcciones', async ({ page }) => {
+    await goToAnalysis(page);
+    const ds = await datasets(page);
+    const filas = await page.locator('[data-legend-row]').evaluateAll((els) =>
+        els.map((e) => ({ id: e.getAttribute('data-legend-row'), estado: e.getAttribute('data-state') })));
+
+    // Tantas filas como datasets: ni una de más ni una de menos.
+    expect(filas).toHaveLength(ds.length);
+
+    // Y el recuento de puntos de cada fila es el del dataset que le corresponde.
+    for (let i = 0; i < filas.length; i++) {
+        const texto = await page.locator(`[data-legend-row="${filas[i].id}"]`).innerText();
+        if (ds[i].n > 0) {
+            expect(texto, `fila ${filas[i].id}`).toContain(String(ds[i].n));
+            expect(filas[i].estado).toBe('ok');
+        } else {
+            expect(filas[i].estado).toBe('emptyWindow');
+        }
+    }
+});
+
+test('una serie sin datos NO desaparece: se queda diciendo por qué', async ({ page }) => {
+    await goToAnalysis(page);
+    // «Comes vs. gastas» incluye la ingesta registrada, que este perfil no tiene.
+    await page.click('[data-preset="energy"]');
+    await expect.poll(() => page.locator('[data-legend-row]').count()).toBe(2);
+
+    const vacia = page.locator('[data-legend-row][data-state="emptyWindow"]');
+    await expect(vacia).toHaveCount(1);
+    await expect(vacia).toContainText(/sin datos|Faltan/i);
+    // Sigue siendo una de las dos elegidas: no se ha quitado sola.
+    await expect(page.locator('[data-series-count]')).toContainText('2');
+});
+
+test('el tope de cuatro se explica antes de chocar, y la quinta no se marca', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.click('[data-open-picker]');
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
+
+    // Marcar hasta llegar a cuatro. Se usa `click` y no `check` a propósito:
+    // `check` AFIRMA que la casilla acaba marcada, y la quinta no debe acabar
+    // marcada — es el comportamiento que se está probando, no un fallo.
+    while (await dialog.locator('[data-series]:checked').count() < 4) {
+        const antes = await dialog.locator('[data-series]:checked').count();
+        await dialog.locator('[data-series]:not(:checked)').first().click();
+        await expect.poll(() => dialog.locator('[data-series]:checked').count()).toBe(antes + 1);
+    }
+    // El aviso aparece ANTES de intentar la quinta.
+    await expect(dialog.locator('[data-picker-limit]')).toBeVisible();
+
+    const quinta = dialog.locator('[data-series]:not(:checked)').first();
+    const quintaId = await quinta.getAttribute('data-series');
+    await quinta.click();
+
+    // La quinta NO se marca, se dice cuál se ha rechazado, y ninguna se ha
+    // quitado sola: destruir la intención del usuario sin permiso es peor.
+    await expect(page.locator('.toast')).toContainText('No se ha añadido');
+    await expect(dialog.locator(`[data-series="${quintaId}"]`)).not.toBeChecked();
+    await expect(dialog.locator('[data-series]:checked')).toHaveCount(4);
+});
+
+test('la procedencia va en el TRAZO, no solo en el color, y como texto', async ({ page }) => {
+    await goToAnalysis(page);
+    const ds = await datasets(page);
+
+    // Prevista y medida tienen patrones de trazo distintos: sin esto, la
+    // gráfica en escala de grises o con daltonismo no las distingue (WCAG 1.4.1).
+    const prevista = ds.find((d) => d.label.includes('previsto'));
+    const medida = ds.find((d) => d.label.includes('medido'));
+    expect(prevista.dash).not.toBe(medida.dash);
+    expect(prevista.color).not.toBe(medida.color);
+    expect(prevista.point).not.toBe(medida.point);
+
+    // Y la palabra está como TEXTO en la fila, no solo insinuada por el color.
+    await expect(page.locator('[data-legend-row]').first()).toContainText(/Prevista|Medida|Calculada|Estimada/);
+});
+
+test('quitar una serie desde la leyenda no deja el foco en el body', async ({ page }) => {
+    await goToAnalysis(page);
+    await expect(page.locator('[data-legend-row]')).toHaveCount(2);
+    await page.locator('[data-remove-series]').first().click();
+    await expect(page.locator('[data-legend-row]')).toHaveCount(1);
+
+    const enfocado = await page.evaluate(() => document.activeElement?.tagName);
+    expect(enfocado, 'el foco cayó al body tras quitar una serie').toBe('BUTTON');
+});
+
+test('la nota de procedencia mixta aparece, y concuerda', async ({ page }) => {
+    await goToAnalysis(page);
+    const nota = page.locator('[data-mixed-notice]');
+    await expect(nota).toBeVisible();
+    // Sin cifras: «1 previstas» era la concordancia rota que tenía la primera
+    // versión. La frase dice qué significa mezclar, no cuántas hay.
+    await expect(nota).toContainText('previstas');
+    await expect(nota).toContainText('medidas');
+    await expect(nota).not.toContainText(/\d/);
+});
+
+test('dos unidades reparten los ejes; el modo relativo las junta en uno', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.click('[data-open-picker]');
+    const dialog = page.locator('[role="dialog"]');
+    await dialog.locator('[data-series="proj_fat_pct"]').check();
+    await page.locator('[data-modal-close]').click();
+    await expect(dialog).toHaveCount(0);
+
+    await expect.poll(async () => (await datasets(page)).length).toBe(3);
+    const escalas = () => page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+        return Object.keys(/** @type {*} */ (globalThis).Chart.getChart(cv).options.scales).sort();
+    });
+    expect(await escalas()).toEqual(['x', 'y', 'y2']);
+
+    await page.click('[data-normalize="delta"]');
+    await expect.poll(escalas).toEqual(['x', 'y']);
+    // Y se DICE desde qué día se mide: sin eso, cambiar de periodo altera la
+    // referencia en silencio y la misma serie parece otra cosa.
+    await expect(page.locator('[data-effective-hint]')).toContainText('El cambio se mide desde');
+});
+
+test('la selección, el periodo y la escala sobreviven a recargar', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.click('[data-preset="shape"]');
+    await expect.poll(() => page.locator('[data-legend-row]').count()).toBe(2);
+    await page.click('[data-window="90"]');
+    await page.click('[data-grain="month"]');
+
+    await page.reload();
+    await goToAnalysis(page);
+
+    const ids = await page.locator('[data-legend-row]').evaluateAll((els) =>
+        els.map((e) => e.getAttribute('data-legend-row')));
+    expect(ids).toEqual(['proj_weight', 'meas_waist']);
+    await expect(page.locator('[data-window="90"][aria-pressed="true"]')).toBeVisible();
+    await expect(page.locator('[data-grain="month"][aria-pressed="true"]')).toBeVisible();
+});
+
+test('un id guardado que ya no existe no rompe la vista: se descarta y se dice', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.evaluate(() => {
+        const clave = Object.keys(localStorage).find((k) => k.endsWith('.settings'));
+        const s = JSON.parse(localStorage.getItem(clave ?? '') ?? '{}');
+        s.analysis = { seriesIds: ['proj_weight', 'serie_inventada'], window: 'all', grain: 'week', normalize: 'raw' };
+        localStorage.setItem(clave ?? '', JSON.stringify(s));
+    });
+    await page.reload();
+    await goToAnalysis(page);
+
+    await expect(page.locator('[data-legend-row]')).toHaveCount(1);
+    await expect(page.locator('.toast')).toContainText('ya no están disponibles');
+});
+
+test('a 320 px se dibuja más grueso, y el control refleja lo EFECTIVO', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await goToAnalysis(page);
+    await page.click('[data-grain="day"]');
+    await expect.poll(() => page.locator('[data-effective-hint]').isVisible()).toBe(true);
+
+    // Lo PEDIDO se guarda; lo EFECTIVO se dibuja y es lo que muestra el control.
+    // Si `aria-pressed` reflejara lo pedido, sería la leyenda mentirosa
+    // reencarnada en otro sitio.
+    const pedido = await page.evaluate(() => {
+        const clave = Object.keys(localStorage).find((k) => k.endsWith('.settings'));
+        return JSON.parse(localStorage.getItem(clave ?? '') ?? '{}').analysis.grain;
+    });
+    expect(pedido).toBe('day');
+    await expect(page.locator('[data-grain="week"][aria-pressed="true"]')).toBeVisible();
+    await expect(page.locator('[data-effective-hint]')).toContainText('ancho de pantalla');
+
+    const desborda = await page.evaluate(() =>
+        document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(desborda).toBe(false);
+});
+
+test('sin Chart.js la vista no ofrece nada destructivo', async ({ page }) => {
+    // Bloquear la red NO basta: el service worker precachea el vendor y lo
+    // sirve desde su caché, saltándose la intercepción de Playwright. Es
+    // exactamente el mismo mecanismo que sirve módulos viejos al desarrollar.
+    await page.evaluate(async () => {
+        for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+        for (const k of await caches.keys()) await caches.delete(k);
+    });
+    await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
+    await page.reload();
+    // `navToAnalysis` y no `goToAnalysis`: aquí el lienzo NO va a dibujarse
+    // nunca, que es justo lo que se está comprobando.
+    await navToAnalysis(page);
+
+    const vista = page.locator('.view[data-view-id="analysis"]');
+    await expect(vista).toContainText(/no se ha podido|no está disponible/i);
+    // H-013: la salida de un error jamás es borrar datos.
+    await expect(vista.locator('[data-clear-all], [data-delete-profile], [data-reset]')).toHaveCount(0);
+});
+
+test('no hay errores de consola al recorrer la vista', async ({ page }) => {
+    /** @type {string[]} */ const errores = [];
+    page.on('console', (msg) => { if (msg.type() === 'error') errores.push(msg.text()); });
+    page.on('pageerror', (err) => errores.push(String(err)));
+
+    await goToAnalysis(page);
+    await page.click('[data-preset="planVsReal"]');
+    await page.click('[data-normalize="delta"]');
+    await page.click('[data-window="30"]');
+    await page.click('[data-open-picker]');
+    await page.locator('[data-picker-search]').fill('cintura');
+    await page.locator('[data-modal-close]').click();
+    await page.locator('[data-remove-series]').first().click();
+
+    expect(errores).toEqual([]);
+});

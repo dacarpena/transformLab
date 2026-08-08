@@ -1488,3 +1488,129 @@ button.timeline__event:hover {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   Vista Analizar: series superpuestas (E13-5)
+   ============================================================ */
+
+/* Los cuatro colores de serie, como CLASE y no como estilo calculado: son
+   cuatro huecos cerrados, igual que las seis fases, y así ningún valor de color
+   viaja por el HTML. `currentColor` deja que el glifo SVG los herede. */
+.is-series-1 { color: var(--color-series-1); }
+.is-series-2 { color: var(--color-series-2); }
+.is-series-3 { color: var(--color-series-3); }
+.is-series-4 { color: var(--color-series-4); }
+
+.series-legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+}
+
+.series-legend__item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    padding: var(--space-1) 0;
+}
+
+/* Una serie que no ha podido dibujarse NO desaparece: se atenúa y dice por qué.
+   Quitarla sería la otra mitad de la mentira que esta vista viene a cerrar. */
+.series-legend__item[data-state="emptyWindow"] .series-legend__name { opacity: 0.6; }
+
+.series-legend__name { font-weight: var(--weight-medium); }
+
+/* El nombre se lleva el espacio sobrante y empuja el valor al extremo; a 320 px
+   `min-width: 0` es lo que permite que los hermanos se encojan en vez de
+   desbordar. */
+.series-legend__meta { flex: 1 1 auto; min-width: 0; }
+
+.series-legend__value { font-variant-numeric: tabular-nums; }
+
+/* El glifo reproduce el TRAZO de la línea, no un punto de color: un punto no se
+   parece a lo que hay dibujado. */
+.series-glyph {
+    width: 24px;
+    height: 12px;
+    flex-shrink: 0;
+}
+
+/* Insignia de procedencia: discreta y sin fondo, porque el color ya está
+   ocupado por el hueco de la serie. La palabra completa hace el trabajo. */
+.badge--outline {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    padding: 0 var(--space-2);
+}
+
+/* `white-space: normal` invalida a propósito el `nowrap` de `.badge`: a 320 px
+   una insignia que no puede partir empuja la fila fuera de la pantalla. */
+.badge--prov-projected,
+.badge--prov-measured,
+.badge--prov-derived,
+.badge--prov-estimated { white-space: normal; }
+
+.btn--icon {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---- El selector ---- */
+
+.picker__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.picker__row { border-bottom: 1px solid var(--color-border); }
+
+.picker__label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    padding: var(--space-2) 0;
+    min-height: 44px;   /* objetivo táctil */
+    cursor: pointer;
+}
+
+.picker__name { font-weight: var(--weight-medium); }
+.picker__meta { flex: 1 1 auto; min-width: 0; text-align: right; }
+
+/* Pie pegajoso: a 320 px, recorriendo cincuenta filas, la salida tiene que
+   estar siempre a un tabulador de distancia. */
+.picker__tray {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    padding: var(--space-2);
+    margin-top: var(--space-3);
+    background: var(--color-surface-2);
+    border-top: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.picker__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-left: var(--space-2);
+    border: 1px solid currentColor;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+}

@@ -862,7 +862,7 @@ etiquetadas de estimación · legibilidad primero.
 - [x] **E13-2 · `drawSeries` por extracción + invariante de hitos + precálculo de fases**
 - [x] **E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta**
 - [x] **E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`**
-- [ ] E13-5 · Vista «Analizar»: selector, leyenda y procedencia
+- [x] **E13-5 · Vista «Analizar»: selector, leyenda y procedencia**
 - [ ] E13-6 · Lectura accesible con N series, tabla y CSV
 - [ ] E13-7 · Gestos, tira de contexto y preset «custom»
 
@@ -1055,3 +1055,53 @@ vigila las tres cifras, con simulación de dicromacias incluida.
 error solo aparece justo por encima del umbral, que es donde nadie mira.
 
 **786 unitarios · 166 E2E · typecheck limpio.**
+
+### E13-5 — la vista, y tres defectos que solo aparecen en un navegador
+
+La vista propia existe por la misma razón que E12 separó Hoy de Proyección: cada
+pantalla, un trabajo. Proyección cuenta EL PLAN con una métrica cada vez;
+comparar cuatro series es otra cosa, y meterlo ahí habría convertido una pantalla
+que se lee en una que se opera.
+
+**La leyenda ES la interfaz de selección**, y se genera desde el MANIFIESTO de
+`drawMulti`, nunca desde el estado de selección. No hay una fila de chips además
+de la leyenda: sería un tercer sitio donde la misma verdad puede divergir. Una
+serie que resolvió a cero puntos no desaparece — se queda con «sin datos en este
+periodo» y un botón para ampliar el periodo—, porque desaparecer sería la otra
+mitad de la mentira.
+
+**Lo que se guarda es lo PEDIDO; lo que se dibuja es lo EFECTIVO; y el control
+muestra lo efectivo.** A 320 px con «Día» pulsado se dibuja por semana,
+`aria-pressed` marca **Semana** y una línea explica por qué. Reflejar lo pedido
+habría sido la leyenda mentirosa reencarnada en otro control. Verificado en el
+navegador: `analysis.grain` guardado = `"day"`, botón pulsado = Semana, 24 puntos
+en vez de 157, cero desbordes.
+
+**El tope de cuatro se anuncia antes de chocar.** Si se insiste, la casilla no se
+marca, se nombra la serie rechazada y **no se quita nada solo**: destruir la
+intención del usuario sin permiso es peor que negarse.
+
+**Tres defectos que ningún test unitario habría visto:**
+
+1. **La nota de procedencia no salía nunca en la primera visita.** Se calculaba
+   del manifiesto al construir el marcado, y en ese momento el manifiesto es
+   todavía el del dibujado anterior —`null` la primera vez—. El aviso del origen
+   del cambio tenía el mismo fallo. Ahora hay UN solo sitio dueño de los tres
+   avisos, `renderHints`, que corre después de dibujar.
+2. **El selector repintaba las cincuenta filas en cada casilla marcada**, así que
+   destruía el nodo bajo el dedo del usuario y devolvía la lista al principio.
+   Ahora solo se repinta la bandeja. Lo delató un test que no conseguía marcar
+   cuatro casillas seguidas.
+3. **`wire(container)` se volvía a llamar en cada cambio**, duplicando
+   manejadores: `on()` los registra DELEGADOS en el contenedor, así que
+   sobreviven al repintado de sus hijos. Cada clic acababa disparando una vez por
+   cada cambio anterior.
+
+**Y dos tests míos que estaban mal, no el código.** `check()` de Playwright
+afirma que la casilla acaba marcada, y la quinta serie no debe acabar marcada:
+va con `click()`. Y bloquear la red no simula «Chart.js no está»: **el service
+worker lo sirve desde su precaché**, saltándose la intercepción — el mismo
+mecanismo que sirve módulos viejos al desarrollar. El test desregistra el SW
+primero.
+
+**786 unitarios · 178 E2E · typecheck limpio.**

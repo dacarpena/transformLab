@@ -73,6 +73,10 @@ export const VIEWS = [
         path: 'src/ui/views/projection.js', load: () => import('./projection.js')
     },
     {
+        id: 'analysis', labelKey: 'nav.analysis', icon: '⧉', primary: false,
+        path: 'src/ui/views/analysis.js', load: () => import('./analysis.js')
+    },
+    {
         id: 'expenditure', labelKey: 'nav.expenditure', icon: '⚖', primary: false,
         path: 'src/ui/views/expenditure.js', load: () => import('./expenditure.js')
     },
