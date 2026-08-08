@@ -22,7 +22,8 @@ import { checkProfile, checkComposition, checkTarget, LIMITS } from '../../core/
 import { fromBioimpedance } from '../../core/scale.js';
 import { muscleUnitsFor } from '../muscle-units.js';
 import { makeComposition } from '../../core/engine.js';
-import { SCHEMA_VERSION, MEASURE_KEYS } from '../../data/schema.js';
+import { SCHEMA_VERSION } from '../../data/schema.js';
+import * as settingsStore from '../../data/settings.js';
 import * as storage from '../../data/storage.js';
 import * as plans from '../plan-state.js';
 import * as toast from '../components/toast.js';
@@ -724,17 +725,10 @@ function finish() {
         toast.fromErrorCode(saved.error.split(':')[0]);
         return;
     }
-    // ajustes iniciales del perfil, con el idioma que haya elegido
-    const settings = storage.get('settings');
-    const base = settings.ok && settings.value ? settings.value : {};
-    storage.set('settings', {
-        ...(/** @type {object} */ (base)),
-        schemaVersion: SCHEMA_VERSION,
-        locale: getLocale(),
-        activeMeasures: /** @type {*} */ (base).activeMeasures ?? [MEASURE_KEYS[0]],
-        fluctuationVisible: false,
-        reminder: null
-    });
+    // ajustes iniciales del perfil, con el idioma que haya elegido. Los
+    // perímetros activos NO se tocan: `patch` funde sobre lo que hubiera, y si no
+    // había nada, `settings.defaults()` ya pone el primero del catálogo.
+    settingsStore.patch({ locale: getLocale(), fluctuationVisible: false, reminder: null });
     // Las preferencias de módulos, con el resto de defaults rellenados. Si
     // fallara, el alta NO se cae: el plan ya está guardado y `preferences`
     // degrada a «sin restricciones» en todos sus lectores. Bloquear aquí sería

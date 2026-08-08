@@ -21,7 +21,7 @@
 
 import { t } from '../i18n/i18n.js';
 import * as storage from '../data/storage.js';
-import { SCHEMA_VERSION, validateCollection } from '../data/schema.js';
+import * as settingsStore from '../data/settings.js';
 
 /** Última fecha en la que se avisó, para no repetir el mismo día. */
 const LAST_FIRED_KEY = 'ui.reminderLastFired';
@@ -37,10 +37,7 @@ export function permissionState() {
 
 /** @returns {{ weekday: number, hour: number } | null} */
 export function getSchedule() {
-    const stored = storage.get('settings');
-    if (!stored.ok || stored.value === null) return null;
-    const parsed = validateCollection('settings', stored.value);
-    return parsed.ok ? parsed.value.reminder : null;
+    return settingsStore.read().reminder;
 }
 
 /**
@@ -49,18 +46,11 @@ export function getSchedule() {
  * @returns {boolean}
  */
 export function setSchedule(schedule) {
-    const stored = storage.get('settings');
-    const base = stored.ok && stored.value !== null
-        ? stored.value
-        : { schemaVersion: SCHEMA_VERSION, locale: 'es', activeMeasures: ['waist'], fluctuationVisible: false, reminder: null };
-    const next = validateCollection('settings', { .../** @type {*} */ (base), reminder: schedule });
-    if (!next.ok) return false;
-
     // Desarmar PRIMERO y escribir después. Si la escritura falla, el usuario
     // ve el error con el temporizador ya parado: no avisar cuando se pidió
     // avisar es molesto, pero avisar cuando se pidió NO avisar es peor.
     stop();
-    if (!storage.set('settings', next.value).ok) return false;
+    if (!settingsStore.patch({ reminder: schedule }).ok) return false;
     if (schedule) start();
     return true;
 }

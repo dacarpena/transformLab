@@ -811,3 +811,69 @@ de cuatro cifras** (2437, pero 13.000). Es la norma de la RAE y es lo que hace
 lee mejor que «2.437 kcal».
 
 **737 unitarios · 150 E2E · typecheck limpio.**
+
+---
+
+# E13 · La gráfica se vuelve un instrumento de análisis
+
+La v2 cerró con siete módulos produciendo datos y una gráfica que solo sabe
+dibujar **una métrica cada vez**, elegida entre cuatro botones. Hay ~50 series
+plotables en el producto y la aplicación deja ver cuatro. El objetivo: superponer
+**hasta cuatro series cualesquiera**, con la procedencia de cada una a la vista,
+sin que la superposición pueda mentir.
+
+Diez mejoras, en ocho etapas. Decisiones cerradas con el usuario: tope de 4
+series · vista propia «Analizar» · los grupos musculares entran como series
+etiquetadas de estimación · legibilidad primero.
+
+- [x] **E13-0 · Los tres defectos de datos**
+- [ ] E13-1 · Catálogo de series puro + las 3 funciones que faltan
+- [ ] E13-2 · `drawSeries` por extracción + invariante de hitos + precálculo de fases
+- [ ] E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta
+- [ ] E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`
+- [ ] E13-5 · Vista «Analizar»: selector, leyenda y procedencia
+- [ ] E13-6 · Lectura accesible con N series, tabla y CSV
+- [ ] E13-7 · Gestos, tira de contexto y preset «custom»
+
+## Bitácora
+
+### E13-0 — tres defectos que el usuario sufría, todos de la misma familia
+
+Planificar la gráfica destapó tres defectos reales, y los tres eran **dos sitios
+calculando el mismo hecho**. Se arreglan antes de construir nada encima, porque
+la etapa entera va a añadir campos a `settings` y el primero de ellos es
+exactamente el error de hacerlo mal.
+
+**1. Pérdida de alergias, y es mía.** En V2-M10 añadí `activeModules` a
+`preferences` **sin `opt()`**. El comentario que escribí al lado decía
+«Opcional: un perfil de la v1 no los tiene» mientras el código lo exigía.
+Consecuencia, comprobada ejecutándolo: un registro escrito antes de V2-M10 falla
+la validación ENTERA, `get()` degrada a vacío y el siguiente `save()` escribe
+encima. El usuario perdía su tipo de dieta y **sus exclusiones duras, que son
+alergias**. La regla queda escrita en el esquema: *campo añadido a colección ya
+poblada, `opt()` sin excepciones*. Lo vigila `preferencias_antiguas_validan`,
+verificado con mutación deliberada (revertir el `opt()` lo pone en rojo).
+
+**2. El interruptor de fluctuación no se guardaba.** `main.js` lo LEE al
+arrancar y `onboarding.js` lo escribe a `false`, pero **ningún camino de la
+interfaz lo escribía a `true`**: `plan-state.setFluctuation()` solo tocaba
+memoria. Se marcaba, se recargaba y volvía apagado. No había dónde escribirlo sin
+repetir por cuarta vez el patrón «leer → validar → fundir → validar → escribir»,
+que estaba abierto en canal en `reminder.js` con el objeto por defecto **copiado
+literalmente en tres sitios**. De ahí sale `src/data/settings.js`: una sola
+definición del valor de fábrica y un `patch()` que funde. Ahora se persiste
+**después** de regenerar y **solo si** salió bien —guardar un estado que la
+gráfica no muestra sería la misma divergencia por el otro lado—, y si la
+escritura falla se avisa pero **no se revierte el interruptor**: el usuario lo
+pidió y lo está viendo.
+
+**3. La leyenda prometía check-ins que el lienzo no dibujaba.**
+`plan-chart.js` devolvía `checkinCount: evaluations.length` mientras el lienzo
+filtraba por métrica, y su JSDoc prometía «cuántos entraron en el lienzo». Con
+métrica «grasa» y check-ins sin porcentaje, la leyenda listaba «Check-in» y no
+había ni un punto. Ahora hay un predicado único, `chart.checkinAppliesTo`, que
+usan el lienzo Y el contador. La leyenda además tenía **media condición copiada a
+mano** (solo la de báscula): se ha quitado, porque dos copias de una regla es
+justo como volvió a divergir.
+
+**744 unitarios · 152 E2E · typecheck limpio.**

@@ -14,6 +14,7 @@ import * as profiles from './data/profiles.js';
 import * as migrate from './data/migrate.js';
 import * as migrations from './data/migrations.js';
 import { validateCollection } from './data/schema.js';
+import * as settingsStore from './data/settings.js';
 import { t, setLocale, getLocale } from './i18n/i18n.js';
 import { html, render } from './ui/dom.js';
 import * as router from './ui/router.js';
@@ -193,12 +194,10 @@ async function route(roots) {
         await startOnboarding(roots);
         return;
     }
-    const settingsStored = storage.get('settings');
-    const fluctuation = settingsStored.ok && settingsStored.value
-        ? Boolean(/** @type {*} */ (settingsStored.value).fluctuationVisible)
-        : false;
-
-    const loaded = plans.load({ profileId: storage.getActiveProfile(), fluctuation });
+    const loaded = plans.load({
+        profileId: storage.getActiveProfile(),
+        fluctuation: settingsStore.read().fluctuationVisible
+    });
     if (!loaded.ok) {
         if (loaded.reason === 'noProfile') {
             await startOnboarding(roots);

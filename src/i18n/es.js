@@ -227,6 +227,7 @@ export const es = {
 
     // Ajustes
     'settings.title': 'Ajustes',
+    'settings.saveFailed': 'No se ha podido guardar este ajuste. Sigue activo en esta pantalla.',
     'settings.section.profile': 'Perfil',
     'settings.section.profiles': 'Perfiles',
     'settings.section.language': 'Idioma',

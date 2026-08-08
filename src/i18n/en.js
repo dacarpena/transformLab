@@ -227,6 +227,7 @@ export const en = {
 
     // Settings
     'settings.title': 'Settings',
+    'settings.saveFailed': 'This setting could not be saved. It stays active on this screen.',
     'settings.section.profile': 'Profile',
     'settings.section.profiles': 'Profiles',
     'settings.section.language': 'Language',

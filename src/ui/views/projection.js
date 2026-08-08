@@ -31,6 +31,7 @@ import { drawPlanChart } from '../plan-chart.js';
 import * as toast from '../components/toast.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
+import * as settingsStore from '../../data/settings.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import { shortDate, longDate } from '../dates.js';
 import { buildTimeline, groupByPhase } from '../../core/timeline.js';
@@ -276,13 +277,17 @@ function renderChart(/** @type {*} */ data) {
 }
 
 /**
- * Qué hay dibujado ahora mismo en el lienzo. Se regenera con cada dibujado
- * desde el mismo estado que decide los datasets: si divergieran, la leyenda
- * describiría otra gráfica.
+ * Qué hay dibujado ahora mismo en el lienzo.
+ *
+ * `hasCheckins` viene de `drawPlanChart`, que lo cuenta con el MISMO predicado
+ * que usa el lienzo para filtrar (`chart.checkinAppliesTo`). Antes esta función
+ * recibía «cuántos check-ins hay guardados» y remendaba a mano media condición
+ * —solo la de báscula—, así que con métrica «grasa» y check-ins sin porcentaje
+ * la leyenda anunciaba una serie que el lienzo no pintaba. El remiendo se ha
+ * quitado a propósito: dos copias de la misma regla es como volvió a divergir.
  * @param {boolean} hasCheckins
- * @param {import('../muscle-units.js').MuscleUnits} muscle
  */
-function renderLegend(hasCheckins, muscle) {
+function renderLegend(hasCheckins) {
     /** @type {Array<{ dot: string, label: string }>} */
     const items = [];
     if (metric === 'kcal') {
@@ -292,11 +297,7 @@ function renderLegend(hasCheckins, muscle) {
     } else {
         items.push({ dot: 'dot--accent', label: t('chart.expected') });
         if (metric === 'weight') items.push({ dot: 'dot--band', label: t('chart.band') });
-        // La leyenda de check-in aparece cuando de verdad se van a dibujar: en
-        // músculo, solo si el perfil es de báscula (guarda esa cifra medida).
-        if (hasCheckins && (metric !== 'muscle' || muscle.isScale)) {
-            items.push({ dot: 'dot--real', label: t('checkin.title') });
-        }
+        if (hasCheckins) items.push({ dot: 'dot--real', label: t('checkin.title') });
         items.push({ dot: 'dot--warning', label: t('chart.milestoneModalTitle') });
     }
     return html`${items.map((i) => html`
@@ -696,7 +697,7 @@ async function redraw(/** @type {*} */ container) {
 
     const legendHost = container.querySelector('[data-legend]');
     if (legendHost) {
-        render(/** @type {HTMLElement} */ (legendHost), renderLegend(checkinCount > 0, muscleUnitsOf(data)));
+        render(/** @type {HTMLElement} */ (legendHost), renderLegend(checkinCount > 0));
     }
 }
 
@@ -790,8 +791,18 @@ export function mount(container) {
     });
 
     on(container, 'change', '[data-fluctuation]', (_event, target) => {
-        plans.setFluctuation(/** @type {HTMLInputElement} */ (target).checked, storage.getActiveProfile());
+        const visible = /** @type {HTMLInputElement} */ (target).checked;
+        // Regenerar PRIMERO y persistir solo si salió bien. Al revés se guardaría
+        // un estado que la gráfica no muestra, que es la misma divergencia que
+        // este arreglo viene a cerrar, solo que por el otro lado.
+        if (!plans.setFluctuation(visible, storage.getActiveProfile())) return;
         void redraw(container);
+        // Y si la escritura falla, se avisa pero NO se revierte el interruptor:
+        // el usuario pidió ver la fluctuación y la está viendo. Deshacer su
+        // acción por un fallo de almacenamiento sería castigarle por él.
+        if (!settingsStore.patch({ fluctuationVisible: visible }).ok) {
+            toast.error('settings.saveFailed');
+        }
     });
 
     on(container, 'click', '[data-png]', () => {

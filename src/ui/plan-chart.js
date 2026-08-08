@@ -69,8 +69,15 @@ export function chartFor(canvas) {
  *
  * `checkinCount` es cuántos check-ins reales entraron en el lienzo, que no es
  * lo mismo que cuántos hay guardados: los que caen fuera del plan no se
- * dibujan. La leyenda de Proyección lo necesita para decidir si nombra la
- * serie real, y calcularlo por su cuenta sería reevaluar la serie entera.
+ * dibujan, y los que no aplican a la métrica pedida tampoco. La leyenda de
+ * Proyección lo necesita para decidir si nombra la serie real, y calcularlo por
+ * su cuenta sería reevaluar la serie entera.
+ *
+ * Ese «ni los que no aplican a la métrica» es un arreglo, no un matiz: antes
+ * este número era `evaluations.length` a secas mientras el lienzo filtraba por
+ * métrica, así que con métrica «grasa» y check-ins sin porcentaje la leyenda
+ * anunciaba una serie que no existía en el lienzo. Ahora el filtro es el MISMO
+ * predicado que usa el lienzo, `chart.checkinAppliesTo`.
  * @param {HTMLElement} container
  * @param {PlanChartOptions} [options]
  * @returns {Promise<{ ok: boolean, checkinCount: number, chart: import('./chart.js').ChartInstance | null }>}
@@ -98,32 +105,35 @@ export async function drawPlanChart(container, options = {}) {
     const today = plans.todayIndex(data, plans.todayISO());
     const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
 
+    const metric = options.metric ?? 'weight';
+    const checkinPoints = evaluations.map((evaluation) => {
+        const record = checkins.findByDate(evaluation.dateISO);
+        return {
+            dayIndex: evaluation.dayIndex,
+            actualKg: evaluation.actualKg,
+            fatPct: record?.fatPct ?? null,
+            // Sin esto, la métrica de músculo no dibuja NINGÚN check-in
+            // aunque el perfil sea de báscula y lo haya guardado:
+            // `chart.js` filtra por este campo. Es lo que le pasaba a la
+            // copia de Hoy, latente solo porque su métrica es fija.
+            scaleMuscleKg: record?.scaleMuscleKg ?? null,
+            signal: evaluation.signal
+        };
+    });
+
     const instance = chartFor(canvas);
     const ok = instance.draw({
         canvas,
         readout,
         projection: data.projection,
-        metric: options.metric ?? 'weight',
+        metric,
         ...(options.grain ? { grain: options.grain } : {}),
         muscle,
         todayIndex: today.dayIndex,
         range: options.range
             ? options.range(data, today.dayIndex)
             : { from: 0, to: data.plan.totalDays },
-        checkins: evaluations.map((evaluation) => {
-            const record = checkins.findByDate(evaluation.dateISO);
-            return {
-                dayIndex: evaluation.dayIndex,
-                actualKg: evaluation.actualKg,
-                fatPct: record?.fatPct ?? null,
-                // Sin esto, la métrica de músculo no dibuja NINGÚN check-in
-                // aunque el perfil sea de báscula y lo haya guardado:
-                // `chart.js` filtra por este campo. Es lo que le pasaba a la
-                // copia de Hoy, latente solo porque su métrica es fija.
-                scaleMuscleKg: record?.scaleMuscleKg ?? null,
-                signal: evaluation.signal
-            };
-        }),
+        checkins: checkinPoints,
         onMilestone: (/** @type {*} */ m) => {
             modal.open({
                 titleKey: 'chart.milestoneModalTitle',
@@ -137,5 +147,6 @@ export async function drawPlanChart(container, options = {}) {
     });
 
     if (!ok) chart.renderFallback(host);
-    return { ok, checkinCount: evaluations.length, chart: instance };
+    const drawn = checkinPoints.filter((c) => chart.checkinAppliesTo(metric, muscle.isScale, c));
+    return { ok, checkinCount: drawn.length, chart: instance };
 }

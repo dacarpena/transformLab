@@ -473,6 +473,19 @@ export const validateSettings = rootValidator({
     reminder: opt(objectOf({
         weekday: num({ min: 0, max: 6, integer: true }),
         hour: num({ min: 0, max: 23, integer: true })
+    })),
+    // Estado de la vista Analizar (E13). `opt()` obligatorio: hay `settings`
+    // guardados desde M3 y exigir esta clave los tumbaría todos.
+    //
+    // La ventana NO admite 'custom' aunque el zoom lo produzca: un zoom son dos
+    // índices de día que solo significan algo dentro de un plan concreto, y
+    // restaurarlos sobre un plan recalibrado señalaría un tramo que ya no existe.
+    // Al recargar se vuelve al plan entero, que es un sitio del que se sabe salir.
+    analysis: opt(objectOf({
+        seriesIds: arrayOf(str({ maxLength: 40, pattern: SAFE_ID }), { maxItems: 4 }),
+        window: enumOf(['all', 'phase', '90', '30']),
+        grain: enumOf(['day', 'week', 'month']),
+        normalize: enumOf(['raw', 'delta'])
     }))
 });
 
@@ -510,9 +523,17 @@ export const validatePreferences = rootValidator({
     mealsPerDay: opt(num({ min: 1, max: 10, integer: true })),
     householdSize: opt(num({ min: 1, max: 20, integer: true })),
     controlLevel: opt(str({ maxLength: 20 })),
-    // Módulos que el usuario ha activado (V2-M10). Opcional: un perfil de la v1
-    // no los tiene, y sus lectores caen a los activos de fábrica.
-    activeModules: arrayOf(str({ maxLength: 40 }), { maxItems: 20 })
+    // Módulos que el usuario ha activado (V2-M10).
+    //
+    // `opt()` NO es cosmética, y este comentario ya decía «opcional» mientras el
+    // código lo exigía. Consecuencia medida: un registro de `preferences` escrito
+    // ANTES de V2-M10 fallaba la validación ENTERA por esta clave ausente,
+    // `get()` degradaba a vacío y el siguiente `save()` escribía encima. El
+    // usuario perdía su tipo de dieta y sus exclusiones duras, que son ALERGIAS.
+    //
+    // La regla general, que vale para cualquier campo que se añada a una
+    // colección ya poblada: si no estaba, va con `opt()`. Sin excepciones.
+    activeModules: opt(arrayOf(str({ maxLength: 40 }), { maxItems: 20 }))
 });
 
 /** Lo que ya hay en casa; se descuenta de la lista de la compra (V2-M4). */

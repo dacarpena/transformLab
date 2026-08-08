@@ -232,3 +232,76 @@ test('ida y vuelta Hoy ↔ Proyección: ambos lienzos pintan y la consola queda 
 
     expect(errors).toEqual([]);
 });
+
+// ============================================================
+// E13-0 · Los dos defectos que el usuario veía
+// ============================================================
+
+test('el interruptor de fluctuación sobrevive a recargar', async ({ page }) => {
+    const casilla = page.locator('[data-fluctuation]');
+    await expect(casilla).not.toBeChecked();
+    await casilla.check();
+    await expect(casilla).toBeChecked();
+
+    // Y está EN EL ALMACÉN, no solo en memoria: ese era el defecto exacto.
+    // `plan-state.setFluctuation()` regeneraba la proyección y nadie escribía
+    // `settings.fluctuationVisible`, que `main.js` sí lee al arrancar.
+    const guardado = await page.evaluate(() => {
+        const clave = Object.keys(localStorage).find((k) => k.endsWith('.settings'));
+        return clave ? JSON.parse(localStorage.getItem(clave) ?? 'null') : null;
+    });
+    expect(guardado.fluctuationVisible).toBe(true);
+
+    await page.reload();
+    await page.click('[data-view="projection"]');
+    await expect(page.locator('[data-fluctuation]')).toBeChecked();
+});
+
+test('la leyenda no promete check-ins que el lienzo no dibuja', async ({ page }) => {
+    // Un check-in con peso pero SIN porcentaje de grasa: el formulario lo
+    // permite, y es el caso que destapaba la mentira.
+    await page.evaluate(() => {
+        const clave = Object.keys(localStorage).find((k) => k.endsWith('.checkins'));
+        const perfilClave = Object.keys(localStorage).find((k) => k.endsWith('.profile'));
+        if (!clave || !perfilClave) throw new Error('sin perfil sembrado');
+        const perfil = JSON.parse(localStorage.getItem(perfilClave) ?? '{}');
+        const inicio = new Date(`${perfil.startDateISO}T00:00:00Z`);
+        inicio.setUTCDate(inicio.getUTCDate() + 7);
+        const dateISO = inicio.toISOString().slice(0, 10);
+        const previo = JSON.parse(localStorage.getItem(clave) ?? 'null');
+        localStorage.setItem(clave, JSON.stringify({
+            schemaVersion: previo?.schemaVersion ?? 6,
+            items: [{
+                id: `ci_${dateISO}`, dateISO, weightKg: 74.2,
+                fatPct: null, measuresCm: {}, subjective: {},
+                notes: '', createdAtISO: '2026-01-01T00:00:00.000Z', editedAtISO: null
+            }]
+        }));
+    });
+    await page.reload();
+    await page.click('[data-view="projection"]');
+    await expect(page.locator('.view[data-view-id="projection"] canvas')).toBeVisible();
+
+    const leyenda = page.locator('[data-legend]');
+
+    // En peso SÍ se dibuja y SÍ se nombra.
+    await expect(leyenda).toContainText('Check-in');
+    expect(await puntosDeCheckin(page)).toBeGreaterThan(0);
+
+    // En grasa NO hay dato, así que ni se dibuja ni se nombra. Antes la leyenda
+    // lo listaba igual, porque contaba check-ins guardados en vez de dibujados.
+    await page.click('[data-metric="fatPct"]');
+    await expect(leyenda).not.toContainText('Check-in');
+    expect(await puntosDeCheckin(page)).toBe(0);
+});
+
+/** Cuántos puntos de check-in hay en el lienzo (el dataset del rombo). */
+async function puntosDeCheckin(page) {
+    return page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="projection"] canvas');
+        const c = /** @type {*} */ (globalThis).Chart?.getChart(cv);
+        if (!c) return -1;
+        const real = c.data.datasets.find((/** @type {*} */ d) => d.pointStyle === 'rectRot');
+        return real ? real.data.length : 0;
+    });
+}

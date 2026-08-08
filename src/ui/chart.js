@@ -190,6 +190,34 @@ export function milestoneLabel(milestone, muscle = muscleUnitsFor(null)) {
 }
 
 /**
+ * Si un check-in real se dibuja o no en la métrica pedida.
+ *
+ * FUENTE ÚNICA de esa decisión, y existe porque había dos. El lienzo filtraba
+ * por métrica mientras `plan-chart.js` contaba `evaluations.length` a secas, así
+ * que con métrica «grasa» y check-ins sin porcentaje la leyenda anunciaba la
+ * serie «Check-in» y el lienzo no pintaba ni un punto. El JSDoc de aquel
+ * contador prometía «cuántos entraron en el lienzo» y no era verdad.
+ *
+ * Las tres reglas, con su motivo:
+ * - `fatPct`: solo si el check-in trae porcentaje. Es opcional en el formulario.
+ * - `muscle`: solo con báscula. El check-in guarda la cifra de la báscula (E11)
+ *   y el eje ya está en esa unidad, así que se pinta TAL CUAL, sin conversión:
+ *   es una medición, no un nivel del motor. Sin báscula no hay dato que pintar.
+ * - `kcal`: nunca. Un check-in es un peso; en un eje de kcal no significa nada.
+ *
+ * @param {'weight'|'fatPct'|'muscle'|'kcal'} metric
+ * @param {boolean} isScale si el perfil mide el músculo con báscula
+ * @param {{ fatPct?: number|null, scaleMuscleKg?: number|null }} record
+ * @returns {boolean}
+ */
+export function checkinAppliesTo(metric, isScale, record) {
+    if (metric === 'kcal') return false;
+    if (metric === 'fatPct') return record.fatPct !== null && record.fatPct !== undefined;
+    if (metric === 'muscle') return isScale && Number.isFinite(record.scaleMuscleKg);
+    return true;
+}
+
+/**
  * Los índices de día que se dibujan según la granularidad pedida.
  *
  * Se DERIVAN de los agregados que el generador ya produce; no se recalculan
@@ -451,17 +479,10 @@ export function createChart() {
         // Check-ins reales superpuestos a la proyección (M4-4). Van con estilo
         // propio y en primer plano: lo medido no puede confundirse con lo previsto.
         // No se filtran por ventana: los recorta la escala, como a todo lo demás.
-        // En músculo solo se dibujan si el perfil es de báscula: el check-in
-        // guarda la cifra de la báscula (E11) y el eje ya está en esa unidad, así
-        // que se pinta TAL CUAL, sin conversión — es una medición, no un nivel del
-        // motor. Sin báscula no hay dato de músculo medido, y en kcal los
-        // check-ins no significan nada: son pesos.
-        const realPoints = (options.checkins ?? []).filter((c) => {
-            if (metric === 'fatPct') return c.fatPct !== null;
-            if (metric === 'muscle') return muscleUnits.isScale && Number.isFinite(c.scaleMuscleKg);
-            if (metric === 'kcal') return false;
-            return true;
-        });
+        // Qué check-in aplica a qué métrica lo decide `checkinAppliesTo`, que es
+        // el MISMO predicado que usa la leyenda para saber si nombrar la serie.
+        const realPoints = (options.checkins ?? [])
+            .filter((c) => checkinAppliesTo(metric, muscleUnits.isScale, c));
         if (realPoints.length > 0 && metric !== 'kcal') {
             datasets.push({
                 label: t('checkin.title'),
