@@ -37,6 +37,12 @@ import { buildTimeline, groupByPhase } from '../../core/timeline.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { aestheticMilestonesFor, textOf } from '../../core/milestones.js';
 import { empty, error as errorState } from '../components/state.js';
+import { projectByGroup, checkReparto } from '../../core/muscle-groups.js';
+import { volumeReport } from '../../core/muscle-volume.js';
+import { renderMuscleGrid } from '../muscle-grid.js';
+import * as exercisesDb from '../../data/exercises-db.js';
+import * as trainingStore from '../../data/training.js';
+import { exercisesOf } from '../../data/training.js';
 import { num } from '../format.js';
 
 /** @typedef {'weight'|'fatPct'|'muscle'|'kcal'} Metric */
@@ -604,9 +610,18 @@ function draw(container) {
         ${renderNext(data, today)}
         ${renderChart(data)}
         <div data-timeline-host>${renderTimeline(data, today)}</div>
+        <section class="card" aria-labelledby="muscle-grid-title">
+            <div class="card__header">
+                <h2 id="muscle-grid-title" class="card__title">${t('muscleGrid.title')}</h2>
+            </div>
+            <div data-muscle-grid>
+                <p class="muted" role="status">${t('volume.loading')}</p>
+            </div>
+        </section>
         ${renderKcal(data, today)}
     `);
     void redraw(container);
+    void drawMuscleGrid(container);
 }
 
 /**
@@ -621,6 +636,56 @@ function draw(container) {
  * @type {import('../chart.js').ChartInstance | null}
  */
 let chartInstance = null;
+
+/**
+ * La rejilla músculo a músculo (V2-M9).
+ *
+ * Va DESPUÉS del primer pintado y en su propio contenedor: necesita el catálogo
+ * de ejercicios, y la proyección global —que es lo que el usuario ha venido a
+ * ver— no depende de él. Bloquear la vista entera por una sección secundaria
+ * sería castigar al usuario por una función que quizá ni mire.
+ */
+async function drawMuscleGrid(/** @type {*} */ container) {
+    const host = /** @type {HTMLElement | null} */ (container.querySelector('[data-muscle-grid]'));
+    const data = plans.get();
+    if (!host || !data) return;
+
+    const loaded = await exercisesDb.load();
+    // El usuario puede haber cambiado de vista mientras llegaba el catálogo.
+    if (!container.isConnected) return;
+
+    const training = trainingStore.read();
+    /** @type {Record<string, *>} */ const porRutina = {};
+    if (loaded.ok) {
+        for (const ex of exercisesOf(training.routine)) {
+            if (ex.catalogId && loaded.value[ex.catalogId]) porRutina[ex.id] = loaded.value[ex.catalogId];
+        }
+    }
+    const report = volumeReport({
+        sessions: training.sessions,
+        catalog: porRutina,
+        trainingStatus: data.profile?.user?.trainingStatus ?? 'intermediate',
+        weeks: 1
+    });
+    /** @type {Record<string, number>} */ const stimulusByGroup = {};
+    for (const g of report.groups) stimulusByGroup[g.group] = g.stimulus;
+
+    const desagregada = projectByGroup({ daily: data.projection.daily, stimulusByGroup });
+    // El cortafuegos se comprueba EN LA VISTA, no solo en el test: si algún día
+    // la suma no cuadrase en el navegador de alguien, es preferible decirlo a
+    // pintar once gráficas que se contradicen entre sí.
+    const check = checkReparto(desagregada, data.projection.daily, 1e-6);
+    const today = plans.todayIndex(data, plans.todayISO());
+
+    render(host, renderMuscleGrid({
+        projection: desagregada,
+        todayIndex: today.dayIndex,
+        repartoOk: check.ok
+    }));
+    if (!check.ok) {
+        console.error('[projection] el reparto por grupo no cuadra: %o', check);
+    }
+}
 
 async function redraw(/** @type {*} */ container) {
     const data = plans.get();

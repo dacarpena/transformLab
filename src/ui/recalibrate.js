@@ -141,6 +141,39 @@ function applyRecalibration(latest) {
             nextProfile.initial.muscleKg = nextMuscleKg;
             nextProfile.initial.scaleMuscleKg = nextScaleMuscleKg;
         }
+    } else {
+        // PERFILES SIN BÁSCULA: el mismo arreglo, y esta es la parte que faltaba
+        // (V2-M9, pendiente decidido de la v1).
+        //
+        // E11 arregló la conservación del músculo SOLO para quien da cifras de
+        // báscula. Para todos los demás —la mayoría— `muscleKg` seguía yéndose a
+        // `null` y se re-estimaba con la proporción de POBLACIÓN (0,49 × magra),
+        // que es transversal: sirve para adivinar el músculo de alguien en un
+        // instante, no para seguir a UNA persona en el tiempo. El resultado era
+        // que recalibrar tiraba a la basura parte de la ganancia que el propio
+        // plan decía haber conseguido, y el usuario no tenía forma de verlo.
+        //
+        // La conservación correcta es la misma que usa el motor: el tejido magro
+        // no muscular (`otherLeanKg`) se conserva, y todo lo que cambie del peso
+        // se atribuye a grasa y músculo. Así el músculo que llevas ganado sigue
+        // ahí después de recalibrar.
+        //
+        // CONSECUENCIA ACEPTADA: los planes ya creados cambian de duración al
+        // recalibrar, porque parten de un músculo distinto (y más fiel) del que
+        // partían antes. Es el precio de dejar de perder ganancia en cada
+        // recalibración, y se prefiere pagarlo.
+        const otherLeanKg = data.composition?.otherLeanKg;
+        const previousMuscleKg = point?.muscleKg;
+        if (Number.isFinite(otherLeanKg) && Number.isFinite(previousMuscleKg)) {
+            const nextLeanKg = latest.actualKg * (1 - roundedFatPct / 100);
+            const nextMuscleKg = Math.round((nextLeanKg - otherLeanKg) * 100) / 100;
+            // Si el usuario ha perdido tanta magra que el músculo se iría a cero
+            // o superaría a la propia magra, el modelo ya no aplica: se deja la
+            // ruta estimada de siempre en vez de escribir un imposible.
+            if (nextMuscleKg > 0 && nextMuscleKg < nextLeanKg) {
+                nextProfile.initial.muscleKg = nextMuscleKg;
+            }
+        }
     }
 
     const built = plans.build(nextProfile, { profileId: storage.getActiveProfile() });

@@ -226,3 +226,51 @@ test('no hay errores de consola en el ciclo de seguimiento completo', async ({ p
 
     expect(errors).toEqual([]);
 });
+
+test('recalibrar CONSERVA el músculo ganado también en un perfil estimado (V2-M9)', async ({ page }) => {
+    // El pendiente decidido de la v1: E11 arregló la conservación solo para
+    // quien da cifras de báscula. Para todos los demás —la mayoría— `muscleKg`
+    // se iba a null y se re-estimaba con la proporción de POBLACIÓN, que sirve
+    // para adivinar el músculo de alguien en un instante pero no para seguir a
+    // UNA persona en el tiempo. El resultado era que recalibrar tiraba parte de
+    // la ganancia que el propio plan decía haber conseguido.
+    await seedProfile(page, {
+        weeksAgo: 9,
+        checkinWeights: [75.2, 75.1, 75.3, 75.2, 75.1, 75.2, 75.3, 75.2]
+    });
+
+    // El perfil es `estimated`, sin báscula: es justo el caso que faltaba.
+    const antes = await page.evaluate(({ P, PROFILE_ID }) => {
+        const raw = localStorage.getItem(`${P}${PROFILE_ID}.profile`);
+        return JSON.parse(raw ?? 'null');
+    }, { P, PROFILE_ID });
+    expect(antes.initial.muscleSource).toBe('estimated');
+    expect(antes.initial.muscleKg).toBeNull();
+
+    // El músculo que la app dice que tiene HOY, antes de tocar nada.
+    const musculoHoy = await page.evaluate(() => {
+        const texto = document.body.innerText;
+        const m = texto.match(/([\d.]+)\s*kg de músculo/);
+        return m ? Number(m[1]) : null;
+    });
+
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
+    await page.click('[data-accept]');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('#today-title')).toBeVisible();
+
+    const despues = await page.evaluate(({ P, PROFILE_ID }) => {
+        const raw = localStorage.getItem(`${P}${PROFILE_ID}.profile`);
+        return JSON.parse(raw ?? 'null');
+    }, { P, PROFILE_ID });
+
+    // Lo que cierra el pendiente: el músculo se ESCRIBE, no se deja a null para
+    // que la proporción de población lo vuelva a adivinar.
+    expect(despues.initial.muscleKg).not.toBeNull();
+    expect(despues.initial.muscleSource).toBe('estimated');
+    if (musculoHoy !== null) {
+        // Y es el que llevaba, no uno re-estimado desde cero.
+        expect(Math.abs(despues.initial.muscleKg - musculoHoy)).toBeLessThan(1.5);
+    }
+});

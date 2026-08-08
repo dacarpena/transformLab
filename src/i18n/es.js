@@ -781,4 +781,23 @@ export const es = {
     "steps.below": "Andas {steps} pasos MENOS al día de lo que tu plan supone: unas {kcal} kcal que no estás gastando. Si la báscula no baja, empieza por aquí.",
     "steps.tradeOff": "El canje: {steps} pasos más al día son unas {kcal} kcal, que a final de mes equivalen a {kg} kg de grasa. Puedes andarlos o puedes comer eso menos — tú decides.",
     "steps.noDoubleCount": "Estas calorías NO se suman a tu objetivo diario. Tu multiplicador de actividad ya cuenta lo que andas; sumarlas otra vez sería contar lo mismo dos veces.",
+
+    // V2-M9 · proyección músculo a músculo
+    "muscleGrid.title": "Músculo a músculo",
+    "muscleGrid.explain": "Reparte el músculo que el plan proyecta entre los diez grupos, en proporción al estímulo que recibe cada uno. No es una medición: nadie mide el músculo de su bíceps en casa.",
+    "muscleGrid.fromTraining": "El reparto sale de tus sesiones registradas. Entrena más un grupo y crecerá más — a costa de los demás, porque el total lo fija tu plan.",
+    "muscleGrid.noTraining": "Todavía no has registrado sesiones enlazadas al catálogo, así que reparto por proporciones anatómicas medias. Apunta tu rutina y el reparto pasará a ser el tuyo.",
+    "muscleGrid.estimate": "estimación",
+    "muscleGrid.now": "Hoy: {kg} kg",
+    "muscleGrid.gain": "Ganado {sofar} kg de {total} kg previstos",
+    "muscleGrid.empty": "Sin proyección todavía.",
+    "muscleGrid.repartoBroken": "Las cifras por grupo no cuadran con tu proyección global, así que no te las enseño. Es un fallo mío, no tuyo: la gráfica general sigue siendo correcta.",
+    "muscleGrid.tableToggle": "Ver los números en una tabla",
+    "muscleGrid.tableCaption": "Músculo estimado por grupo: hoy, al final del plan y ganancia prevista, en kilos.",
+    "muscleGrid.colGroup": "Grupo",
+    "muscleGrid.colNow": "Hoy (kg)",
+    "muscleGrid.colEnd": "Al final (kg)",
+    "muscleGrid.colGain": "Ganancia (kg)",
+    "muscleGrid.disclaimer": "Cada línea es el escenario esperado y la zona sombreada, la banda entre el pesimista y el optimista. Es una desagregación de tu proyección, no una medida de tu cuerpo.",
+    "muscleGrid.unitNote": "Estas cifras son de músculo esquelético, no de la lectura de tu báscula: una báscula mide el cuerpo entero y no puede decirte lo que pesa un bíceps.",
 };

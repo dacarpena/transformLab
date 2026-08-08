@@ -1381,3 +1381,110 @@ button.timeline__event:hover {
 .badge--zone-productive  { background: var(--color-success); }
 .badge--zone-aboveMav    { background: var(--color-warning); }
 .badge--zone-aboveMrv    { background: var(--color-danger); }
+
+/* ---------------- Rejilla músculo a músculo (V2-M9) ---------------- */
+
+.muscle-grid {
+    display: grid;
+    /* 118 px y no 140: a 320 px el ancho útil dentro de la tarjeta son 256, y
+       con 140 solo cabe UNA columna. Los small multiples solo funcionan si se
+       comparan de un vistazo; uno por pantalla es una lista con dibujos. */
+    /* `min(118px, 100%)` y no `118px` a secas: con zoom del 200 % a 320 px el
+       ancho útil baja de 118, y una pista con mínimo rígido no encoge — se
+       desborda. Con `min()` la pista cede cuando no cabe, que es exactamente lo
+       que exige el criterio de reflow (WCAG 1.4.10). */
+    grid-template-columns: repeat(auto-fill, minmax(min(118px, 100%), 1fr));
+    gap: var(--space-3);
+}
+
+.muscle-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    min-width: 0;
+}
+
+.muscle-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.muscle-card__name {
+    font-weight: var(--weight-medium);
+}
+
+.muscle-spark {
+    width: 100%;
+    height: 36px;
+    display: block;
+}
+
+/* La línea es el escenario esperado; la banda, el margen entre el pesimista y
+   el optimista. Misma gramática visual que la gráfica grande. */
+.muscle-spark__line {
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+.muscle-spark__band {
+    fill: var(--color-accent);
+    opacity: 0.18;
+    stroke: none;
+}
+
+/* Insignia de estimación: gris deliberado. Un color llamativo la haría parecer
+   una certificación, y dice justo lo contrario. */
+.badge--estimate {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border-control);
+    /* Las insignias de fase heredan `nowrap` de `.badge` y les conviene: son
+       una palabra corta. «Estimación» no: con el texto al 200 % en una tarjeta
+       de la rejilla no cabe en una línea y empujaba el documento 1 px
+       (criterio de reflow, WCAG 1.4.10). Aquí sí puede partir. */
+    white-space: normal;
+    min-width: 0;
+}
+
+.muscle-grid__table summary {
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+    margin-top: var(--space-2);
+}
+
+.data-table caption {
+    text-align: left;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    padding-bottom: var(--space-2);
+}
+
+.data-table th,
+.data-table td {
+    text-align: left;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table td.numeric,
+.data-table th[scope="col"] + th,
+.data-table .numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}

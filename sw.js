@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0058';
+const CACHE_VERSION = 'tl-v5-0062';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -55,6 +55,7 @@ const PRECACHE = [
     'src/core/data/aesthetic-catalog.json',
     'src/core/data/supplements-catalog.json',
     'src/core/engine.js',
+    'src/core/muscle-groups.js',
     'src/core/muscle-volume.js',
     'src/core/expenditure.js',
     'src/core/generator.js',
@@ -97,6 +98,7 @@ const PRECACHE = [
     'src/ui/dates.js',
     'src/ui/dom.js',
     'src/ui/format.js',
+    'src/ui/muscle-grid.js',
     'src/ui/muscle-units.js',
     'src/ui/plan-chart.js',
     'src/ui/plan-state.js',

@@ -651,3 +651,68 @@ que lo comprueba.
 Y por tercera vez en la v2, un texto decía «Media de 1 días». Reescrito.
 
 **681 unitarios · 132 E2E · typecheck limpio.**
+
+### V2-M9 · Proyección músculo a músculo — cerrada el 2026-08-08
+
+`src/core/muscle-groups.js` (desagregación pura) y `src/ui/muscle-grid.js` (la
+rejilla), integrados en la vista de Proyección.
+
+**ES UNA DESAGREGACIÓN, NO UN SEGUNDO CÁLCULO**, y esa distinción es toda la
+milestone. El eje agregado sigue siendo la única fuente de verdad sobre cuánto
+músculo se gana; aquí se reparte ese presupuesto ya proyectado entre los diez
+grupos en proporción al estímulo que recibe cada uno. **El cortafuegos es el
+invariante `reparto`**: la suma de las series por grupo reconstituye EXACTAMENTE
+el `muscleKg` global de cada día. Verificado con mutación deliberada: repartir
+por porcentajes sin cerrar el residuo rompe 6 tests.
+
+`distributeExactly` cierra el reparto en el último grupo, igual que
+`splitIntoMeals` con las comidas. Repartir por porcentajes y redondear cada uno
+deja unos gramos de diferencia que, sobre 200 días, se convierten en una
+discrepancia visible entre la gráfica global y la suma de las pequeñas.
+
+**El punto de partida se reparte por ANATOMÍA y solo la GANANCIA por estímulo**:
+el músculo que ya tienes lo tienes, y no depende de lo que entrenes esta
+temporada. Consecuencia directa del cortafuegos y probada: entrenar más pecho no
+da más músculo TOTAL, da más pecho y menos de lo demás.
+
+Un defecto propio, encontrado porque un test no cuadraba: **la banda se
+calculaba escalando la ganancia final por `t^exp`**, lo que da por hecho que el
+músculo se gana de forma lineal en el tiempo. El motor lo modela con fases, así
+que la banda salía desplazada justo en el tramo que el usuario mira. Se rehizo
+como en `generator.js`: interpolando la propia serie en una posición desplazada.
+Y de paso quedó fijado un invariante mejor —**un escenario no puede inventar un
+valor que el plan nunca alcanza**— que es lo que garantiza recorrer la misma
+serie a otro ritmo.
+
+También hubo que reenunciar `escenarios_por_grupo`: el orden es **en posición de
+plan, no en magnitud**, igual que el invariante `escenarios` de la v1. Un plan
+con fase de definición hace que el músculo baje en algún tramo, y ahí ir más
+adelantado significa tener menos.
+
+Tres decisiones de presentación:
+
+- **SVG en línea, no diez instancias de Chart.js.** Un *small multiple* no
+  necesita ejes, tooltips ni cursor de teclado propio, y diez regiones
+  `aria-live` competirían entre ellas. La accesibilidad se resuelve donde debe:
+  con una **tabla de datos** de verdad, que es lo que un lector sabe recorrer.
+- **Unidad: músculo esquelético, NO unidad de báscula**, y es una desviación
+  deliberada del prompt. Una báscula mide el cuerpo entero; trasladar su desfase
+  a un bíceps concreto le atribuiría a ese músculo el agua y el hueso de todo el
+  cuerpo. No convertir es más honesto que convertir mal.
+- **Cada serie viaja marcada como estimación** (`estimated: true`) y la rejilla
+  lo dice con todas las letras. Nadie mide el músculo de su bíceps en casa.
+
+Y aterriza aquí el **pendiente decidido de la v1**: recalibrar ahora conserva el
+músculo también en perfiles `estimated`. E11 lo arregló solo para quien da
+cifras de báscula; para todos los demás `muscleKg` se iba a `null` y se
+re-estimaba con la proporción de POBLACIÓN, tirando parte de la ganancia que el
+propio plan decía haber conseguido. Consecuencia aceptada, como se acordó: los
+planes ya creados cambian de duración al recalibrar. El E2E que lo cubre falla
+si se quita el arreglo.
+
+Dos defectos de accesibilidad encontrados por los tests, los dos de reflow
+(WCAG 1.4.10) a 320 px con el texto al 200 %: la rejilla no encogía por debajo
+de su pista mínima (`minmax(min(118px, 100%), 1fr)`) y la insignia «estimación»
+heredaba el `nowrap` de `.badge`.
+
+**702 unitarios · 140 E2E · typecheck limpio.**

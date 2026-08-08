@@ -781,4 +781,23 @@ export const en = {
     "steps.below": "You walk {steps} FEWER steps a day than your plan assumes: about {kcal} kcal you are not burning. If the scale is not moving, start here.",
     "steps.tradeOff": "The trade: {steps} more steps a day is about {kcal} kcal, which over a month equals {kg} kg of fat. You can walk them or you can eat that much less — your call.",
     "steps.noDoubleCount": "These calories are NOT added to your daily target. Your activity multiplier already counts your walking; adding them again would count the same thing twice.",
+
+    // V2-M9 · muscle-by-muscle projection
+    "muscleGrid.title": "Muscle by muscle",
+    "muscleGrid.explain": "Splits the muscle your plan projects across the ten groups, in proportion to the stimulus each one gets. It is not a measurement: nobody measures their biceps at home.",
+    "muscleGrid.fromTraining": "The split comes from your logged sessions. Train a group more and it will grow more — at the expense of the others, because the total is set by your plan.",
+    "muscleGrid.noTraining": "You have not logged sessions linked to the catalogue yet, so I split by average anatomical proportions. Log your routine and the split becomes yours.",
+    "muscleGrid.estimate": "estimate",
+    "muscleGrid.now": "Today: {kg} kg",
+    "muscleGrid.gain": "Gained {sofar} kg of {total} kg projected",
+    "muscleGrid.empty": "No projection yet.",
+    "muscleGrid.repartoBroken": "The per-group figures do not add up to your global projection, so I am not showing them. That is my fault, not yours: the main chart is still correct.",
+    "muscleGrid.tableToggle": "See the numbers as a table",
+    "muscleGrid.tableCaption": "Estimated muscle per group: today, at the end of the plan, and projected gain, in kilograms.",
+    "muscleGrid.colGroup": "Group",
+    "muscleGrid.colNow": "Today (kg)",
+    "muscleGrid.colEnd": "At the end (kg)",
+    "muscleGrid.colGain": "Gain (kg)",
+    "muscleGrid.disclaimer": "Each line is the expected scenario and the shaded area is the band between pessimistic and optimistic. It is a breakdown of your projection, not a measurement of your body.",
+    "muscleGrid.unitNote": "These figures are skeletal muscle, not your scale reading: a scale measures the whole body and cannot tell you what a biceps weighs.",
 };
