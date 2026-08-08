@@ -324,7 +324,7 @@ Los tests que cierran cada uno llevan escrito el fallo que evitan.
 - [x] M6-5 · Rendimiento: Lighthouse ≥ 90 en las cuatro categorías sobre staging; corregir lo que baje de ahí.
 - [x] M6-6 · Legales y meta: aviso de privacidad visible (C6), disclaimer «no es consejo médico», Open Graph completo, `robots.txt` real, título/descripciones i18n.
 - [x] M6-7 · Dominio propio en Cloudflare Pages + HTTPS; redirecciones limpias.
-- [ ] M6-8 · **Checklist de release** (F8) ejecutada y pegada en la bitácora con fecha: CI verde · typecheck limpio · E2E verde · Lighthouse ≥90×4 · guion de humo manual pasado (adaptación del de `docs/VERIFICACION-MANUAL.md` a v5) · migración v4 probada con datos reales · backup/restore probado · dominio y PWA instalable verificados en un móvil real.
+- [x] M6-8 · **Checklist de release** (F8) ejecutada y pegada en la bitácora con fecha: CI verde · typecheck limpio · E2E verde · Lighthouse ≥90×4 · guion de humo manual pasado (adaptación del de `docs/VERIFICACION-MANUAL.md` a v5) · migración v4 probada con datos reales · backup/restore probado · dominio y PWA instalable verificados en un móvil real.
 
 ### Criterios de cierre
 
@@ -332,6 +332,45 @@ Los tests que cierran cada uno llevan escrito el fallo que evitan.
 - URL pública con dominio propio operativa. Esto es «producción».
 
 ### Bitácora M6
+
+**M6-8 CERRADA (2026-08-08), y con las renuncias dichas por su nombre.**
+La casilla llevaba abierta desde el 7 de agosto porque exigía cosas que solo
+puede hacer el usuario. Preguntado, respondió literalmente: «No me importan mis
+datos, estamos en fase de desarrollo. No me importa ninguna de las acciones que
+tengo que hacer yo.» Así que las tres se marcan como **renunciadas**, no como
+pendientes: dejarlas sin marcar sugeriría que alguien las hará, y no va a pasar.
+
+```
+[x] CI verde en main (typecheck + 445 unit + 81 e2e)   ← run 31254179703
+[x] Test de identidad: 4 perfiles, desviación 0,000000 kg
+[x] Lighthouse sobre https://motifyer.com, medido HOY sobre el build con M7:
+      escritorio  100 / 100 / 100 / 100   (LCP 0,4 s · TBT 0 ms · CLS 0)
+      móvil        99–100 / 100 / 100 / 100  en 4 pasadas
+                   (LCP 1,69–1,79 s · TBT 0 ms · CLS 0)
+    M7 metió dos módulos nuevos en el camino crítico (`_manifest.js` y
+    `plan-chart.js`), así que se midió cuatro veces en vez de una: la banda es
+    la misma que tras E12 (LCP 1,7 s). Ruido, no regresión.
+[x] PWA: precache de 64 entradas, modo avión REAL — abre, las once vistas
+    cargan, la gráfica dibuja
+[x] Migración v4→v5 con fixture de formas reales: no hereda el objetivo roto,
+    conserva los check-ins, archiva los datos v4, idempotente
+[x] Backup → borrar perfil → restore, y un backup hostil que no ejecuta nada
+[x] CSP activa sin violaciones — y AHORA DE VERDAD: hasta M7-7 esta casilla
+    se apoyaba en un servidor huérfano que nadie levantaba (ver bitácora M7)
+[x] Dominio propio + HTTPS operativos: https://motifyer.com
+[~] Migración con los datos REALES del dispositivo   ← RENUNCIADA por el usuario
+[~] PWA instalada y sin red en un móvil real         ← RENUNCIADA por el usuario
+[~] Guion de humo manual en el móvil                 ← RENUNCIADA por el usuario
+```
+
+**Lo que esas tres renuncias dejan sin cubrir, para que conste.** No es nada:
+el peor fallo de M6 fue justo de esa familia —el precache fallaba entero en
+producción por una redirección que en local no existe— y lo que lo destapó fue
+un navegador real contra el dominio. Eso sí está cubierto ahora
+(`pwa.spec.js`, modo avión automatizado). Lo que queda fuera es **Safari en
+iOS**: otro motor, otra gestión de memoria y la app instalada en vez de una
+pestaña. Si algo se rompe solo ahí, esta suite no lo verá. El guion, por si un
+día se quiere ejecutar, sigue en `docs/RELEASE-V5.md`.
 
 **2026-08-03 · M6-1 a M6-6 hechas; queda el dominio (M6-7) y la checklist
 (M6-8), que dependen del panel de Cloudflare.**
@@ -723,9 +762,47 @@ los otros.
 - [x] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
 - [x] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
 - [x] M7-8 · Barrido de código muerto: 15 claves i18n, 8 exports, 5 reglas CSS y 6 tokens sin consumidor.
-- [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
+- [x] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
 
 ### Bitácora M7
+
+**M7-9 y CIERRE DE M7 (2026-08-08).** Los seis documentos de la auditoría
+—`DEUDA-TECNICA`, `AUDITORIA`, `CATALOGO-DE-HALLAZGOS`, `VERIFICACION-MANUAL`,
+`METODOLOGIA-CIENTIFICA`, `MODELO-DE-DATOS`— describían un árbol que no existe
+(165 rutas `js/…`) y se presentaban como «vigente» y «remediación no iniciada».
+Es lo primero que lee alguien nuevo, y daba un mapa falso: la remediación fue la
+reconstrucción v5, no una corrección in situ. Cada uno abre ahora con un aviso
+que dice qué es, para qué SIGUE sirviendo —es el mapa de minas del port, y
+`CLAUDE.md` §1 lo exige— y qué no hay que hacer con él. No se borran.
+
+**Estado de la v1 al cerrar M7:**
+
+```
+445 tests unitarios · 81 E2E · typecheck limpio sobre TODO src/
+53 módulos · 14 517 líneas · 64 entradas de precache · 11 vistas
+CI verde en main · desplegado en https://motifyer.com (tl-v5-0029)
+Lighthouse escritorio 100/100/100/100 · móvil 99–100/100/100/100
+```
+
+**Lo que M7 cambia de verdad, más allá de las cifras.** Al empezar, la v1 estaba
+«a una casilla de 55», pero esa casilla arrastraba tres afirmaciones que no se
+sostenían al comprobarlas: que los E2E corrían bajo la CSP (el servidor estaba
+huérfano), que `src/ui/` estaba comprobado por tipos (24 ficheros declaraban
+`@ts-check` sin estar incluidos), y que `dom.js` estaba cubierto (solo por
+regex, sin ejecutar). Las tres eran verdad en la documentación y mentira en el
+código. Ahora coinciden.
+
+Y para la v2 —«más funcionalidad, misma app»— quedan tres cosas que antes no
+estaban: añadir una vista cuesta **un** sitio en vez de siete, la capa de datos
+tiene repositorios probados en vez de persistencia dentro de las vistas, y
+`CACHE_VERSION` es una regla que se impone sola en vez de un comentario que se
+olvidaba.
+
+**Lo que M7 decidió NO hacer, con el diagnóstico escrito en BACKLOG:** el
+singleton de `chart.js` (dos gráficas a la vez fallan en silencio), el escapado
+sensible al contexto para atributos sin comillas, diferir el arranque, y los
+diccionarios i18n bajo demanda.
+
 
 **M7-8 (2026-08-08) · barrido, con dos discrepancias respecto al informe.**
 12 claves i18n, 7 funciones exportadas que no llamaba nadie
@@ -865,6 +942,12 @@ frente a los 11 ms de ahora, contra un umbral de 500.
 ---
 
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
+
+- **`chart.js` es un SINGLETON y dos gráficas simultáneas fallan en silencio (visto en M7).** `draw()` destruye la instancia previa, así que si una vista pintara dos lienzos a la vez el primero desaparecería sin error ni aviso. Hoy no ocurre —Hoy y Proyección son vistas distintas— y convertirlo en factoría son ~600 líneas de refactor, así que no se hizo. Queda escrito para que el día que la v2 quiera dos gráficas en una pantalla no haya que redescubrir por qué la primera se borra.
+- **`escapeHtml` no cubre atributos SIN comillas** (verificado en M7-6: `class=${'a onmouseover=alert(1) b'}` produce un XSS funcionando). Hoy no hay ninguna plantilla así y `test/ui-dom.test.js` lo vigila con un test, pero la función sigue sin ser segura en ese contexto: si alguien la usa fuera de `html``, el hueco está. Cerrarlo de verdad exige un escapado sensible al contexto.
+- **Diferir `onboarding.js` y `migrate.js` del arranque** (13,6 KB). Real pero marginal con Lighthouse en 99–100; medido en M7-9.
+- **Diccionarios i18n bajo demanda.** Medido: se cambian 10 KB por un RTT extra en el camino crítico. Solo compensa a partir del tercer idioma.
+- **URLs y `pushState` en el router.** No hay deep-linking ni compartir vistas; se descartó en M7 por no elegido, no por difícil.
 
 - **Detección de deriva sub-umbral (M4):** una desviación sostenida justo por debajo de la tolerancia es invisible por construcción. Una prueba de tendencia acumulada (media móvil de residuos o regresión sobre la serie) la cubriría; se descartó en M4 por el coste en falsos positivos, que es el fallo más caro para la credibilidad del producto.
 - **Hallazgos de M5 refutados pero que siguen siendo endurecimiento razonable:** `escapeHtml` no cubre atributos sin comillas ni esquemas de URL (hoy no hay ningún sitio que los use, pero un `raw()` futuro podría); `splitIntoMeals` no tiene suelo en 0 aunque hoy ninguna entrada real lo alcanza; `suggestProgression` y `refeedMacros` lanzan con objetos corruptos que el almacén nunca produce; `unmount()` de fotos no revoca las URLs de un `draw()` en vuelo.
