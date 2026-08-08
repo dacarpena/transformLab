@@ -17,7 +17,7 @@
 
 import * as storage from './storage.js';
 import * as profiles from './profiles.js';
-import { SCHEMA_VERSION, COLLECTIONS, validateCollection, sanitizeText, makeDefault } from './schema.js';
+import { SCHEMA_VERSION, COLLECTIONS, validateCollection, sanitizeText } from './schema.js';
 
 /**
  * @typedef {import('./schema.js').SchemaIssue} SchemaIssue

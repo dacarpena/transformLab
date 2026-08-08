@@ -341,7 +341,7 @@ tengo que hacer yo.» Así que las tres se marcan como **renunciadas**, no como
 pendientes: dejarlas sin marcar sugeriría que alguien las hará, y no va a pasar.
 
 ```
-[x] CI verde en main (typecheck + 445 unit + 81 e2e)   ← run 31254179703
+[x] CI verde en main (typecheck + 453 unit + 82 e2e)
 [x] Test de identidad: 4 perfiles, desviación 0,000000 kg
 [x] Lighthouse sobre https://motifyer.com, medido HOY sobre el build con M7:
       escritorio  100 / 100 / 100 / 100   (LCP 0,4 s · TBT 0 ms · CLS 0)
@@ -766,6 +766,90 @@ los otros.
 
 ### Bitácora M7
 
+**ATAQUE ADVERSARIAL A M7 (2026-08-08): 16 hallazgos, 16 reales.** Tres
+revisores independientes contra las nueve etapas, con la regla de siempre:
+nada se reporta sin reproducirlo ejecutando. Verifiqué yo cada uno antes de
+tocar nada. Los dos peores los introduje en esta misma milestone.
+
+**Los dos graves, ambos reproducidos:**
+
+1. **Fuga de check-ins entre perfiles.** `findByDate` leía `cache.byDate` sin
+   revalidar, y `list()` decidía —a propósito— no cachear un fallo… pero dejaba
+   viva la caché ANTERIOR. Con el perfil B ilegible, `list()` devolvía vacío
+   mientras `findByDate` seguía sirviendo el índice del perfil A. Es lo peor que
+   puede hacer una aplicación de datos personales, y lo escribí yo en M7-5. El
+   test «la caché NO cruza perfiles» no lo veía porque solo probaba el camino
+   feliz. Arreglado tirando la caché también en la rama de fallo.
+
+2. **XSS real en atributo sin comillas.** `<div class=pre${valor}>` con
+   `valor = 'x onmouseover=alert(1) id=v'` **ejecutaba** en Chromium, por el
+   camino sancionado y sin usar ninguno de los cinco caracteres que `escapeHtml`
+   escapaba. El vigilante por regex de M7-6 se saltaba con un prefijo, con un
+   espacio antes del `=` o con un salto de línea, y su comentario decía «esto es
+   lo que impide que lo haya mañana». No lo impedía.
+
+   El arreglo no es un lint mejor: `escapeHtml` **escapa ahora también el
+   espacio en blanco**. Comprobado en navegador que `&#32;` se queda DENTRO del
+   valor del atributo (el analizador decodifica la referencia sin terminar el
+   token) y que en texto se decodifica sin que el usuario note nada. El
+   vigilante sigue, pero como segunda capa.
+
+**Los otros catorce, por familia:**
+
+- **`safeUrl` tenía dos agujeros.** `//evil.com` pasaba —protocol-relative, un
+  redirect abierto en la función escrita para impedirlo— y recortar los espacios
+  de TODA la cadena **fabricaba el ataque**: `/ /evil.com`, del propio origen,
+  se convertía en `//evil.com`, que no lo es. Reescrita: decide `new URL`, el
+  mismo analizador que va a resolverla, y solo se quitan los tres caracteres que
+  el navegador ignora de verdad.
+- **El candado de `CACHE_VERSION` moría a la primera.** Comparaba «la versión de
+  ahora ≠ la que anoté», así que en cuanto alguien subía la versión a mano —lo
+  que ordena `sw.js:19`— la condición se cumplía sola para siempre. Reproducido:
+  dos módulos del arranque cambiados y el test en verde. Ahora compara el HASH,
+  y el único camino para ponerlo verde es `npm run sw:bump`.
+- **Una vista con `load: null` montaba Hoy en silencio.** `main.js` casaba por
+  «¿tiene load?» en vez de por id: cualquier olvido daba una pestaña navegable
+  que pintaba la vista equivocada, con los 445 tests en verde. Y el cableado de
+  `wiringFor` no se contrastaba con los ids: renombrar uno dejaba un botón
+  muerto sin un solo error. Dos tests nuevos.
+- **`addExercise` reventaba con una rutina `days: []`,** que el esquema acepta y
+  el importador de backups traga sin un aviso: TypeError dentro del listener,
+  modal abierto, ejercicio perdido y botón inservible para siempre.
+- **`test/security.test.js` tenía un punto ciego de 3 358 bytes.** Su
+  `stripComments` emparejaba `/*` con el siguiente `*/` sin mirar si estaban
+  dentro de una cadena, y el `accept="image/*"` de `photos.js` abría un
+  comentario falso que ocultaba un tercio del fichero —con sus
+  `<img src="${…}">` dentro— a TODOS los tests de seguridad. Lo destapó el
+  guardián de imports muertos, que solo daba falsos positivos ahí. Reescrito
+  recorriendo el fuente.
+- **Fechas.** Los dos modales de borrado irreversible eran los últimos que
+  imprimían el ISO crudo — justo donde más importa. Y `shortDate` no lleva año:
+  dos fotos separadas un año exacto se leían las dos «8 ago» en el selector
+  Antes/Después, en la función cuyo sentido entero es comparar. Nuevo
+  `listDate` con año para las listas; `shortDate` se queda en los ejes, que es
+  para lo que se escribió.
+- **`tools/sw-version.mjs` usaba `.pathname`:** un espacio en la ruta del
+  checkout rompía cinco tests y el propio `sw:bump`, con un mensaje que además
+  te mandaba al comando que también reventaba.
+- **`tools/serve-csp.mjs`, que ahora sostiene los 81 E2E:** un `%` mal formado
+  (`/%zz`, `/%C0%AF` — lo que manda un escáner de traversal) **mataba el
+  proceso** y con él el resto de la suite; y solo aplicaba la sección `/*` de
+  `_headers`, omitiendo el `Cache-Control: no-cache` de `/sw.js`, que es
+  exactamente la regla crítica.
+- **El barrido de M7-8 creó código muerto nuevo** (un import huérfano, el
+  registro de oyentes del router sin escritor, un re-export sin importadores) y
+  dejó cinco imports sin usar en otros ficheros. Hay guardián permanente.
+
+**Lo que los revisores comprobaron y estaba LIMPIO,** para que conste: la
+unificación de `redraw` no introdujo ninguna regresión (comparación campo a
+campo con las dos copias viejas); los repositorios no mutan objetos compartidos
+ni pierden datos; la caché no se corrompe por referencia (comprobado congelando
+el array y recorriendo las once vistas); el listener `storage` no dispara en la
+pestaña que escribe ni acumula; las 12 claves i18n y las 4 reglas CSS borradas
+no tenían un solo consumidor; y ningún vector de URL llegó a ejecutar JavaScript
+—incluido `data:image/svg+xml`, que en un `<img>` va con scripting desactivado.
+
+
 **M7-9 y CIERRE DE M7 (2026-08-08).** Los seis documentos de la auditoría
 —`DEUDA-TECNICA`, `AUDITORIA`, `CATALOGO-DE-HALLAZGOS`, `VERIFICACION-MANUAL`,
 `METODOLOGIA-CIENTIFICA`, `MODELO-DE-DATOS`— describían un árbol que no existe
@@ -778,7 +862,7 @@ que dice qué es, para qué SIGUE sirviendo —es el mapa de minas del port, y
 **Estado de la v1 al cerrar M7:**
 
 ```
-445 tests unitarios · 81 E2E · typecheck limpio sobre TODO src/
+453 tests unitarios · 82 E2E · typecheck limpio sobre TODO src/
 53 módulos · 14 517 líneas · 64 entradas de precache · 11 vistas
 CI verde en main · desplegado en https://motifyer.com (tl-v5-0029)
 Lighthouse escritorio 100/100/100/100 · móvil 99–100/100/100/100

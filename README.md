@@ -27,9 +27,9 @@ Sin dependencias de runtime que instalar: Chart.js va vendorizado en `vendor/`. 
 (`typescript`, `@playwright/test`) solo hacen falta para los tests.
 
 ```bash
-npm test             # 445 tests unitarios (node:test) — motor y datos, sin navegador
+npm test             # 453 tests unitarios (node:test) — motor y datos, sin navegador
 npm run typecheck    # tsc --noEmit sobre TODO src/
-npm run e2e          # 81 tests Playwright, bajo la CSP de producción
+npm run e2e          # 82 tests Playwright, bajo la CSP de producción
 npm run sw:bump      # sube CACHE_VERSION tras tocar algo precacheado
 ```
 
@@ -80,7 +80,7 @@ hundió la v4.0. El motor habla solo de músculo esquelético y la traducción v
 
 | | |
 |---|---|
-| Tests | **445** unitarios + **81** E2E, en CI a cada push |
+| Tests | **453** unitarios + **82** E2E, en CI a cada push |
 | Tipos | `// @ts-check` + JSDoc, `tsc --noEmit` limpio sobre **todo** `src/` |
 | Motor | 7 invariantes con nombre (identidad, conservación, límites, determinismo, cierre de plan, coherencia energética, escenarios) |
 | Accesibilidad | AA como objetivo; teclado, focus-trap, contraste y reflujo a 320 px verificados en navegador |

@@ -92,12 +92,24 @@ function freshExerciseId(existing, name) {
 export function addExercise(input, context) {
     const data = read();
     const id = freshExerciseId(exercisesOf(data.routine), input.name);
-    const routine = data.routine ?? { days: [{ name: context.dayName, exercises: [] }] };
-    routine.days[0].exercises = [
-        ...(routine.days[0].exercises ?? []),
-        { id, name: input.name, sets: input.sets, reps: input.reps, loadKg: null }
-    ];
-    return write({ ...data, routine });
+
+    // `days: []` es una rutina VÁLIDA para el esquema (`arrayOf` sin mínimo), y
+    // un backup importado puede traerla sin un solo aviso. `routine.days[0]`
+    // lanzaba entonces un TypeError dentro del listener del modal: sin toast,
+    // con el modal abierto, el ejercicio perdido y el botón «añadir» inservible
+    // para siempre en ese perfil. Reproducido por el camino real del importador
+    // en el ataque adversarial de M7.
+    const days = Array.isArray(data.routine?.days) && data.routine.days.length > 0
+        ? [...data.routine.days]
+        : [{ name: context.dayName, exercises: [] }];
+    days[0] = {
+        ...days[0],
+        exercises: [
+            ...(Array.isArray(days[0].exercises) ? days[0].exercises : []),
+            { id, name: input.name, sets: input.sets, reps: input.reps, loadKg: null }
+        ]
+    };
+    return write({ ...data, routine: { ...(data.routine ?? {}), days } });
 }
 
 /**

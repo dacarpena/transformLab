@@ -294,7 +294,7 @@ test('LAS FECHAS SON UTC: la zona horaria del usuario no puede correrlas un día
     // su propio rótulo. Es un desfase que no se reproduce en el portátil de
     // quien escribe el código, así que se prueba en un proceso con otra zona.
     const script = `
-        import { shortDate } from '${new URL('../src/ui/dates.js', import.meta.url).pathname}';
+        import { shortDate } from '${new URL('../src/ui/dates.js', import.meta.url).href}';
         process.stdout.write(shortDate('2027-02-14'));
     `;
     const run = (/** @type {string} */ tz) => execFileSync(

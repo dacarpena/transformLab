@@ -10,7 +10,7 @@
  * usuario donde estaba.
  */
 
-import { html, render, on, escapeHtml } from './dom.js';
+import { html, render, on } from './dom.js';
 import { t } from '../i18n/i18n.js';
 import * as storage from '../data/storage.js';
 
@@ -44,8 +44,6 @@ let viewContainer = null;
 /** @type {HTMLElement | null} */
 let navContainer = null;
 
-/** @type {Array<(id: string) => void>} */
-const listeners = [];
 
 /** Clave de persistencia de la vista activa. */
 const VIEW_KEY = 'ui.activeView';
@@ -204,7 +202,6 @@ export async function navigate(id, options = {}) {
 
     if (options.persist !== false) storage.set(VIEW_KEY, id);
     renderNav();
-    for (const fn of listeners) fn(id);
     return true;
 }
 

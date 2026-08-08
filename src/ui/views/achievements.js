@@ -12,7 +12,7 @@
  * en el dispositivo; no hay red de por medio en ningún punto.
  */
 
-import { html, render, on } from '../dom.js';
+import { html, render, on, safeUrl } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as checkins from '../../data/checkins.js';
@@ -261,7 +261,9 @@ export function mount(container) {
             }
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = url;
+            // Por `safeUrl` aunque hoy sea un `blob:` local: el vigilante de
+            // `ui-dom.test.js` solo puede decir la verdad si no hay excepciones.
+            link.href = safeUrl(url);
             link.download = `transformlab-${plans.todayISO()}.png`;
             link.click();
             URL.revokeObjectURL(url);

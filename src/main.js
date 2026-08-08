@@ -20,7 +20,7 @@ import * as plans from './ui/plan-state.js';
 import { isScaleProfile } from './ui/muscle-units.js';
 import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
-import { VIEWS } from './ui/views/_manifest.js';
+import { VIEWS, EAGER_VIEW_ID } from './ui/views/_manifest.js';
 import * as recalibrate from './ui/recalibrate.js';
 import * as pwa from './ui/pwa.js';
 import * as reminder from './ui/reminder.js';
@@ -102,11 +102,15 @@ async function startApp(/** @type {*} */ roots) {
     // Qué vistas hay y en qué orden lo dice `_manifest.js`, no este fichero:
     // antes había que acordarse de siete sitios para añadir una (M7-3).
     for (const view of VIEWS) {
-        // Hoy es la única sin `load`: va en el arranque y se importa arriba,
-        // así que su montaje es directo en vez de diferido.
-        const entry = view.load
-            ? { load: view.load, afterLoad: wiring[view.id] }
-            : { mount: dashboard.mount, unmount: dashboard.unmount };
+        // Se casa por ID, no por «¿tiene load?». Con la segunda forma,
+        // CUALQUIER entrada a la que se le olvidara el `load` se registraba con
+        // `dashboard.mount`: la pestaña salía en la navegación, era navegable,
+        // y pintaba Hoy. El ataque adversarial de M7 lo reprodujo con una vista
+        // nueva y los 445 tests seguían en verde. Un olvido silencioso en el
+        // fichero escrito para que no los hubiera.
+        const entry = view.id === EAGER_VIEW_ID
+            ? { mount: dashboard.mount, unmount: dashboard.unmount }
+            : { load: view.load ?? undefined, afterLoad: wiring[view.id] };
         router.register({
             id: view.id, labelKey: view.labelKey, icon: view.icon, primary: view.primary,
             ...entry

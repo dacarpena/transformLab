@@ -34,30 +34,55 @@ const TYPES = {
     '.json': 'application/json; charset=utf-8',
     '.webmanifest': 'application/manifest+json; charset=utf-8',
     '.png': 'image/png',
-    '.svg': 'image/svg+xml'
+    '.svg': 'image/svg+xml',
+    // Sin estos dos, `robots.txt` y `llms.txt` salían como
+    // application/octet-stream y, con `nosniff`, el navegador los rechazaba.
+    '.txt': 'text/plain; charset=utf-8',
+    '.ico': 'image/x-icon'
 };
 
-/** Lee las cabeceras globales (la sección `/*`) del fichero `_headers`. */
-function globalHeaders() {
+/**
+ * Lee TODAS las secciones de `_headers`, no solo la global.
+ *
+ * La primera versión solo parseaba `/*`, y eso dejaba fuera precisamente la
+ * regla que `CLAUDE.md` §6 señala como crítica: el `Cache-Control: no-cache`
+ * de `/sw.js`. O sea que el servidor afirmaba servir «literalmente lo que
+ * despliega Cloudflare Pages» omitiendo la única cabecera cuyo fallo produce
+ * el peor defecto del proyecto — un service worker rancio.
+ * @returns {Map<string, Record<string, string>>} ruta → cabeceras
+ */
+function headersByPath() {
     const lines = readFileSync(join(ROOT, '_headers'), 'utf8').split('\n');
-    /** @type {Record<string, string>} */ const headers = {};
-    let inGlobal = false;
+    /** @type {Map<string, Record<string, string>>} */ const sections = new Map();
+    let current = null;
     for (const line of lines) {
-        if (line.startsWith('#') || line.trim() === '') continue;
+        if (line.trim().startsWith('#') || line.trim() === '') continue;
         if (!line.startsWith(' ')) {
-            inGlobal = line.trim() === '/*';
+            current = line.trim();
+            if (!sections.has(current)) sections.set(current, {});
             continue;
         }
-        if (!inGlobal) continue;
+        if (current === null) continue;
         const at = line.indexOf(':');
-        if (at > 0) headers[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+        if (at > 0) (sections.get(current) ?? {})[line.slice(0, at).trim()] = line.slice(at + 1).trim();
     }
-    return headers;
+    return sections;
 }
 
-const HEADERS = globalHeaders();
+const SECTIONS = headersByPath();
+const HEADERS = SECTIONS.get('/*') ?? {};
+
+/** Cabeceras globales más las de la ruta concreta, si `_headers` define alguna. */
+function headersFor(pathname) {
+    return { ...HEADERS, ...(SECTIONS.get(pathname) ?? {}) };
+}
+
 console.log('Cabeceras servidas:');
 for (const [k, v] of Object.entries(HEADERS)) console.log(`  ${k}: ${v.slice(0, 120)}${v.length > 120 ? '…' : ''}`);
+for (const [ruta, h] of SECTIONS) {
+    if (ruta === '/*') continue;
+    console.log(`  ${ruta} → ${Object.entries(h).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+}
 
 createServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
@@ -69,8 +94,19 @@ createServer((req, res) => {
         res.writeHead(308, { ...HEADERS, Location: '/' }).end();
         return;
     }
+    // `decodeURIComponent` LANZA con un `%` mal formado (`/%zz`, `/%C0%AF`,
+    // `/a%2`), y sin capturarlo el proceso moría — con él, los 81 E2E que
+    // ahora dependen de este servidor. `%C0%AF` es, además, lo que manda
+    // cualquier escáner de traversal. Cloudflare Pages devuelve 400, no se cae.
+    let decoded;
+    try {
+        decoded = decodeURIComponent(url.pathname);
+    } catch {
+        res.writeHead(400, HEADERS).end('URI mal formada');
+        return;
+    }
     // normalize + prefijo: nadie sale de ROOT con ../
-    let filePath = join(ROOT, normalize(decodeURIComponent(url.pathname)));
+    let filePath = join(ROOT, normalize(decoded));
     if (!filePath.startsWith(ROOT)) {
         res.writeHead(403).end();
         return;
@@ -81,7 +117,7 @@ createServer((req, res) => {
         return;
     }
     res.writeHead(200, {
-        ...HEADERS,
+        ...headersFor(url.pathname),
         'Content-Type': TYPES[extname(filePath)] ?? 'application/octet-stream'
     });
     res.end(readFileSync(filePath));

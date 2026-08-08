@@ -96,7 +96,16 @@ export function list() {
     const all = readAll();
     // Un fallo NO se cachea: si el almacén está corrupto, el usuario puede
     // arreglarlo (importar un backup) y la próxima lectura debe verlo.
-    if (!all.ok) return [];
+    //
+    // Y la caché ANTERIOR se tira, que es la parte que faltaba y costó una
+    // fuga entre perfiles (ataque adversarial de M7): dejándola, `findByDate`
+    // seguía sirviendo su índice viejo mientras `list()` devolvía vacío. Con
+    // el perfil B ilegible, eso significaba servir los check-ins del perfil A
+    // — lo peor que puede hacer una aplicación de datos personales.
+    if (!all.ok) {
+        cache = null;
+        return [];
+    }
 
     const sorted = [...all.value.items].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
     const byDate = new Map(sorted.map((item) => [item.dateISO, item]));
@@ -204,7 +213,9 @@ export function remove(id) {
 
 /** @param {string} dateISO @returns {any | null} */
 export function findByDate(dateISO) {
-    list();  // asegura la caché (y su índice) para el perfil activo
+    list();  // revalida la caché (y su índice) para el perfil activo
+    // `list()` deja `cache` en null si no pudo leer, así que aquí o hay un
+    // índice del perfil correcto o no hay ninguno. Nunca uno de otro.
     return cache?.byDate.get(dateISO) ?? null;
 }
 

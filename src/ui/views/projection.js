@@ -23,12 +23,11 @@
  * varias tarjetas sueltas en un instrumento.
  */
 
-import { html, raw, render, on } from '../dom.js';
+import { html, raw, render, on, safeUrl } from '../dom.js';
 import { t, getLocale } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as chart from '../chart.js';
 import { drawPlanChart } from '../plan-chart.js';
-import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
@@ -729,7 +728,9 @@ export function mount(container) {
             return;
         }
         const link = document.createElement('a');
-        link.href = url;
+        // Por `safeUrl` aunque hoy sea un `blob:` local: el vigilante de
+            // `ui-dom.test.js` solo puede decir la verdad si no hay excepciones.
+            link.href = safeUrl(url);
         // Con la métrica y el día: un fichero que se llama igual para todo
         // no se distingue en la carpeta de descargas.
         link.download = `transformlab-${metric}-${plans.todayISO()}.png`;

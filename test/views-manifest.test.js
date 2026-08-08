@@ -13,11 +13,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { VIEWS, VIEW_IDS } from '../src/ui/views/_manifest.js';
+import { VIEWS, VIEW_IDS, EAGER_VIEW_ID } from '../src/ui/views/_manifest.js';
 import { precacheList, precacheHash, cacheVersionOf, readLock } from '../tools/sw-version.mjs';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (/** @type {string} */ p) => readFileSync(join(ROOT, p), 'utf8');
 
 /**
@@ -73,6 +74,38 @@ test('los rótulos de navegación existen en los dos diccionarios', async () => 
     }
 });
 
+test('solo la vista del arranque puede no tener `load`', () => {
+    // El ataque adversarial de M7 registró una vista con `load: null` y salió
+    // en la navegación pintando HOY, con los 445 tests en verde: la pestaña
+    // existía, era navegable, y era la vista equivocada. Es exactamente el
+    // olvido silencioso que el manifiesto se escribió para eliminar.
+    const sinLoad = VIEWS.filter((v) => !v.load).map((v) => v.id);
+    assert.deepEqual(sinLoad, [EAGER_VIEW_ID],
+        `vistas sin \`load\` que no son la del arranque: ${sinLoad.join(', ')}`);
+    assert.ok(VIEWS.some((v) => v.id === EAGER_VIEW_ID), 'EAGER_VIEW_ID no está en el manifiesto');
+});
+
+test('todo cableado de main.js corresponde a una vista que existe', () => {
+    // `wiringFor()` se consume como `wiring[view.id]`. Renombrar un id dejaba
+    // el cableado huérfano SIN error: el botón «ir a check-in» de Progreso se
+    // convertía en un no-op mudo, y con `checkin` guardar dejaba de refrescar
+    // la aplicación. Reproducido en el ataque de M7, typecheck y tests en verde.
+    const source = read('src/main.js');
+    const cuerpo = source.slice(source.indexOf('function wiringFor'));
+    const claves = [...cuerpo.slice(0, cuerpo.indexOf('\n}')).matchAll(/^\s{8}(\w+):/gm)]
+        .map((m) => m[1]);
+    assert.ok(claves.length > 0, 'no se pudo leer el cableado de wiringFor');
+    const huerfanas = claves.filter((k) => !VIEW_IDS.includes(k));
+    assert.deepEqual(huerfanas, [], `cableado sin vista: ${huerfanas.join(', ')}`);
+
+    // Y lo mismo con los destinos de navegación escritos a mano.
+    const destinos = [...source.matchAll(/router\.navigate\('([^']+)'\)|navigate\('([^']+)'\)/g)]
+        .map((m) => m[1] ?? m[2])
+        .filter((id) => id !== 'onboarding');
+    const inexistentes = [...new Set(destinos)].filter((id) => !VIEW_IDS.includes(id));
+    assert.deepEqual(inexistentes, [], `navigate() a vistas que no existen: ${inexistentes.join(', ')}`);
+});
+
 test('los ids son únicos y solo cuatro vistas son primarias', () => {
     assert.equal(new Set(VIEW_IDS).size, VIEW_IDS.length, 'hay ids repetidos');
     const primarias = VIEWS.filter((v) => v.primary).map((v) => v.id);
@@ -95,11 +128,23 @@ test('CACHE_VERSION sube cuando cambia lo precacheado', () => {
     // la app instalada ejecutando el módulo viejo para siempre, junto a los
     // nuevos que sí pidió de red — mitad de la aplicación en cada versión.
     // La regla estaba escrita en `sw.js:19` y nada la imponía.
+    //
+    // LA COMPARACIÓN ES CONTRA EL HASH, NO CONTRA LA VERSIÓN. La primera
+    // versión de este test pedía `lock.cacheVersion !== CACHE_VERSION`, y el
+    // ataque adversarial de M7 demostró que eso se muere: en cuanto alguien
+    // sube la versión A MANO —que es justo lo que ordena `sw.js:19`— los dos
+    // valores quedan separados para siempre y la condición se cumple sola.
+    // Reproducido: dos módulos del arranque cambiados y el test en verde.
+    //
+    // Exigiendo que el hash del candado coincida con el del árbol, el único
+    // camino para ponerlo en verde es `npm run sw:bump`, que sube la versión
+    // y sella el hash a la vez. No hay forma de contentar al test sin invalidar
+    // el caché de verdad.
     const lock = readLock();
     assert.ok(lock, 'falta sw.lock.json; ejecuta `npm run sw:bump`');
-    const hash = precacheHash();
-    if (lock.precacheHash === hash) return;   // nada precacheado ha cambiado
-    assert.notEqual(lock.cacheVersion, cacheVersionOf(),
-        'lo precacheado cambió y CACHE_VERSION sigue igual: ejecuta `npm run sw:bump` ' +
-        'antes de desplegar, o los usuarios instalados se quedarán con módulos viejos');
+    assert.equal(lock.precacheHash, precacheHash(),
+        'lo precacheado cambió: ejecuta `npm run sw:bump` antes de desplegar, o ' +
+        'los usuarios instalados se quedarán con módulos viejos');
+    assert.equal(lock.cacheVersion, cacheVersionOf(),
+        'sw.lock.json y sw.js discrepan en la versión; ejecuta `npm run sw:bump`');
 });

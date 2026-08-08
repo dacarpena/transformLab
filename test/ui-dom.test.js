@@ -22,14 +22,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { escapeHtml, html, raw, safeUrl, RawHtml } from '../src/ui/dom.js';
 
 /* ---------------------------------------------------------------------- *
  * escapeHtml
  * ---------------------------------------------------------------------- */
 
-test('escapeHtml neutraliza los cinco caracteres que abren HTML', () => {
-    assert.equal(escapeHtml('&<>"\''), '&amp;&lt;&gt;&quot;&#39;');
+test('escapeHtml neutraliza los caracteres que abren HTML', () => {
+    assert.equal(escapeHtml('&<>"\'`'), '&amp;&lt;&gt;&quot;&#39;&#96;');
+});
+
+test('escapeHtml escapa también el espacio en blanco, y eso NO es cosmético', () => {
+    // Es lo que cierra el atributo SIN comillas. Reproducido en Chromium
+    // durante el ataque adversarial de M7: `<div class=pre${valor}>` con
+    // `valor = 'x onmouseover=alert(1) id=v'` creaba un `onmouseover` de
+    // verdad y EJECUTABA, sin usar ninguno de los otros caracteres.
+    assert.equal(escapeHtml(' '), '&#32;');
+    assert.equal(escapeHtml('\t\n\r\f'), '&#9;&#10;&#13;&#12;');
+    const salida = String(html`<div class=pre${'x onmouseover=alert(1) id=v'}>t</div>`);
+    assert.equal(salida.includes('pre x'), false);
+    assert.match(salida, /class=prex&#32;onmouseover/,
+        `el valor se salió del atributo: ${salida}`);
 });
 
 test('escapeHtml desactiva los vectores clásicos', () => {
@@ -51,7 +65,7 @@ test('escapeHtml escapa el & PRIMERO, sin doble escapado ni fuga', () => {
     // Si se sustituyera en otro orden, `&lt;` acabaría en `&amp;lt;` (visible y
     // feo) o `&amp;` en `&lt;` (roto). El orden del regex único lo garantiza.
     assert.equal(escapeHtml('&lt;script&gt;'), '&amp;lt;script&amp;gt;');
-    assert.equal(escapeHtml('a & b'), 'a &amp; b');
+    assert.equal(escapeHtml('a & b'), 'a&#32;&amp;&#32;b');
 });
 
 test('escapeHtml no se fía del toString de un objeto', () => {
@@ -76,6 +90,20 @@ test('html`` escapa las interpolaciones y deja el literal intacto', () => {
     const nombre = '<script>alert(1)</script>';
     const out = String(html`<p class="x">${nombre}</p>`);
     assert.equal(out, '<p class="x">&lt;script&gt;alert(1)&lt;/script&gt;</p>');
+});
+
+test('html`` es seguro en un atributo SIN comillas', () => {
+    // El caso que el vigilante por regex NO cazaba (se salta con un prefijo,
+    // con un espacio antes del `=` o con un salto de línea) y que ahora está
+    // cerrado en la propia función, no en un lint.
+    for (const plantilla of [
+        String(html`<div class=${'a onmouseover=alert(1) b'}>x</div>`),
+        String(html`<div class=pre${'a onmouseover=alert(1) b'}>x</div>`),
+        String(html`<div class =${'a onmouseover=alert(1) b'}>x</div>`)
+    ]) {
+        assert.equal(/\sonmouseover=/.test(plantilla), false,
+            `se salió del atributo: ${plantilla}`);
+    }
 });
 
 test('html`` anidado NO se escapa dos veces', () => {
@@ -124,6 +152,41 @@ test('raw() sobre datos de usuario ejecutaría: el contrato es del llamante', ()
 /* ---------------------------------------------------------------------- *
  * safeUrl — el hueco que `escapeHtml` no puede tapar
  * ---------------------------------------------------------------------- */
+
+test('safeUrl no deja salir del origen (protocol-relative)', () => {
+    // Hallazgo del ataque adversarial de M7, reproducido: sin esquema y sin
+    // `:` antes de la barra, `//evil.com/x` pasaba el filtro de prefijos… y el
+    // navegador la resuelve a `https://evil.com/x`. Un redirect abierto dentro
+    // de la función escrita para impedirlo. El navegador trata además `\\`
+    // como `/` en la autoridad, así que las cuatro variantes valen.
+    for (const vector of [
+        '//evil.example.com/x',
+        '///evil.example.com/x',
+        '/\\evil.example.com/x',
+        '\\\\evil.example.com\\x',
+        '\\/evil.example.com/x'
+    ]) {
+        assert.equal(safeUrl(vector), '', `dejó salir del origen: ${JSON.stringify(vector)}`);
+    }
+});
+
+test('safeUrl no FABRICA un ataque recortando espacios interiores', () => {
+    // El segundo hallazgo, y el peor de los dos: `/ /evil.com` es del propio
+    // origen. La versión anterior quitaba TODOS los espacios y la convertía en
+    // `//evil.com`, que no lo es — el saneador dejaba la entrada peor de como
+    // entró. Y de paso rompía rutas legítimas.
+    assert.equal(safeUrl('/ /evil.example.com'), '/ /evil.example.com');
+    assert.equal(safeUrl('/a b/c'), '/a b/c');
+    assert.equal(safeUrl('/search?q=hola mundo'), '/search?q=hola mundo');
+});
+
+test('safeUrl rechaza los SVG en data:, que sí ejecutan fuera de un <img>', () => {
+    // En un `<img>` el SVG va con scripting desactivado (comprobado), pero en
+    // un `<iframe>` o un `<object>` no. La aplicación no genera ninguno: las
+    // fotos son `blob:` y la tarjeta compartible es PNG.
+    assert.equal(safeUrl('data:image/svg+xml,<svg onload=alert(1)>'), '');
+    assert.equal(safeUrl('data:image/svg+xml;base64,AAAA'), '');
+});
 
 test('safeUrl bloquea los esquemas ejecutables', () => {
     // `escapeHtml` no protege aquí: `javascript:alert(1)` no tiene ninguno de
@@ -175,9 +238,23 @@ test('ninguna plantilla interpola en un atributo SIN comillas', () => {
     // que impide que lo haya mañana.
     /** @type {string[]} */ const offenders = [];
     for (const file of jsFilesUnder('src/ui')) {
-        const source = readFileSync(file, 'utf8');
+        // Sin comentarios: `dom.js` DOCUMENTA el ataque en uno, y un vigilante
+        // que se dispara con su propia explicación no sirve para nada.
+        const source = sinComentarios(readFileSync(file, 'utf8'));
         source.split('\n').forEach((line, i) => {
-            if (/[a-zA-Z-]+=\$\{/.test(line)) offenders.push(`${file}:${i + 1}`);
+            // El regex anterior exigía `${` PEGADO al `=`, y el ataque
+            // adversarial lo saltó de tres formas: con un prefijo
+            // (`class=pre${x}`), con un espacio antes del `=` (legal en HTML)
+            // y con un salto de línea. Este acepta las tres.
+            //
+            // Se exige además un `<etiqueta` por delante EN LA MISMA LÍNEA:
+            // sin eso, cualquier asignación normal de JavaScript a una
+            // plantilla (`const key = `${a}|${b}`;`) daba un falso positivo, y
+            // un vigilante que grita siempre se acaba desactivando.
+            const suelto = line.match(/[a-zA-Z-]+\s*=\s*[^"'\s>]*\$\{/);
+            if (suelto && /<[a-zA-Z/]/.test(line.slice(0, suelto.index))) {
+                offenders.push(`${file}:${i + 1} → ${suelto[0]}`);
+            }
         });
     }
     assert.deepEqual(offenders, [],
@@ -187,16 +264,45 @@ test('ninguna plantilla interpola en un atributo SIN comillas', () => {
 test('toda URL dinámica de un src/href pasa por safeUrl', () => {
     /** @type {string[]} */ const offenders = [];
     for (const file of jsFilesUnder('src/ui')) {
-        const source = readFileSync(file, 'utf8');
+        const source = sinComentarios(readFileSync(file, 'utf8'));
         source.split('\n').forEach((line, i) => {
             // El espacio de delante importa: sin él, `data-action="${…}"`
             // casaría con `action` y daría un falso positivo.
-            const match = line.match(/\s(?:src|href|action|formaction|poster)="\$\{([^}]*)\}/);
-            if (match && !match[1].includes('safeUrl')) offenders.push(`${file}:${i + 1} → ${match[1].trim()}`);
+            //
+            // Cubre comillas simples y dobles, y la interpolación en cualquier
+            // posición del valor — el ataque adversarial demostró que exigirla
+            // en la primera dejaba fuera `href="/x/${url}"`.
+            const enPlantilla = line.match(
+                /\s(?:src|srcset|href|action|formaction|poster|data)=["'][^"']*\$\{([^}]*)\}/);
+            if (enPlantilla && !enPlantilla[1].includes('safeUrl')) {
+                offenders.push(`${file}:${i + 1} → ${enPlantilla[1].trim()}`);
+            }
+            // Y la asignación por JS, que no pasa por `html``` en absoluto.
+            const porJs = line.match(/\.(?:href|src)\s*=\s*([^;]+);/)
+                ?? line.match(/setAttribute\(\s*['"](?:href|src|srcset|data)['"]\s*,\s*([^)]+)\)/);
+            // Un literal de cadena no es una URL dinámica: `script.src =
+            // 'vendor/chart.umd.min.js'` lo escribimos nosotros.
+            const esLiteral = porJs !== null && /^['"`][^'"`$]*['"`]$/.test(porJs[1].trim());
+            if (porJs && !esLiteral && !porJs[1].includes('safeUrl')) {
+                offenders.push(`${file}:${i + 1} → ${porJs[1].trim()} (asignado por JS)`);
+            }
         });
     }
     assert.deepEqual(offenders, [], `URL sin filtrar:\n  ${offenders.join('\n  ')}`);
 });
+
+/**
+ * Quita comentarios de bloque y de línea. Aproximado a propósito: no entiende
+ * de cadenas, pero para lo que se usa —evitar que un comentario que EXPLICA un
+ * ataque cuente como el ataque— sobra.
+ * @param {string} source
+ * @returns {string}
+ */
+function sinComentarios(source) {
+    return source
+        .replace(/\/\*[\s\S]*?\*\//g, (bloque) => bloque.replace(/[^\n]/g, ' '))
+        .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1');
+}
 
 /** @param {string} dir @returns {string[]} */
 function jsFilesUnder(dir) {
@@ -208,6 +314,6 @@ function jsFilesUnder(dir) {
             else if (entry.name.endsWith('.js')) out.push(full);
         }
     };
-    walk(new URL(`../${dir}`, import.meta.url).pathname);
+    walk(fileURLToPath(new URL(`../${dir}/`, import.meta.url)));
     return out;
 }

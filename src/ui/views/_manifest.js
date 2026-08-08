@@ -100,3 +100,12 @@ export const VIEWS = [
 
 /** @type {readonly string[]} ids en orden de navegación */
 export const VIEW_IDS = VIEWS.map((view) => view.id);
+
+/**
+ * La única vista que NO se difiere: es la del arranque.
+ *
+ * Está nombrada aquí, y no deducida de «la que no tiene `load`», porque
+ * `main.js` se apoyaba en esa deducción y cualquier entrada a la que se le
+ * olvidara el `load` acababa montando Hoy en silencio (ataque adversarial M7).
+ */
+export const EAGER_VIEW_ID = 'today';

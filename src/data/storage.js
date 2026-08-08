@@ -232,8 +232,13 @@ export function clearProfile(profileId) {
     if (!keys.ok) return keys;
     try {
         const ls = backend();
-        for (const key of keys.value) ls.removeItem(`${ROOT_PREFIX}${profileId}.${key}`);
-        revisionCounter++;
+        // El contador sube DENTRO del bucle, no al final: si un `removeItem`
+        // lanzara a mitad, el almacén ya habría cambiado y una caché montada
+        // sobre la revisión anterior seguiría sirviendo lo borrado.
+        for (const key of keys.value) {
+            ls.removeItem(`${ROOT_PREFIX}${profileId}.${key}`);
+            revisionCounter++;
+        }
         return { ok: true, value: keys.value.length };
     } catch (err) {
         return { ok: false, error: message(err) };

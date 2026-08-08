@@ -9,7 +9,7 @@
  * de modo que no se puede saltar desde ningún otro punto de la aplicación.
  */
 
-import { html, render, on } from '../dom.js';
+import { html, render, on, safeUrl } from '../dom.js';
 import { t, getLocale, setLocale, availableLocales } from '../../i18n/i18n.js';
 import * as storage from '../../data/storage.js';
 import * as profiles from '../../data/profiles.js';
@@ -278,7 +278,8 @@ function download(/** @type {*} */ filename, /** @type {*} */ text) {
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
+    // Por `safeUrl` aunque hoy sea un `blob:` que crea esta misma línea
+    link.href = safeUrl(url);
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);

@@ -1,7 +1,7 @@
 {
   "name": "transformlab",
   "version": "5.0.0-dev",
-  "description": "Seguimiento de transformaci\u00f3n corporal con proyecci\u00f3n recalibrable. Todo en el navegador.",
+  "description": "Seguimiento de transformación corporal con proyección recalibrable. Todo en el navegador.",
   "private": true,
   "type": "module",
   "license": "MIT",

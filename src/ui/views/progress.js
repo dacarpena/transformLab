@@ -11,7 +11,7 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
-import { shortDate } from '../dates.js';
+import { shortDate, listDate } from '../dates.js';
 import { SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as plans from '../plan-state.js';
@@ -33,7 +33,7 @@ function renderHistory(/** @type {*} */ evaluations) {
                     <li class="profile-item">
                         <span>
                             <strong class="numeric">${num(e.actualKg)} ${t('today.unit.kg')}</strong>
-                            <span class="muted"> · ${shortDate(e.dateISO)}</span>
+                            <span class="muted"> · ${listDate(e.dateISO)}</span>
                         </span>
                         <span>
                             <span class="signal signal--${e.signal}">${t(`deviation.${e.signal}`)}</span>
@@ -116,7 +116,7 @@ function renderMuscle(data, evaluations) {
                     <li class="profile-item">
                         <span>
                             <strong class="numeric">${num(r.actual)} ${t('today.unit.kg')}</strong>
-                            <span class="muted"> · ${shortDate(r.dateISO)}</span>
+                            <span class="muted"> · ${listDate(r.dateISO)}</span>
                         </span>
                         <span class="muted numeric">
                             ${t('progress.muscle.expected', { value: num(r.expected) })}

@@ -17,7 +17,6 @@ import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
 import { drawPlanChart } from '../plan-chart.js';
-import * as modal from '../components/modal.js';
 import * as checkins from '../../data/checkins.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { error as errorState } from '../components/state.js';

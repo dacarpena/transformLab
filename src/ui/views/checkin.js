@@ -12,14 +12,14 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
-import { shortDate } from '../dates.js';
+import { listDate, longDate } from '../dates.js';
 import { MEASURE_KEYS, SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
 import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import { fromBioimpedance } from '../../core/scale.js';
-import { evaluateCheckin, toleranceAt } from '../../core/tracking.js';
+import { evaluateCheckin } from '../../core/tracking.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
@@ -157,7 +157,7 @@ function renderHistory(/** @type {*} */ items) {
                     return html`
                         <li class="profile-item">
                             <span>
-                                ${t('checkin.entry', { date: shortDate(item.dateISO), weight: num(item.weightKg) })}
+                                ${t('checkin.entry', { date: listDate(item.dateISO), weight: num(item.weightKg) })}
                                 ${signal ? html`<span class="signal signal--${signal}">${t(`deviation.${signal}`)}</span>` : ''}
                             </span>
                             <button type="button" class="btn btn--sm" data-edit="${item.dateISO}">${t('action.edit')}</button>
@@ -341,7 +341,10 @@ export function mount(container) {
         modal.confirm({
             titleKey: 'checkin.deleteTitle',
             messageKey: 'checkin.deleteBody',
-            params: { date },
+            // Fecha larga y con año: es un borrado sin vuelta atrás, y era el
+            // ÚNICO sitio de la interfaz que seguía imprimiendo el ISO crudo
+            // — justo donde la fecha más importa.
+            params: { date: longDate(date) },
             confirmKey: 'action.delete',
             danger: true,
             onConfirm: () => {

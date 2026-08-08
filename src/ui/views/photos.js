@@ -11,7 +11,7 @@
 
 import { html, render, on, safeUrl } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
-import { shortDate } from '../dates.js';
+import { listDate, longDate } from '../dates.js';
 import { SCHEMA_VERSION, validateCollection } from '../../data/schema.js';
 import * as storage from '../../data/storage.js';
 import * as photosDb from '../../data/photos-db.js';
@@ -133,7 +133,7 @@ async function draw(container) {
                         <span class="field__label">${t('photos.before')}</span>
                         <select class="input" data-before>
                             ${withBlobs.map((p) => html`
-                                <option value="${p.id}" ${p.id === comparison.before ? 'selected' : ''}>${shortDate(p.dateISO)}</option>
+                                <option value="${p.id}" ${p.id === comparison.before ? 'selected' : ''}>${listDate(p.dateISO)}</option>
                             `)}
                         </select>
                     </label>
@@ -141,19 +141,19 @@ async function draw(container) {
                         <span class="field__label">${t('photos.after')}</span>
                         <select class="input" data-after>
                             ${withBlobs.map((p) => html`
-                                <option value="${p.id}" ${p.id === comparison.after ? 'selected' : ''}>${shortDate(p.dateISO)}</option>
+                                <option value="${p.id}" ${p.id === comparison.after ? 'selected' : ''}>${listDate(p.dateISO)}</option>
                             `)}
                         </select>
                     </label>
                 </div>
                 <div class="photo-compare">
                     <figure>
-                        <img src="${safeUrl(before?.url)}" alt="${t('photos.before')}: ${before ? shortDate(before.dateISO) : ''}">
-                        <figcaption>${before ? shortDate(before.dateISO) : ''}</figcaption>
+                        <img src="${safeUrl(before?.url)}" alt="${t('photos.before')}: ${before ? listDate(before.dateISO) : ''}">
+                        <figcaption>${before ? listDate(before.dateISO) : ''}</figcaption>
                     </figure>
                     <figure>
-                        <img src="${safeUrl(after?.url)}" alt="${t('photos.after')}: ${after ? shortDate(after.dateISO) : ''}">
-                        <figcaption>${after ? shortDate(after.dateISO) : ''}</figcaption>
+                        <img src="${safeUrl(after?.url)}" alt="${t('photos.after')}: ${after ? listDate(after.dateISO) : ''}">
+                        <figcaption>${after ? listDate(after.dateISO) : ''}</figcaption>
                     </figure>
                 </div>
             </section>
@@ -167,9 +167,9 @@ async function draw(container) {
                     <ul class="photo-grid">
                         ${withBlobs.map((p) => html`
                             <li class="photo-item">
-                                <img src="${safeUrl(p.url)}" alt="${shortDate(p.dateISO)}" loading="lazy">
+                                <img src="${safeUrl(p.url)}" alt="${listDate(p.dateISO)}" loading="lazy">
                                 <div class="photo-item__bar">
-                                    <span class="muted">${shortDate(p.dateISO)}</span>
+                                    <span class="muted">${listDate(p.dateISO)}</span>
                                     <button type="button" class="btn btn--sm btn--danger"
                                             data-delete-photo="${p.id}" data-date="${p.dateISO}">
                                         ${t('action.delete')}
@@ -232,7 +232,10 @@ export function mount(container) {
         modal.confirm({
             titleKey: 'photos.deleteTitle',
             messageKey: 'photos.deleteBody',
-            params: { date },
+            // Fecha larga y con año: es un borrado sin vuelta atrás, y era el
+            // ÚNICO sitio de la interfaz que seguía imprimiendo el ISO crudo
+            // — justo donde la fecha más importa.
+            params: { date: longDate(date) },
             confirmKey: 'action.delete',
             danger: true,
             onConfirm: () => {

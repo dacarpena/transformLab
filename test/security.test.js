@@ -15,9 +15,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 /**
  * Quita comentarios antes de escanear.
@@ -27,15 +28,44 @@ const ROOT = new URL('..', import.meta.url).pathname;
  * explica por qué no usa localStorage. Un vigilante que se dispara con su
  * propia documentación se acaba desactivando, que es peor que no tenerlo.
  *
- * `//` no cuenta como comentario si va precedido de `:` (una URL en una
- * cadena). En el peor caso esto oculta código tras una URL en la misma línea:
- * puede haber falsos negativos, nunca falsos positivos.
+ * RECORRE EL FUENTE, no lo pasa por un regex, y la diferencia no es teórica.
+ * La versión anterior emparejaba `/*` con el siguiente `*​/` sin mirar si
+ * estaban dentro de una cadena, y `photos.js` tiene un
+ * `accept="image/*"`: ese `/*` abría un comentario falso que se tragaba
+ * **3 358 bytes** —un tercio del fichero, con sus `<img src="${…}">` dentro—
+ * y los dejaba invisibles para TODOS los tests de seguridad de aquí. Lo
+ * destapó el guardián de imports muertos de M7, que daba falsos positivos en
+ * ese fichero y solo en ese.
  * @param {string} source
  */
 function stripComments(source) {
-    return source
-        .replace(/\/\*[\s\S]*?\*\//g, ' ')
-        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    let out = '';
+    let i = 0;
+    /** @type {null | "'" | '"' | '`' | 'line' | 'block'} */ let mode = null;
+    while (i < source.length) {
+        const ch = source[i];
+        const next = source[i + 1];
+        if (mode === null) {
+            if (ch === '/' && next === '*') { mode = 'block'; i += 2; continue; }
+            if (ch === '/' && next === '/') { mode = 'line'; i += 2; continue; }
+            if (ch === "'" || ch === '"' || ch === '`') { mode = /** @type {*} */ (ch); }
+            out += ch; i += 1; continue;
+        }
+        if (mode === 'block') {
+            if (ch === '*' && next === '/') { mode = null; out += ' '; i += 2; continue; }
+            if (ch === '\n') out += '\n';   // se conservan las líneas: los mensajes citan número
+            i += 1; continue;
+        }
+        if (mode === 'line') {
+            if (ch === '\n') { mode = null; out += '\n'; }
+            i += 1; continue;
+        }
+        // dentro de una cadena: se copia tal cual, incluidos los escapes
+        if (ch === '\\') { out += ch + (next ?? ''); i += 2; continue; }
+        if (ch === mode) mode = null;
+        out += ch; i += 1;
+    }
+    return out;
 }
 
 /** @returns {Array<{ path: string, source: string }>} */
@@ -153,4 +183,34 @@ test('index.html no carga nada de un origen ajeno', () => {
     // Y ningún <script> ni <style> con cuerpo inline: la CSP los rechazaría
     assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/.test(html), 'hay un <script> inline');
     assert.ok(!/<style[^>]*>/.test(html), 'hay un <style> inline');
+});
+
+/* ---------------------------------------------------------------------- *
+ * Higiene: imports que ya no usa nadie (M7, ataque adversarial)
+ * ---------------------------------------------------------------------- */
+
+test('ningún módulo importa algo que ya no usa', () => {
+    // El barrido de código muerto de M7-8 CREÓ imports muertos: al borrar
+    // `todayTolerance` quedó su `toleranceAt`, al borrar el re-export de
+    // `estimatedOneRepMax` quedó el suyo, y al mover el modal del hito a
+    // `plan-chart.js` quedaron dos `import * as modal`. `tsc` no los ve
+    // (`noUnusedLocals` está apagado a propósito, porque marcaría también los
+    // parámetros de las firmas JSDoc), así que la vigilancia va aquí.
+    /** @type {string[]} */ const offenders = [];
+    for (const { path, source } of FILES) {
+        // Se quitan las SENTENCIAS import, no las líneas que empiezan por
+        // «import»: `stripComments` colapsa los bloques JSDoc y deja código
+        // pegado a la línea de al lado, así que filtrar por prefijo se comía
+        // usos reales y daba falsos positivos.
+        const cuerpo = source.replace(/import\s+(?:\* as \w+|\{[^}]*\}|\w+)\s+from\s+['"][^'"]+['"];?/g, '');
+        for (const m of source.matchAll(/import\s+(?:\* as (\w+)|\{([^}]+)\})\s+from/g)) {
+            const nombres = m[1]
+                ? [m[1]]
+                : m[2].split(',').map((n) => n.trim().split(/\s+as\s+/).pop() ?? '');
+            for (const nombre of nombres.filter(Boolean)) {
+                if (!new RegExp(`\\b${nombre}\\b`).test(cuerpo)) offenders.push(`${path} → ${nombre}`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [], `imports sin usar:\n  ${offenders.join('\n  ')}`);
 });

@@ -73,6 +73,41 @@ test('render con datos hostiles no ejecuta NADA', async ({ page }) => {
     expect(resultado.texto).toContain('<iframe src="javascript:');
 });
 
+test('un atributo SIN comillas ya no se puede reventar', async ({ page }) => {
+    // El ataque adversarial de M7 reprodujo esto EJECUTANDO en Chromium, por
+    // el camino sancionado (`html`` + `render`, sin `raw()`), con un dato que
+    // no contiene ninguno de los cinco caracteres que se escapaban entonces:
+    // el valor se salía del atributo y creaba un `onmouseover` de verdad.
+    //
+    // Se prueba con las tres formas que el vigilante por regex NO cazaba:
+    // pegado al `=`, con prefijo, y con un espacio antes del `=`.
+    await conBanco(page);
+    const r = await page.evaluate(async () => {
+        const { html, render } = await import('/src/ui/dom.js');
+        const banco = /** @type {HTMLElement} */ (document.querySelector('#banco'));
+        const v = 'x onmouseover=globalThis.__xss=1 tabindex=0 id=victima';
+        const plantillas = [
+            html`<div class=${v}>a</div>`,
+            html`<div class=pre${v}>b</div>`,
+            html`<div class =${v}>c</div>`
+        ];
+        /** @type {string[]} */ const atributos = [];
+        for (const plantilla of plantillas) {
+            render(banco, plantilla);
+            const div = /** @type {HTMLElement} */ (banco.querySelector('div'));
+            atributos.push([...div.attributes].map((a) => a.name).join('+'));
+            div.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+            /** @type {HTMLElement | null} */ (banco.querySelector('#victima'))
+                ?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        }
+        await new Promise((res) => setTimeout(res, 250));
+        return { atributos, xss: /** @type {*} */ (globalThis).__xss };
+    });
+    expect(r.xss, 'el valor se salió del atributo y ejecutó').toBe(0);
+    // Un solo atributo en cada caso: el dato entero se quedó dentro de `class`.
+    expect(r.atributos).toEqual(['class', 'class', 'class']);
+});
+
 test('render de una cadena suelta la escapa: no hay camino sin escapar', async ({ page }) => {
     await conBanco(page);
     const r = await page.evaluate(async () => {

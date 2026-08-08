@@ -88,6 +88,25 @@ export function longDate(dateISO) {
 }
 
 /**
+ * Día, mes y año: «14 feb 2027». Para LISTAS, que no tienen tope y pueden
+ * abarcar más de un año.
+ *
+ * `shortDate` se escribió para los ejes de la gráfica, donde cada carácter
+ * empuja el reflujo a 320 px y el año ya lo da el contexto. En una lista no:
+ * el ataque adversarial de M7 encontró dos fotos separadas exactamente un año
+ * que se leían las dos «8 ago» en el selector Antes/Después — en la función
+ * cuyo sentido entero es comparar puntos lejanos en el tiempo. El ISO crudo
+ * era feo, pero inequívoco; había que mejorar, no empeorar.
+ * @param {string} dateISO
+ * @returns {string}
+ */
+export function listDate(dateISO) {
+    const date = parse(dateISO);
+    const fmt = formatter({ day: 'numeric', month: 'short', year: 'numeric' });
+    return date && fmt ? fmt.format(date) : dateISO;
+}
+
+/**
  * El rótulo que le corresponde a un eje según lo ancho que sea su ventana.
  *
  * Una ventana de tres semanas quiere el día; una de dos años, el mes y el año.

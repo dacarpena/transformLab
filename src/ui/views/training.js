@@ -11,12 +11,12 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
-import { shortDate } from '../dates.js';
+import { listDate } from '../dates.js';
 import { sanitizeText } from '../../data/schema.js';
 import * as trainingStore from '../../data/training.js';
 import { exercisesOf } from '../../data/training.js';
 import * as plans from '../plan-state.js';
-import { personalRecord, newRecordsIn, suggestProgression, sessionVolumeKg, estimatedOneRepMax } from '../../core/training.js';
+import { personalRecord, newRecordsIn, suggestProgression, sessionVolumeKg } from '../../core/training.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
@@ -76,7 +76,7 @@ function renderSessions(/** @type {*} */ data) {
             <ul class="profile-list">
                 ${[...data.sessions].reverse().slice(0, 12).map((s) => html`
                     <li class="profile-item">
-                        <span>${shortDate(s.dateISO)}</span>
+                        <span>${listDate(s.dateISO)}</span>
                         <span class="muted numeric">${t('training.volume', { kg: Math.round(sessionVolumeKg(s)) })}</span>
                     </li>
                 `)}
@@ -245,4 +245,3 @@ export function recordCount() {
     return total;
 }
 
-export { estimatedOneRepMax };
