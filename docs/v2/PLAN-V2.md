@@ -863,7 +863,7 @@ etiquetadas de estimación · legibilidad primero.
 - [x] **E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta**
 - [x] **E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`**
 - [x] **E13-5 · Vista «Analizar»: selector, leyenda y procedencia**
-- [ ] E13-6 · Lectura accesible con N series, tabla y CSV
+- [x] **E13-6 · Lectura accesible con N series, tabla y CSV**
 - [ ] E13-7 · Gestos, tira de contexto y preset «custom»
 
 ## Bitácora
@@ -1105,3 +1105,43 @@ mecanismo que sirve módulos viejos al desarrollar. El test desregistra el SW
 primero.
 
 **786 unitarios · 178 E2E · typecheck limpio.**
+
+### E13-6 — la alternativa textual, y el CSV que no miente
+
+**La tabla sale de las series RESUELTAS, no del lienzo**, y por eso sigue entera
+cuando Chart.js no carga. Un fallo de la librería de gráficos no puede llevarse
+también los números, que son a lo que el usuario vino. Se pinta FUERA de
+`redraw`, porque `redraw` sale antes de tiempo justo en ese caso.
+
+Cabeceras con unidad y procedencia; celdas solo numéricas; **sin dato = `—`**,
+nunca un cero — un cero es una afirmación sobre el cuerpo del usuario y un hueco
+no lo es. A 320 px cinco columnas no caben, así que la tabla vive en su propia
+zona desplazable, **alcanzable con teclado** (WCAG 2.1.1) y sin contaminar el
+`scrollWidth` del documento.
+
+**El CSV lleva la procedencia al fichero.** `Peso previsto (kg, Prevista)`. Una
+hoja de cálculo es exactamente donde la v4.0 hizo su daño: cifras estimadas
+mezcladas con medidas y tratadas después como si todas fueran datos. Si la app lo
+sabe y la exportación lo calla, el fichero es un arma cargada. Fechas siempre
+ISO, BOM UTF-8, separador y decimales según idioma —y **sin separador de
+millares**, porque un «13.000» con punto de millar es otro número o dos
+columnas—. Guarda contra inyección de fórmulas (`=`, `+`, `-`, `@`): hoy no viaja
+texto del usuario, y por eso el test importa — una guarda que nadie ejercita se
+borra en el primer refactor por parecer código muerto.
+
+**Lectura con N series, sin paragrafadas.** ←→ mueven la fecha, **↑↓ cambian de
+serie**. La región `aria-live` recita SOLO la serie activa; recitar cuatro en
+cada pulsación son dos docenas de palabras por tecla. Las otras tres viven en la
+leyenda, que es texto normal del DOM y un lector la recorre cuando quiere. Al
+cambiar de serie se anuncia su identidad completa. Sin dato ese día se dice, no
+se inventa un cero.
+
+**Un defecto de texto y un test intermitente.** La cabecera salía como «Grasa
+prevista (%) (%, Prevista)»: la unidad vivía en el NOMBRE y la cabecera la
+repetía. Unidad y procedencia son campos aparte, y ahora hay un test que lo
+vigila. Y el test de «sin Chart.js» pasaba unas veces y fallaba otras: al
+recargar, `pwa.js` **vuelve a registrar el service worker**, que entraba en
+carrera para servir el vendor de su caché. Ahora se bloquea también `sw.js` y se
+espera a que `controller` sea null — cuatro pasadas seguidas en verde.
+
+**795 unitarios · 185 E2E · typecheck limpio.**

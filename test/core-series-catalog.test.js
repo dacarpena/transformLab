@@ -344,3 +344,18 @@ test('la banda del peso envuelve la línea, y NO se llama lower/upper', () => {
     const conBanda = SERIES.filter((s) => typeof s.band === 'function').map((s) => s.id);
     assert.deepEqual(conBanda, ['proj_weight']);
 });
+
+test('el nombre de una serie NO repite su unidad ni su procedencia', () => {
+    // Son campos APARTE, y se muestran aparte: la insignia dice la procedencia y
+    // la cabecera de la tabla dice la unidad. Con la unidad también en el
+    // nombre, la cabecera salía como «Grasa prevista (%) (%, Prevista)».
+    const UNIDADES = ['(%)', '(kg)', '(cm)', '(kcal)', '(g)'];
+    for (const spec of SERIES) {
+        const etiqueta = es[spec.labelKey];
+        assert.ok(etiqueta, `sin traducción: ${spec.labelKey}`);
+        for (const u of UNIDADES) {
+            assert.ok(!etiqueta.includes(u),
+                `«${etiqueta}» lleva la unidad ${u} en el nombre, y la cabecera la repetiría`);
+        }
+    }
+});

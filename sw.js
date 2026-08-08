@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0080';
+const CACHE_VERSION = 'tl-v5-0082';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -100,6 +100,7 @@ const PRECACHE = [
     'src/i18n/es.js',
     'src/i18n/i18n.js',
     'src/ui/chart.js',
+    'src/ui/csv.js',
     'src/ui/dates.js',
     'src/ui/dom.js',
     'src/ui/format.js',

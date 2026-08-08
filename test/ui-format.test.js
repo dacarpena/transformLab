@@ -130,10 +130,16 @@ test('nadie usa `toFixed` en la interfaz fuera de format.js', () => {
     // nuevo volvería a escribir «82.8» en español sin que nadie lo note, porque
     // en inglés se ve bien y los tests en inglés pasarían.
     //
-    // Única excepción: la geometría de un SVG. Un atributo `d` NO es texto que
-    // nadie lea, y el punto decimal es obligatorio ahí — una coma partiría el
-    // camino en dos coordenadas.
-    const EXCEPCIONES = new Set(['src/ui/format.js', 'src/ui/muscle-grid.js']);
+    // Dos excepciones, las dos declaradas y las dos por el mismo motivo de
+    // fondo: ahí el número NO es texto que alguien lea.
+    //
+    // - `muscle-grid.js`: la geometría de un SVG. En un atributo `d` el punto
+    //   decimal es obligatorio; una coma partiría el camino en dos coordenadas.
+    // - `csv.js`: un campo de hoja de cálculo. `Intl` metería separadores de
+    //   MILLAR, y un «13.000» con punto de millar es otro número —o dos
+    //   columnas—. El CSV solo cambia el separador DECIMAL, que es lo único que
+    //   la hoja necesita para interpretarlo bien.
+    const EXCEPCIONES = new Set(['src/ui/format.js', 'src/ui/muscle-grid.js', 'src/ui/csv.js']);
     /** @type {string[]} */ const culpables = [];
 
     for (const file of jsFilesUnder('src/ui')) {

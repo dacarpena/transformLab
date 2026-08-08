@@ -24,7 +24,7 @@
  * misma verdad puede divergir, y a 320 px cuesta un bloque vertical que no sobra.
  */
 
-import { html, render, on } from '../dom.js';
+import { html, render, on, safeUrl } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as chart from '../chart.js';
@@ -33,8 +33,9 @@ import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import * as settingsStore from '../../data/settings.js';
 import { muscleUnitsOf, translateSeries } from '../muscle-units.js';
-import { longDate } from '../dates.js';
+import { longDate, shortDate } from '../dates.js';
 import { num } from '../format.js';
+import { toCsv, toBlob, formatNumber } from '../csv.js';
 import { empty, error as errorState } from '../components/state.js';
 import { SERIES, UNITS, seriesById, resolveSeries } from '../../core/series-catalog.js';
 import { MAX_SERIES, PROVENANCE_STYLE } from '../series-style.js';
@@ -274,7 +275,70 @@ function view() {
             <p class="notice" data-mixed-notice hidden></p>
             <p class="chart-readout" data-readout role="status" aria-live="polite"></p>
         </section>
+
+        <section class="card" aria-labelledby="analysis-table">
+            <div class="card__header">
+                <h2 id="analysis-table" class="card__title">${t('analysis.table.title')}</h2>
+                <span class="muted" data-table-count></span>
+            </div>
+            <details data-table-details>
+                <summary>${t('analysis.table.toggle')}</summary>
+                <!-- Zona desplazable con role=region y tabindex=0: a 320 px
+                     cinco columnas no caben, y algo que se desplaza en horizontal
+                     tiene que ser alcanzable con teclado (WCAG 2.1.1). El
+                     envoltorio propio impide además que ese desplazamiento
+                     contamine el scrollWidth del documento, que es lo que miden
+                     los tests de desborde.
+                     (Sin acentos graves aqui dentro: CIERRAN la plantilla.) -->
+                <div class="table-scroll" role="region" tabindex="0"
+                     aria-label="${t('analysis.table.scrollRegion')}" data-table-scroll></div>
+            </details>
+            <div class="btn-row">
+                <button type="button" class="btn btn--sm" data-csv>${t('analysis.csv.download')}</button>
+            </div>
+            <p class="field__hint">${t('analysis.csv.hint')}</p>
+        </section>
     `;
+}
+
+/**
+ * Los datos de la tabla y del CSV, en UNA sola función.
+ *
+ * Se construyen de las series RESUELTAS, no del lienzo: por eso la tabla y la
+ * descarga siguen enteras cuando Chart.js no carga. Si salieran del lienzo, un
+ * fallo de la librería de gráficos se llevaría también los números — y los
+ * números son lo que el usuario vino a ver.
+ *
+ * @returns {{ headers: string[], rows: Array<Array<string|number|null>>,
+ *   anchors: number[], units: Array<{decimals: number}> }}
+ */
+function tableData(/** @type {*} */ data) {
+    const anchors = new Set();
+    for (const serie of resolved) for (const p of serie.points) anchors.add(p.x);
+    const dias = [...anchors].sort((a, b) => a - b);
+
+    const headers = [t('analysis.table.colDate'), ...resolved.map((serie) => t('analysis.table.header', {
+        name: t(serie.spec.labelKey),
+        unit: t(/** @type {*} */ (UNITS)[serie.unit]?.key ?? 'unit.kg'),
+        provenance: t(`series.provenance.${serie.spec.provenance}`)
+    }))];
+
+    const units = resolved.map((serie) => ({
+        decimals: /** @type {*} */ (UNITS)[serie.unit]?.decimals ?? 1
+    }));
+
+    const rows = dias.map((dia) => {
+        const punto = data.projection.daily[dia];
+        /** @type {Array<string|number|null>} */
+        const fila = [punto?.dateISO ?? ''];
+        for (const serie of resolved) {
+            const hit = serie.points.find((p) => p.x === dia);
+            fila.push(hit ? hit.y : null);
+        }
+        return fila;
+    });
+
+    return { headers, rows, anchors: dias, units };
 }
 
 /** Estado sin selección: nunca un lienzo en blanco sin salida. */
@@ -459,6 +523,68 @@ async function redraw(/** @type {HTMLElement} */ container) {
     renderHints(container, data);
 }
 
+/** Cuántas filas se enseñan antes de pedir permiso para el resto. */
+const TABLE_LIMIT = 30;
+let showAllRows = false;
+
+/**
+ * La tabla de datos: la alternativa textual completa.
+ *
+ * Sale de las series RESUELTAS, no del lienzo, y por eso sobrevive a que
+ * Chart.js no cargue. Un fallo de la librería de gráficos no puede llevarse
+ * también los números.
+ * @param {HTMLElement} container @param {*} data
+ */
+function renderTable(container, data) {
+    const host = /** @type {HTMLElement | null} */ (container.querySelector('[data-table-scroll]'));
+    if (!host) return;
+    const { headers, rows, units } = tableData(data);
+    const visibles = showAllRows ? rows : rows.slice(0, TABLE_LIMIT);
+
+    render(host, html`
+        <table class="data-table" data-table>
+            <caption>${t('analysis.table.caption', {
+                grain: t(`analysis.grain.${effectiveGrain()}`)
+            })}</caption>
+            <thead>
+                <tr>${headers.map((h) => html`<th scope="col">${h}</th>`)}</tr>
+            </thead>
+            <tbody>
+                ${visibles.map((fila) => html`
+                    <tr>
+                        <th scope="row">${shortDate(String(fila[0]))}</th>
+                        ${fila.slice(1).map((valor, i) => html`
+                            <td class="numeric">${typeof valor === 'number'
+                                ? num(valor, units[i].decimals)
+                                : html`<span title="${t('analysis.table.noValue')}">—</span>`}</td>
+                        `)}
+                    </tr>
+                `)}
+            </tbody>
+        </table>
+    `);
+
+    const contador = /** @type {HTMLElement | null} */ (container.querySelector('[data-table-count]'));
+    if (contador) {
+        contador.textContent = t('analysis.table.count', { shown: visibles.length, total: rows.length });
+    }
+
+    // El tope se DICE, no se aplica en silencio: un recorte callado se lee como
+    // «esto es todo lo que hay», que es una afirmación falsa.
+    const detalles = container.querySelector('[data-table-details]');
+    const yaHay = container.querySelector('[data-show-all-rows]');
+    if (!showAllRows && rows.length > TABLE_LIMIT && detalles && !yaHay) {
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'btn btn--sm';
+        boton.setAttribute('data-show-all-rows', '');
+        boton.textContent = t('analysis.table.showAll', { count: rows.length - TABLE_LIMIT });
+        detalles.appendChild(boton);
+    } else if ((showAllRows || rows.length <= TABLE_LIMIT) && yaHay) {
+        yaHay.remove();
+    }
+}
+
 /**
  * Los avisos de «lo que se dibuja no es lo que pediste», en UN solo sitio.
  *
@@ -522,7 +648,13 @@ async function refresh(/** @type {HTMLElement} */ container) {
     if (!data) return;
     resolveSelection(data);
     render(container, selected.length === 0 ? emptySelection() : view());
-    if (selected.length > 0) await redraw(container);
+    if (selected.length === 0) return;
+    // La tabla se pinta ANTES de dibujar y fuera de `redraw`, a propósito:
+    // `redraw` sale antes de tiempo cuando Chart.js no carga, y la tabla es
+    // justo lo que tiene que seguir ahí en ese caso. Con la tabla dentro, un
+    // fallo del vendor se habría llevado también los números.
+    renderTable(container, data);
+    await redraw(container);
 }
 
 /* ---------------------------------------------------------------------- *
@@ -615,6 +747,40 @@ function wire(/** @type {HTMLElement} */ container) {
         windowPreset = 'all';
         persist();
         await refresh(container);
+    });
+
+    on(container, 'click', '[data-show-all-rows]', async () => {
+        showAllRows = true;
+        await refresh(container);
+        /** @type {HTMLElement | null} */ (container.querySelector('[data-table] tbody tr:last-child th'))?.focus();
+    });
+
+    on(container, 'click', '[data-csv]', () => {
+        const data = plans.get();
+        if (!data) return;
+        try {
+            const { headers, rows, units } = tableData(data);
+            const csv = toCsv({
+                headers,
+                rows: rows.map((fila) => [
+                    // ISO SIEMPRE en la primera columna: inequívoca, ordena bien
+                    // como texto y la parsea cualquier hoja de cálculo.
+                    String(fila[0]),
+                    ...fila.slice(1).map((v, i) =>
+                        (typeof v === 'number' ? formatNumber(v, units[i].decimals) : ''))
+                ])
+            });
+            const url = URL.createObjectURL(toBlob(csv));
+            const link = document.createElement('a');
+            link.href = safeUrl(url);
+            link.download = `transformlab-analisis-${plans.todayISO()}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch {
+            // Si la descarga falla, los datos SIGUEN en la tabla: se dice eso,
+            // no un error genérico que sugiera que se han perdido.
+            toast.error('analysis.csv.failed');
+        }
     });
 
     // Recorrido con teclado sobre el lienzo.
@@ -738,6 +904,7 @@ function openPicker(/** @type {HTMLElement} */ container) {
 }
 
 export function unmount() {
+    showAllRows = false;
     chartInstance?.destroy();
     chartInstance = null;
     manifest = null;

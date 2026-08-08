@@ -1614,3 +1614,16 @@ button.timeline__event:hover {
     border-radius: var(--radius-full);
     font-size: var(--text-xs);
 }
+
+/* Zona desplazable de la tabla. El envoltorio propio es lo que impide que cinco
+   columnas a 320 px contaminen el `scrollWidth` del documento — sin él, el test
+   de desbordes fallaría por una tabla que se desplaza como debe. */
+.table-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.table-scroll:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}

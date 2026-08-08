@@ -76,6 +76,46 @@ async function goToAnalysis(page) {
     await expect.poll(() => page.locator('[data-legend-row]').count()).toBeGreaterThan(0);
 }
 
+/**
+ * Deja la página SIN service worker, de verdad.
+ *
+ * Hacen falta las TRES cosas, y cada una cierra un agujero distinto:
+ *
+ * 1. **Desregistrar y vaciar cachés.** Bloquear la red no basta para simular
+ *    «Chart.js no está»: el SW precachea el vendor y lo sirve de su caché,
+ *    saltándose la intercepción de Playwright — el mismo mecanismo que sirve
+ *    módulos viejos al desarrollar.
+ * 2. **Bloquear `sw.js`.** Al recargar, `pwa.js` vuelve a registrarlo: sin esto
+ *    el SW nuevo entra en carrera con el test y unas veces toma el control a
+ *    tiempo de servir el vendor y otras no. Era el origen de que la misma
+ *    ejecución pasara o fallara sin tocar nada.
+ * 3. **Esperar a que `controller` sea null.** Desregistrar no es instantáneo: el
+ *    SW sigue controlando la página hasta que la suelta.
+ */
+async function sinServiceWorker(page) {
+    await page.route('**/sw.js', (route) => route.abort());
+    await page.evaluate(async () => {
+        for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+        for (const k of await caches.keys()) await caches.delete(k);
+    });
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller === null))
+        .toBe(true);
+}
+
+/**
+ * Despliega la tabla. Va PLEGADA por omisión a propósito —la gráfica es el
+ * contenido principal, mismo criterio que la rejilla de músculo—, y dentro de un
+ * `details` cerrado `innerText` devuelve cadena vacía.
+ */
+async function openTable(page) {
+    const detalles = page.locator('[data-table-details]');
+    if (!(await detalles.evaluate((e) => /** @type {HTMLDetailsElement} */ (e).open))) {
+        await detalles.locator('summary').click();
+    }
+    await expect(page.locator('[data-table]')).toBeVisible();
+}
+
 /** Los datasets que hay en el lienzo ahora mismo. */
 function datasets(page) {
     return page.evaluate(() => {
@@ -273,13 +313,7 @@ test('a 320 px se dibuja más grueso, y el control refleja lo EFECTIVO', async (
 });
 
 test('sin Chart.js la vista no ofrece nada destructivo', async ({ page }) => {
-    // Bloquear la red NO basta: el service worker precachea el vendor y lo
-    // sirve desde su caché, saltándose la intercepción de Playwright. Es
-    // exactamente el mismo mecanismo que sirve módulos viejos al desarrollar.
-    await page.evaluate(async () => {
-        for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
-        for (const k of await caches.keys()) await caches.delete(k);
-    });
+    await sinServiceWorker(page);
     await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
     await page.reload();
     // `navToAnalysis` y no `goToAnalysis`: aquí el lienzo NO va a dibujarse
@@ -307,4 +341,129 @@ test('no hay errores de consola al recorrer la vista', async ({ page }) => {
     await page.locator('[data-remove-series]').first().click();
 
     expect(errores).toEqual([]);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Tabla, CSV y lectura accesible (E13-6)
+ * ---------------------------------------------------------------------- */
+
+test('la tabla lleva unidad y procedencia, y un guion NO es un cero', async ({ page }) => {
+    await goToAnalysis(page);
+    await openTable(page);
+    const cabeceras = await page.locator('[data-table] thead th').allInnerTexts();
+
+    expect(cabeceras[0]).toBe('Fecha');
+    expect(cabeceras.slice(1).every((h) => /\(.+,.+\)/.test(h)), cabeceras.join(' | ')).toBe(true);
+    expect(cabeceras.some((h) => h.includes('Prevista'))).toBe(true);
+    expect(cabeceras.some((h) => h.includes('Medida'))).toBe(true);
+
+    // El peso MEDIDO no tiene dato el día 0: esa celda es un guion, no un cero.
+    const primera = await page.locator('[data-table] tbody tr').first().innerText();
+    expect(primera).toContain('—');
+    expect(primera).not.toMatch(/\t0,0|\s0,0\s/);
+});
+
+test('la unidad NO se repite: el nombre no la lleva y la cabecera sí', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.click('[data-open-picker]');
+    await page.locator('[role="dialog"] [data-series="proj_fat_pct"]').click();
+    await page.locator('[data-modal-close]').click();
+    await openTable(page);
+
+    const cabeceras = await page.locator('[data-table] thead th').allInnerTexts();
+    const grasa = cabeceras.find((h) => h.includes('grasa'));
+    expect(grasa).toBeTruthy();
+    // «Grasa prevista (%) (%, Prevista)» era el defecto: la unidad dos veces.
+    expect(grasa.match(/%/g)?.length ?? 0).toBe(1);
+});
+
+test('la tabla y el CSV sobreviven a que Chart.js no cargue', async ({ page }) => {
+    await sinServiceWorker(page);
+    await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
+    await page.reload();
+    await navToAnalysis(page);
+
+    // Los números son lo que el usuario vino a ver: un fallo de la librería de
+    // gráficos no puede llevárselos.
+    await openTable(page);
+    await expect(page.locator('[data-table] tbody tr').first()).toBeVisible();
+    await expect(page.locator('[data-csv]')).toBeVisible();
+});
+
+test('el CSV lleva ISO, separador del idioma, procedencia y sin fórmulas', async ({ page }) => {
+    await goToAnalysis(page);
+    const descarga = page.waitForEvent('download');
+    await page.click('[data-csv]');
+    const fichero = await descarga;
+    const ruta = await fichero.path();
+    const texto = await page.evaluate(async (nombre) => nombre, fichero.suggestedFilename());
+    expect(texto).toMatch(/^transformlab-analisis-\d{4}-\d{2}-\d{2}\.csv$/);
+
+    const { readFileSync } = await import('node:fs');
+    const csv = readFileSync(ruta ?? '', 'utf8');
+
+    expect(csv.charCodeAt(0), 'sin BOM, Excel destroza los acentos').toBe(0xFEFF);
+    const lineas = csv.replace('﻿', '').trim().split('\r\n');
+    expect(lineas[0]).toContain(';');            // separador del español
+    expect(lineas[0]).toContain('Prevista');     // la procedencia viaja al fichero
+    expect(lineas[1]).toMatch(/^\d{4}-\d{2}-\d{2};/);  // fecha ISO en la primera columna
+    expect(lineas[1]).toMatch(/\d+,\d/);         // coma decimal en español
+    // Ninguna celda puede empezar por un carácter de fórmula sin neutralizar.
+    for (const linea of lineas) {
+        for (const celda of linea.split(';')) {
+            expect(/^[=+@]/.test(celda), `celda peligrosa: ${celda}`).toBe(false);
+        }
+    }
+});
+
+test('↑↓ cambian de serie y ←→ mueven la fecha sobre la misma serie', async ({ page }) => {
+    await goToAnalysis(page);
+    const readout = page.locator('[data-readout]');
+    await page.locator('[data-canvas]').focus();
+
+    await page.keyboard.press('ArrowRight');
+    const primera = await readout.innerText();
+    expect(primera).toContain('Peso previsto');
+
+    await page.keyboard.press('ArrowDown');
+    const cambio = await readout.innerText();
+    // Al cambiar de serie se anuncia su IDENTIDAD completa, no solo un número.
+    expect(cambio).toContain('Serie 2 de 2');
+    expect(cambio).toContain('Peso medido');
+    expect(cambio).toContain('Medida');
+
+    // Y al mover la fecha se sigue hablando de la serie 2.
+    await page.keyboard.press('ArrowRight');
+    const despues = await readout.innerText();
+    expect(despues).toContain('Peso medido');
+    expect(despues).not.toContain('Peso previsto');
+});
+
+test('el readout dice «sin dato ese día» en vez de inventarse un cero', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.locator('[data-canvas]').focus();
+    await page.keyboard.press('ArrowDown');   // a la serie medida
+    await page.keyboard.press('Home');        // al día 0, donde no hay check-in
+
+    await expect(page.locator('[data-readout]')).toContainText('no tiene dato ese día');
+    await expect(page.locator('[data-readout]')).not.toContainText('0,0');
+});
+
+test('a 320 px la tabla se desplaza sin desbordar el documento', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await goToAnalysis(page);
+    await openTable(page);
+
+    const r = await page.evaluate(() => {
+        const zona = document.querySelector('[data-table-scroll]');
+        return {
+            desbordaDoc: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            // La tabla SÍ se desplaza —cinco columnas no caben— pero dentro de
+            // su propia zona, que además es alcanzable con teclado.
+            zonaDesplaza: (zona?.scrollWidth ?? 0) > (zona?.clientWidth ?? 0),
+            enfocable: zona?.getAttribute('tabindex')
+        };
+    });
+    expect(r.desbordaDoc).toBe(false);
+    expect(r.enfocable).toBe('0');
 });
