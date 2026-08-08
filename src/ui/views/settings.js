@@ -35,9 +35,9 @@ function renderProfileSection() {
         <section class="card" aria-labelledby="set-profile">
             <h2 id="set-profile" class="card__title">${t('settings.section.profile')}</h2>
             <p class="secondary">${t('settings.profileSummary', {
-                weight: data.composition.weightKg.toFixed(1),
-                fat: data.composition.fatPct.toFixed(1),
-                target: data.plan.summary.targetWeightKg.toFixed(1)
+                weight: num(data.composition.weightKg),
+                fat: num(data.composition.fatPct),
+                target: num(data.plan.summary.targetWeightKg)
             })}</p>
             <p class="muted">${t('settings.editProfileHint')}</p>
             <div class="btn-row">

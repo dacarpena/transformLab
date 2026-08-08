@@ -119,7 +119,7 @@ test('con un check-in real, el opt-in de peso y %grasa funciona en los dos senti
     await expect(page.locator('[data-card]')).not.toHaveAttribute('aria-label', /kg/);
 
     await page.locator('[data-absolutes]').check();
-    await expect(page.locator('[data-card]')).toHaveAttribute('aria-label', /74\.2 kg/);
+    await expect(page.locator('[data-card]')).toHaveAttribute('aria-label', /74,2 kg/);
 
     // Desmarcar vuelve a ocultarlos: el opt-in no es de un solo sentido
     await page.locator('[data-absolutes]').uncheck();
@@ -168,7 +168,7 @@ test('la rutina de entrenamiento se crea, registra y detecta el récord', async 
     await page.locator('[data-log-session]').click();
     await page.fill('[data-log-load]', '70');
     await page.locator('.modal [data-go]').click();
-    await expect(rutina.locator('.profile-item').first()).toContainText('70.0 kg');
+    await expect(rutina.locator('.profile-item').first()).toContainText('70,0 kg');
 });
 
 test('la silueta dibuja los tres estados con la misma regla', async ({ page }) => {
@@ -179,7 +179,7 @@ test('la silueta dibuja los tres estados con la misma regla', async ({ page }) =
 
     // Cada figura se anuncia con su etiqueta y su índice cintura/hombros
     for (let i = 0; i < 3; i += 1) {
-        await expect(figures.nth(i).locator('svg')).toHaveAttribute('aria-label', /0\.\d\d/);
+        await expect(figures.nth(i).locator('svg')).toHaveAttribute('aria-label', /0,\d\d/);
     }
 
     // Y las tres caben en pantalla a la vez: ninguna desborda a lo alto

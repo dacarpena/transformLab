@@ -86,7 +86,7 @@ test('las series de una sentadilla llegan al glúteo, no solo al cuádriceps', a
     const fila = volumen(page).locator('.profile-item', { hasText: 'Glúteos' });
     // Con la regla «solo el motor primario» esto sería CERO: el peso muerto
     // tiene «lower back» como primario y solo 11 de 556 ejercicios tienen glúteo.
-    await expect(fila).toContainText('4.8');
+    await expect(fila).toContainText('4,8');
     await expect(volumen(page).locator('.profile-item', { hasText: 'Cuádriceps' })).toContainText('12');
 });
 

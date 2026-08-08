@@ -20,6 +20,7 @@ import { html, render } from './dom.js';
 import { t } from '../i18n/i18n.js';
 import { muscleUnitsFor } from './muscle-units.js';
 import { axisLabel, longDate } from './dates.js';
+import { num } from './format.js';
 
 /** @typedef {import('../core/generator.js').Projection} Projection */
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
@@ -180,7 +181,7 @@ function todayLinePlugin(getTodayIndex) {
  */
 export function milestoneLabel(milestone, muscle = muscleUnitsFor(null)) {
     if (milestone.category === 'muscleKg' && muscle.isScale && typeof milestone.threshold === 'number') {
-        return t('milestone.muscleKg', { threshold: muscle.toDisplay(milestone.threshold).toFixed(1) });
+        return t('milestone.muscleKg', { threshold: num(muscle.toDisplay(milestone.threshold)) });
     }
     const threshold = milestone.category === 'phase'
         ? t(`phase.${milestone.threshold}`)
@@ -629,9 +630,9 @@ export function createChart() {
         readout.textContent = t('chart.readout', {
             day: point.dayIndex,
             date: longDate(point.dateISO),
-            weight: (point.weightKg + point.fluctuationKg).toFixed(1),
-            fat: point.fatPct.toFixed(1),
-            muscle: muscleUnits.toDisplay(point.muscleKg).toFixed(1),
+            weight: num(point.weightKg + point.fluctuationKg),
+            fat: num(point.fatPct),
+            muscle: num(muscleUnits.toDisplay(point.muscleKg)),
             phase: t(`phase.${point.phaseType}`)
         });
     }

@@ -100,11 +100,11 @@ test('backup → borrar el perfil → restaurar devuelve TODO lo del usuario', a
 
     // Y los datos están: el check-in y la sesión de entrenamiento
     await page.locator('[data-view="progress"]').click();
-    await expect(page.locator('.view')).toContainText('74.1');
+    await expect(page.locator('.view')).toContainText('74,1');
 
     await page.locator('[data-view="training"]').click();
     await expect(page.locator('.view')).toContainText('Sentadilla');
-    await expect(page.locator('.view')).toContainText('90.0 kg');
+    await expect(page.locator('.view')).toContainText('90,0 kg');
 });
 
 test('un backup ajeno y hostil no ejecuta nada ni rompe la aplicación', async ({ page }) => {
@@ -200,8 +200,8 @@ test('la migración v4 → v5 conserva los datos y NO hereda el objetivo roto', 
 
     // Y los check-ins del usuario llegaron enteros
     await page.locator('[data-view="progress"]').click();
-    await expect(page.locator('.view')).toContainText('79.4');
-    await expect(page.locator('.view')).toContainText('78.9');
+    await expect(page.locator('.view')).toContainText('79,4');
+    await expect(page.locator('.view')).toContainText('78,9');
 });
 
 test('migrar dos veces no duplica nada', async ({ page }) => {

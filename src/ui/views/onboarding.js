@@ -26,6 +26,7 @@ import { SCHEMA_VERSION, MEASURE_KEYS } from '../../data/schema.js';
 import * as storage from '../../data/storage.js';
 import * as plans from '../plan-state.js';
 import * as toast from '../components/toast.js';
+import { num } from '../format.js';
 import * as preferencesStore from '../../data/preferences.js';
 import { CONTROL_LEVELS, DEFAULT_CONTROL_LEVEL, DEFAULT_ACTIVE, MODULES, blocksFor, questionCount } from '../../core/modules.js';
 
@@ -328,7 +329,7 @@ function renderPreview() {
         <h3 class="card__title">${t('onboarding.preview.title')}</h3>
         <div class="preview__row">
             <span>${t('onboarding.preview.targetWeight')}</span>
-            <span class="preview__value">${plan.summary.targetWeightKg.toFixed(1)} ${t('today.unit.kg')}</span>
+            <span class="preview__value">${num(plan.summary.targetWeightKg)} ${t('today.unit.kg')}</span>
         </div>
         <div class="preview__row">
             <span>${t('onboarding.preview.duration')}</span>
@@ -481,7 +482,7 @@ function renderStepFields(step) {
             <div class="preview__row">
                 <span>${confirmUnits.label()}</span>
                 <span class="preview__value">
-                    ${composition ? confirmUnits.toDisplay(composition.muscleKg).toFixed(1) : '—'} ${t('today.unit.kg')}
+                    ${composition ? num(confirmUnits.toDisplay(composition.muscleKg)) : '—'} ${t('today.unit.kg')}
                     · ${t(muscleSourceKey())}
                     ${composition && confirmUnits.isScale ? html`<span class="muted"> · ${confirmUnits.secondary(composition.muscleKg)}</span>` : ''}
                 </span>

@@ -135,3 +135,30 @@ test('ningún code del motor produce una clave ausente al traducirse', () => {
     const ausentes = avisos.filter((m) => m.includes('clave ausente'));
     assert.deepEqual(ausentes, [], `traducir los codes del motor avisó de claves ausentes:\n  ${ausentes.join('\n  ')}`);
 });
+
+test('los parámetros numéricos se escriben en el idioma activo', () => {
+    // Arreglar `ui/format.js` no bastaba: media docena de vistas pasaban el
+    // número CRUDO como parámetro y `String()` lo escribía con punto en
+    // español, saltándose el formateador. Aquí pasa TODO el texto visible de la
+    // aplicación, así que es imposible saltárselo.
+    setLocale('es');
+    assert.equal(t('test.decimal', { v: 4.8 }), '4,8');
+    setLocale('en');
+    assert.equal(t('test.decimal', { v: 4.8 }), '4.8');
+    setLocale('es');
+});
+
+test('no se inventan decimales que el número no traía', () => {
+    // Para decimales FIJOS está `ui/format.js`, que es otra decisión y se toma
+    // en la vista. Aquí solo se cambia el separador.
+    setLocale('es');
+    assert.equal(t('test.decimal', { v: 12 }), '12');
+    assert.equal(t('test.decimal', { v: 2437 }), '2437');
+    assert.equal(t('test.decimal', { v: 13000 }), '13.000');
+});
+
+test('un parámetro no numérico pasa tal cual', () => {
+    setLocale('es');
+    assert.equal(t('test.decimal', { v: 'mucho' }), 'mucho');
+    assert.equal(t('test.decimal', { v: Number.NaN }), 'NaN');
+});

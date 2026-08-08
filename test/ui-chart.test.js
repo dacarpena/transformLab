@@ -38,6 +38,7 @@ const destroy = () => grafica.destroy();
 const toPng = () => grafica.toPng();
 const setWindow = (/** @type {*} */ a, /** @type {*} */ b) => grafica.setWindow(a, b);
 import { shortDate, monthYear, axisLabel, longDate } from '../src/ui/dates.js';
+import { num } from '../src/ui/format.js';
 import { muscleUnitsFor } from '../src/ui/muscle-units.js';
 import { makeComposition, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
@@ -90,9 +91,11 @@ test('milestoneLabel traduce las cuatro categorías de hito', () => {
 
 test('milestoneLabel pasa el umbral de músculo por la aduana de unidades (E11)', () => {
     const bascula = muscleUnitsFor({ scaleMuscleKg: 56.56, muscleKg: 29.2432, boneKg: 3.12 });
-    // 30 kg esqueléticos son 57,3 en la báscula del usuario
+    // 30 kg esqueléticos son 57,3 en la báscula del usuario. Con COMA: desde el
+    // cierre de la v2 las cifras se escriben en el idioma del usuario, y el
+    // español usa coma decimal.
     const conBascula = milestoneLabel({ category: 'muscleKg', threshold: 30 }, bascula);
-    assert.match(conBascula, /57\.3/, conBascula);
+    assert.match(conBascula, /57,3/, conBascula);
 
     // sin báscula, la cifra se queda como está
     const sinBascula = milestoneLabel({ category: 'muscleKg', threshold: 30 }, muscleUnitsFor(null));
@@ -177,7 +180,9 @@ test('announce describe el punto con sus tres métricas y su fase', () => {
     // Fecha legible, NO el ISO: esto lo lee un lector de pantalla (M7-4).
     assert.equal(r.textContent.includes(d0.dateISO), false, `ISO crudo en la lectura: ${r.textContent}`);
     assert.match(r.textContent, new RegExp(longDate(d0.dateISO)));
-    assert.match(r.textContent, new RegExp(d0.weightKg.toFixed(1).replace('.', '\\.')));
+    // La cifra se compara con el formateador de la app, no con `toFixed`: en
+    // español lleva coma decimal.
+    assert.match(r.textContent, new RegExp(num(d0.weightKg).replace(',', ',')));
     assert.ok(!r.textContent.includes('{'), `quedó un placeholder: ${r.textContent}`);
     // la fase va traducida, no como código interno
     assert.ok(!/adaptation|cut|bulk/.test(r.textContent), r.textContent);

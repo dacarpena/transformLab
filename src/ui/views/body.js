@@ -14,6 +14,7 @@ import * as plans from '../plan-state.js';
 import * as checkins from '../../data/checkins.js';
 import { shapeFor, waistToShoulderRatio, calibrationFrom } from '../../core/silhouette.js';
 import { empty } from '../components/state.js';
+import { num } from '../format.js';
 
 const W = 180;
 const H = 320;
@@ -121,13 +122,13 @@ function renderFigure(shape, labelKey, color) {
     return html`
         <figure class="silhouette">
             <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
-                 aria-label="${t(labelKey)}. ${t('body.ratio')}: ${ratio.toFixed(2)}">
+                 aria-label="${t(labelKey)}. ${t('body.ratio')}: ${num(ratio, 2)}">
                 <path d="${pathFor(shape)}" fill="var(${color})" fill-opacity="0.9"
                       stroke="var(--color-bg)" stroke-width="1.5" fill-rule="evenodd"/>
             </svg>
             <figcaption>
                 <strong>${t(labelKey)}</strong>
-                <span class="muted numeric"> · ${ratio.toFixed(2)}</span>
+                <span class="muted numeric"> · ${num(ratio, 2)}</span>
             </figcaption>
         </figure>
     `;

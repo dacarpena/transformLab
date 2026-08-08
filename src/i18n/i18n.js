@@ -81,8 +81,42 @@ export function t(key, params) {
     }
     if (params) {
         text = text.replace(/\{(\w+)\}/g, (match, name) =>
-            Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match
+            Object.prototype.hasOwnProperty.call(params, name) ? formatParam(params[name]) : match
         );
     }
     return text;
+}
+
+/**
+ * Formateadores de parámetros numéricos, por idioma.
+ * @type {Map<string, Intl.NumberFormat>}
+ */
+const paramFormatters = new Map();
+
+/**
+ * Un parámetro, listo para meter en el texto.
+ *
+ * LOS NÚMEROS SE LOCALIZAN AQUÍ, y este es el sitio correcto por una razón que
+ * costó descubrir: arreglar `ui/format.js` no bastaba. Media docena de vistas
+ * pasaban el número CRUDO como parámetro —`t('volume.sets', { sets: 4.8 })`— y
+ * `String()` lo escribía «4.8» con punto, en español, saltándose el formateador
+ * sin que nadie lo notara. Cualquier vista futura habría vuelto a hacerlo.
+ * Aquí, en cambio, pasa TODO el texto visible de la aplicación: es imposible
+ * saltárselo.
+ *
+ * `maximumFractionDigits: 3` y ningún mínimo: no se inventan decimales que el
+ * número no traía —12 sigue siendo «12»— y solo se cambia el separador. Para
+ * decimales FIJOS está `ui/format.js`, que es otra decisión y se toma en la
+ * vista.
+ * @param {string | number} value
+ * @returns {string}
+ */
+function formatParam(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return String(value);
+    let formatter = paramFormatters.get(locale);
+    if (!formatter) {
+        formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 });
+        paramFormatters.set(locale, formatter);
+    }
+    return formatter.format(value);
 }

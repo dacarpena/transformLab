@@ -127,14 +127,14 @@ test('sin red se puede guardar un check-in y sigue ahí al volver la red', async
         await page.fill('[data-field="weightKg"]', '73.6');
         await page.locator('[data-save]').click();
         await page.locator('[data-view="progress"]').click();
-        await expect(page.locator('.view')).toContainText('73.6');
+        await expect(page.locator('.view')).toContainText('73,6');
     } finally {
         await context.setOffline(false);
     }
 
     await page.reload();
     await page.locator('[data-view="progress"]').click();
-    await expect(page.locator('.view')).toContainText('73.6');
+    await expect(page.locator('.view')).toContainText('73,6');
 });
 
 test('el aviso de versión nueva se puede pulsar con el puntero, no solo con el teclado', async ({ page }) => {

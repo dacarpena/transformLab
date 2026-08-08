@@ -852,4 +852,9 @@ export const en = {
     "recalibration.deload": "I suggest a deload week in your training.",
     "recalibration.superseded": "There is {n} more notice about the same thing, but this one rests on more of your data.",
     "recalibration.deferred": "I have {n} more suggestion waiting; I will show it once you close this one.",
+
+    // Clave SOLO para los tests de formato de parámetros. No se usa en la
+    // interfaz; existe para poder probar la interpolación sin atarla a una
+    // cadena de producto que puede cambiar de redacción.
+    "test.decimal": "{v}",
 };

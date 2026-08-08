@@ -156,7 +156,7 @@ test('registrar un check-in desde el formulario y verlo en el historial', async 
     await page.click('[data-save]');
 
     // aparece en el historial de la propia vista
-    await expect(page.locator('.profile-item').first()).toContainText('73.6');
+    await expect(page.locator('.profile-item').first()).toContainText('73,6');
 
     // y en Progreso, con su señal de desviación
     await page.click('[data-view="progress"]');
@@ -185,7 +185,7 @@ test('el peso es obligatorio y el resto no', async ({ page }) => {
     // solo con el peso, se guarda
     await page.fill('[data-field="weightKg"]', '74.2');
     await page.click('[data-save]');
-    await expect(page.locator('.profile-item').first()).toContainText('74.2');
+    await expect(page.locator('.profile-item').first()).toContainText('74,2');
 });
 
 test('borrar un check-in pide confirmación y lo elimina', async ({ page }) => {
@@ -250,8 +250,10 @@ test('recalibrar CONSERVA el músculo ganado también en un perfil estimado (V2-
     // El músculo que la app dice que tiene HOY, antes de tocar nada.
     const musculoHoy = await page.evaluate(() => {
         const texto = document.body.innerText;
-        const m = texto.match(/([\d.]+)\s*kg de músculo/);
-        return m ? Number(m[1]) : null;
+        const m = texto.match(/([\d.,]+)\s*kg de músculo/);
+        // La app escribe la coma decimal del español: hay que traducirla antes
+        // de que `Number()` la vea, o «31,9» se convierte en NaN.
+        return m ? Number(m[1].replace(',', '.')) : null;
     });
 
     const dialog = page.locator('[role="dialog"]');

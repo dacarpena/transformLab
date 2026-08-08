@@ -61,7 +61,7 @@ test('el objetivo de 60 kg que la app rechazaba ahora produce un plan', async ({
 
     // Y debajo del campo se dice, sin esconderlo, qué músculo esquelético
     // implica esa cifra: la conversión es una estimación de población.
-    await expect(page.locator('[data-target-muscle-note]')).toContainText('32.7');
+    await expect(page.locator('[data-target-muscle-note]')).toContainText('32,7');
 
     await page.click('[data-next]');
     await page.click('[data-next]');
@@ -78,13 +78,13 @@ test('el dashboard habla en la unidad de la báscula, con la esquelética al lad
     // no los 29,2 de músculo esquelético.
     const muscleMetric = page.locator('.metric', { has: page.locator('.metric__note') });
     await expect(muscleMetric).toHaveCount(1);
-    await expect(muscleMetric.locator('.metric__value')).toContainText('56.6');
-    await expect(muscleMetric.locator('.metric__note')).toContainText('29.2');
+    await expect(muscleMetric.locator('.metric__value')).toContainText('56,6');
+    await expect(muscleMetric.locator('.metric__note')).toContainText('29,2');
 
     // Y la tarjeta del plan, de dónde a dónde, en la misma unidad.
     const plan = page.locator('.plan-summary');
-    await expect(plan).toContainText('56.6');
-    await expect(plan).toContainText('60.0');
+    await expect(plan).toContainText('56,6');
+    await expect(plan).toContainText('60,0');
 });
 
 test('un perfil SIN báscula sigue viendo músculo esquelético, exactamente como antes', async ({ page }) => {
@@ -107,9 +107,9 @@ test('un perfil SIN báscula sigue viendo músculo esquelético, exactamente com
 
     // ...ni nota bajo la métrica de músculo
     await expect(page.locator('.metric__note')).toHaveCount(0);
-    await expect(page.locator('.plan-summary')).toContainText('30.0');
+    await expect(page.locator('.plan-summary')).toContainText('30,0');
     // el peso objetivo del perfil canónico no se ha movido
-    await expect(page.locator('.plan-summary__weight').last()).toHaveText('68.9 kg');
+    await expect(page.locator('.plan-summary__weight').last()).toHaveText('68,9 kg');
 });
 
 test('el check-in pide músculo y hueso, comprueba que cuadran y aparece en Progreso', async ({ page }) => {
@@ -148,7 +148,7 @@ test('el check-in pide músculo y hueso, comprueba que cuadran y aparece en Prog
     await page.click('[data-view="progress"]');
     const muscleCard = page.locator('section.card', { has: page.locator('#muscle-title') });
     await expect(muscleCard).toBeVisible();
-    await expect(muscleCard).toContainText('56.9');
+    await expect(muscleCard).toContainText('56,9');
 
     // Y en la gráfica de Proyección, la métrica de músculo dibuja ese check-in
     // medido (E12 lo reenvía a chart.js; antes se perdía por el camino y el

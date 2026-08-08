@@ -23,7 +23,7 @@ import * as profiles from '../../data/profiles.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty, error as errorState } from '../components/state.js';
-import { int as num } from '../format.js';
+import { int as num, num as dec } from '../format.js';
 
 /**
  * Comidas al día. Vive en `preferences` y NO solo aquí dentro: la lista de la
@@ -78,7 +78,7 @@ function renderMacros(/** @type {*} */ macros, /** @type {*} */ point) {
             </div>
 
             <p class="muted">${t('nutrition.fromPlan')}</p>
-            <p class="muted">${t('nutrition.proteinNote', { lean: point.leanKg.toFixed(1) })}</p>
+            <p class="muted">${t('nutrition.proteinNote', { lean: dec(point.leanKg) })}</p>
 
             ${macros.warnings.map((/** @type {*} */ code) => html`
                 <p class="notice notice--warning">
@@ -97,7 +97,7 @@ function renderMacros(/** @type {*} */ macros, /** @type {*} */ point) {
                     <span class="notice__icon" aria-hidden="true">⚠</span>
                     <span>${t('nutrition.refeedCost', {
                         kcal: macros.costKcal ?? 0,
-                        kg: (macros.costKg ?? 0).toFixed(2)
+                        kg: dec(macros.costKg ?? 0, 2)
                     })}</span>
                 </p>
             ` : ''}

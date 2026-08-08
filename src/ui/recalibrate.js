@@ -20,6 +20,7 @@ import { muscleOffsetKg } from '../core/scale.js';
 import * as plans from './plan-state.js';
 import * as modal from './components/modal.js';
 import * as toast from './components/toast.js';
+import { num, signed } from './format.js';
 
 /** Clave donde se recuerda el rechazo, para no insistir. */
 const DECLINED_KEY = 'ui.recalDeclinedFingerprint';
@@ -244,10 +245,10 @@ export function offer(verdict, onDone) {
                 : t('recal.persistence', { count: verdict.streakOutside, side: sideText })}</p>
 
             <p class="muted">${t('deviation.detail', {
-                actual: latest.actualKg.toFixed(1),
-                expected: latest.expectedKg.toFixed(1),
-                delta: `${latest.deltaKg >= 0 ? '+' : ''}${latest.deltaKg.toFixed(1)}`,
-                tolerance: latest.toleranceKg.toFixed(1)
+                actual: num(latest.actualKg),
+                expected: num(latest.expectedKg),
+                delta: signed(latest.deltaKg),
+                tolerance: num(latest.toleranceKg)
             })}</p>
 
             ${verdict.lowAdherence ? html`

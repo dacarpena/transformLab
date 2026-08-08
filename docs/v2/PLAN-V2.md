@@ -406,12 +406,8 @@ en cada fila y no hay desbordamiento horizontal.
 Ideas surgidas fuera de la milestone activa. **No se implementan** hasta que les
 toque (CLAUDE.md §7).
 
-- **`num()` formatea con punto decimal en español.** `src/ui/format.js` usa
-  `toFixed`, que siempre pone `.`, así que toda la aplicación escribe «82.8 kg»
-  donde en español va «82,8 kg». Es un defecto **preexistente** y transversal
-  (afecta a todas las vistas de la v1), detectado al revisar V2-M2 en navegador.
-  El arreglo es `Intl.NumberFormat` con el locale activo, y toca hacerlo de una
-  vez para toda la app, con su test.
+- ~~**`num()` formatea con punto decimal en español.**~~ **HECHO** el
+  2026-08-08, ver §13.
 - **`CACHE_VERSION` debería derivarse de `precacheHash`** en vez de ser un
   contador: dos ramas que lo suban obtienen el mismo número y colisionan al
   fusionar (ver §9.bis).
@@ -778,3 +774,40 @@ lección, ya conocida: **verificar el fuente servido antes de concluir nada**.
 
 Diez milestones (V2-M0…M10), **731 tests unitarios y 150 E2E**, typecheck
 limpio. Todo verificado en navegador a 320 px y desplegado desde `main`.
+
+## 13. Las cifras, en el idioma del usuario (2026-08-08)
+
+Cerrado el punto del BACKLOG. Toda la aplicación escribía «82.8 kg» a un usuario
+español, donde se escribe «82,8 kg». No era el descuido de una vista: era
+transversal a las doce, y venía de la v1.
+
+**El arreglo tiene DOS sitios, y descubrir el segundo fue el trabajo de verdad.**
+
+1. `src/ui/format.js` pasa de `toFixed` a `Intl.NumberFormat` con el idioma
+   activo, cacheando un formateador por (idioma, decimales) —estas funciones se
+   llaman dentro de bucles de doscientos puntos— e indexando por idioma porque
+   el usuario lo cambia en caliente desde Ajustes.
+2. **`i18n.t()` formatea sus parámetros numéricos.** Arreglar solo `format.js`
+   NO bastaba: media docena de vistas pasaban el número CRUDO como parámetro
+   —`t('volume.sets', { sets: 4.8 })`— y `String()` lo escribía con punto,
+   saltándose el formateador sin que nadie lo notara. Se vio en un E2E que
+   seguía fallando después del «arreglo». Por `t()` pasa TODO el texto visible
+   de la aplicación, así que ahí es imposible saltárselo, y cualquier vista
+   futura queda cubierta sin acordarse de nada.
+
+`maximumFractionDigits: 3` y ningún mínimo en la interpolación: no se inventan
+decimales que el número no traía —12 sigue siendo «12»— y solo cambia el
+separador. Para decimales FIJOS está `format.js`, que es otra decisión y se toma
+en la vista.
+
+Se migraron los 20 `toFixed` que quedaban en `src/ui/` y **hay un test que
+prohíbe volver a usarlo** fuera de `format.js`. Única excepción, declarada: la
+geometría de un SVG, donde el punto decimal es obligatorio —una coma partiría el
+camino en dos coordenadas— y que además no es texto que nadie lea.
+
+Un detalle que salió al escribir los tests: **el español NO agrupa los números
+de cuatro cifras** (2437, pero 13.000). Es la norma de la RAE y es lo que hace
+`Intl`; mis expectativas estaban mal, no el código. Se agradece: «2437 kcal» se
+lee mejor que «2.437 kcal».
+
+**737 unitarios · 150 E2E · typecheck limpio.**

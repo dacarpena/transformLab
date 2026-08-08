@@ -51,8 +51,8 @@ test('onboarding completo con el perfil canónico lleva al dashboard', async ({ 
 
     // El defecto central del legacy: para este perfil daba 45,5 kg.
     const summary = page.locator('.plan-summary__weight');
-    await expect(summary.first()).toHaveText('75.0 kg');
-    await expect(summary.last()).toHaveText('68.9 kg');
+    await expect(summary.first()).toHaveText('75,0 kg');
+    await expect(summary.last()).toHaveText('68,9 kg');
 
     // Y las cifras se declaran como proyección, no como medición
     await expect(page.locator('.projection-note__tag')).toBeVisible();

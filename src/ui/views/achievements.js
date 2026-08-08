@@ -21,6 +21,7 @@ import { aestheticMilestonesFor } from '../../core/milestones.js';
 import { evaluate, shareCard } from '../../core/achievements.js';
 import { recordCount } from './training.js';
 import * as toast from '../components/toast.js';
+import { num } from '../format.js';
 
 /**
  * Casilla de datos absolutos. Vive en el módulo, así que se REINICIA en cada
@@ -163,8 +164,8 @@ function paintCard(canvas, card) {
         t('achievements.cardStreak', { weeks: card.streakWeeks }),
         t('achievements.cardUnlocked', { count: card.achievementsUnlocked })
     ];
-    if (card.weightKg !== null) lines.push(t('achievements.cardWeight', { kg: card.weightKg.toFixed(1) }));
-    if (card.fatPct !== null) lines.push(t('achievements.cardFat', { pct: card.fatPct.toFixed(1) }));
+    if (card.weightKg !== null) lines.push(t('achievements.cardWeight', { kg: num(card.weightKg) }));
+    if (card.fatPct !== null) lines.push(t('achievements.cardFat', { pct: num(card.fatPct) }));
 
     ctx.fillStyle = fg;
     ctx.font = '400 30px system-ui, sans-serif';
@@ -183,8 +184,8 @@ function cardAltText(card) {
         t('achievements.cardStreak', { weeks: card.streakWeeks }),
         t('achievements.cardUnlocked', { count: card.achievementsUnlocked })
     ];
-    if (card.weightKg !== null) parts.push(t('achievements.cardWeight', { kg: card.weightKg.toFixed(1) }));
-    if (card.fatPct !== null) parts.push(t('achievements.cardFat', { pct: card.fatPct.toFixed(1) }));
+    if (card.weightKg !== null) parts.push(t('achievements.cardWeight', { kg: num(card.weightKg) }));
+    if (card.fatPct !== null) parts.push(t('achievements.cardFat', { pct: num(card.fatPct) }));
     return parts.join('. ');
 }
 
