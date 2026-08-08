@@ -104,7 +104,3 @@ export function axisLabel(dateISO, spanDays) {
     return monthYear(dateISO);
 }
 
-/** Vacía los formateadores memorizados. Lo llama el cambio de idioma. */
-export function resetDateCache() {
-    cache.clear();
-}

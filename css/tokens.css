@@ -48,6 +48,16 @@
     --color-phase-transition: #f0b350;
     --color-phase-maintenance: #4fd1c5;
 
+    /* NOTA PARA LA PRÓXIMA AUDITORÍA (M7-8). Cinco de estos tokens no los usa
+       hoy nadie: --font-mono, --weight-regular, --space-12, --shadow-sm y
+       --breakpoint-desktop. Se quedan a propósito. Los cuatro primeros son
+       PELDAÑOS de escalas completas (tres familias, tres pesos, ocho espacios,
+       tres sombras), y una escala con un hueco es una invitación a que el
+       siguiente que necesite ese peldaño se invente un valor mágico — justo lo
+       que prohíbe D8. El quinto documenta el único punto de corte del diseño;
+       las media queries no aceptan propiedades personalizadas, así que el 768px
+       de `app.css` no puede leerlo, pero sí puede señalarlo. */
+
     /* ---- Tipografía: 3 familias lógicas ---- */
     --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-heading: var(--font-ui);

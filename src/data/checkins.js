@@ -208,22 +208,3 @@ export function findByDate(dateISO) {
     return cache?.byDate.get(dateISO) ?? null;
 }
 
-/**
- * ¿Falta el check-in de esta semana? (M4-7, aviso in-app no intrusivo.)
- * @param {string} todayISO
- * @param {string} startDateISO
- * @returns {boolean}
- */
-export function isWeekPending(todayISO, startDateISO) {
-    const MS = 86400000;
-    const start = Date.parse(`${startDateISO}T00:00:00Z`);
-    const today = Date.parse(`${todayISO}T00:00:00Z`);
-    if (Number.isNaN(start) || Number.isNaN(today) || today < start) return false;
-
-    const currentWeek = Math.floor((today - start) / MS / 7);
-    return !list().some((item) => {
-        const day = Date.parse(`${item.dateISO}T00:00:00Z`);
-        if (Number.isNaN(day)) return false;
-        return Math.floor((day - start) / MS / 7) === currentWeek;
-    });
-}

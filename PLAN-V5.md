@@ -722,10 +722,38 @@ los otros.
 - [x] M7-5 · El N+1 cuadrático de check-ins.
 - [x] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
 - [x] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
-- [ ] M7-8 · Barrido de código muerto: 15 claves i18n, 8 exports, 5 reglas CSS y 6 tokens sin consumidor.
+- [x] M7-8 · Barrido de código muerto: 15 claves i18n, 8 exports, 5 reglas CSS y 6 tokens sin consumidor.
 - [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
 
 ### Bitácora M7
+
+**M7-8 (2026-08-08) · barrido, con dos discrepancias respecto al informe.**
+12 claves i18n, 7 funciones exportadas que no llamaba nadie
+(`isWeekPending`, `isOpen`, `resetDateCache`, `onChange`, `navLabel`,
+`todayTolerance`, `bestEstimatedOneRepMax`), 8 exports reducidos a privados,
+4 reglas CSS y el fallback inalcanzable de `checkin.js`, que llamaba a `t()`
+tres veces para elegir siempre la misma rama.
+
+Dos cosas que el informe daba por hechas y no lo eran:
+
+- **De las 150 claves i18n que salen en un barrido ingenuo, 138 son falsos
+  positivos**: se construyen con plantilla (`t(\`phase.${tipo}\`)`,
+  `t(\`ranges.${codigo}\`)`). Borrarlas habría dejado la mitad de la interfaz
+  diciendo el nombre de la clave. El barrido bueno detecta los prefijos
+  dinámicos primero.
+- **Los 5 tokens «sin uso» se quedan**, y con una nota en `tokens.css` para que
+  la próxima auditoría no vuelva a proponerlo. Cuatro son PELDAÑOS de escalas
+  completas —tres familias, tres pesos, ocho espacios, tres sombras— y una
+  escala con un hueco es una invitación a que el siguiente que lo necesite se
+  invente un valor mágico, que es justo lo que prohíbe D8. El quinto,
+  `--breakpoint-desktop`, documenta el único punto de corte; las media queries
+  no aceptan propiedades personalizadas, así que no puede leerlo, pero sí
+  señalarlo.
+
+También se comprobó que `resetDateCache` no escondía un fallo: el cache lleva el
+idioma en la clave, así que un cambio de idioma ya está cubierto por
+construcción y su JSDoc («lo llama el cambio de idioma») era falso por partida
+doble.
 
 **M7-7 (2026-08-08) · la CSP deja de ser una afirmación.** `tools/serve-csp.mjs`
 existía desde M6-3 y estaba huérfano: `playwright.config.js` levantaba `python3

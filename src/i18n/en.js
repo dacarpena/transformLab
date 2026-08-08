@@ -4,7 +4,6 @@
 export const en = {
     // App
     'app.title': 'TransformLab',
-    'app.tagline': 'Body transformation tracking with a recalibratable projection',
     'app.skipToContent': 'Skip to content',
 
     // Navigation
@@ -23,16 +22,13 @@ export const en = {
     'action.back': 'Back',
     'action.next': 'Next',
     'action.reload': 'Reload',
-    'action.retry': 'Try again',
     'action.save': 'Save',
-    'action.start': 'Start',
     'action.create': 'Create',
     'action.rename': 'Rename',
     'action.delete': 'Delete',
     'action.switch': 'Switch',
     'action.export': 'Export',
     'action.import': 'Import',
-    'action.today': 'Today',
     'action.downloadPng': 'Download PNG',
     'action.editProfile': 'Edit profile',
     'action.edit': 'Edit',
@@ -106,10 +102,7 @@ export const en = {
     'onboarding.preview.pending': 'Fill in your details to see the plan.',
     'onboarding.preview.targetWeight': 'Target weight',
     'onboarding.preview.duration': 'Duration',
-    'onboarding.preview.phases': 'Phases',
     'onboarding.preview.durationValue': '{days} days · {weeks} weeks',
-    'onboarding.preview.impossible': 'No plan can be built from these numbers. Adjust the goal.',
-    'onboarding.summary.title': 'This is what we’ll create',
     'onboarding.summary.from': 'Starting point',
     'onboarding.summary.to': 'Goal',
 
@@ -362,7 +355,6 @@ export const en = {
     'checkin.deleteBody': 'The entry for {date} will be deleted. This cannot be undone.',
     'checkin.emptyTitle': 'Nothing logged yet',
     'checkin.emptyBody': 'Log this week’s weight to start comparing your reality against the plan.',
-    'checkin.pending': 'This week’s check-in is still missing.',
     'checkin.pendingAction': 'Log it now',
     'checkin.outOfPlan': 'That date falls outside your plan.',
     'checkin.weightRequired': 'Weight is required.',
@@ -404,7 +396,6 @@ export const en = {
     'streak.title': 'Consistency',
     'streak.current': 'Current streak',
     'streak.longest': 'Best streak',
-    'streak.weeks': '{count} weeks',
     'streak.calendar': 'Adherence calendar',
     'streak.noAdherence': 'Not logged',
 
@@ -416,7 +407,6 @@ export const en = {
     'nutrition.protein': 'Protein',
     'nutrition.carbs': 'Carbs',
     'nutrition.fat': 'Fat',
-    'nutrition.grams': '{value} g',
     'nutrition.fromPlan': 'These macros come from your plan’s calorie target for today, not from a separate calculation.',
     'nutrition.proteinNote': 'Protein is calculated from your lean mass ({lean} kg), not your total weight.',
     'nutrition.tightKcal': 'With today’s calories, fat drops to the recommended minimum.',
@@ -492,7 +482,6 @@ export const en = {
     'training.logSession': 'Log session',
     'training.sessionSaved': 'Session logged.',
     'training.newRecord': 'New record on {exercise}!',
-    'training.suggestion': 'Suggestion',
     'training.readyToIncrease': 'Ready to move up to {load} kg (+{increment}).',
     'training.keepWorking': 'Stay at {load} kg until you complete the range.',
     'training.noHistory': 'Log a session to start suggesting progression.',
@@ -549,7 +538,6 @@ export const en = {
     'lang.en': 'English',
 
     // Footer
-    'footer.privacy': 'Your data never leaves your browser.',
 
     // Weekly reminder (M6-2)
     'reminder.title': 'Weekly reminder',

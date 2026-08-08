@@ -209,11 +209,6 @@ ul { margin: 0; padding: 0; list-style: none; }
     font-weight: var(--weight-medium);
 }
 
-.card__note {
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
-}
-
 /* ---------------- Tipografía auxiliar ---------------- */
 
 .muted { color: var(--color-text-muted); font-size: var(--text-sm); }
@@ -263,13 +258,6 @@ ul { margin: 0; padding: 0; list-style: none; }
     color: var(--color-on-accent);
     border-color: var(--color-danger);
 }
-
-.btn--ghost {
-    background: none;
-    border-color: transparent;
-}
-
-.btn--ghost:hover:not(:disabled) { background: var(--color-surface-2); }
 
 .btn--sm { min-height: 36px; padding: var(--space-1) var(--space-3); font-size: var(--text-sm); }
 
@@ -939,18 +927,6 @@ button.timeline__event:hover {
 
 /* ---------------- Ajustes ---------------- */
 
-.setting-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--color-border);
-}
-
-.setting-row:last-child { border-bottom: 0; }
-
 .profile-list { display: flex; flex-direction: column; gap: var(--space-2); }
 
 .profile-item {
@@ -1293,19 +1269,6 @@ button.timeline__event:hover {
 }
 
 /* Aviso de check-in pendiente: informativo, nunca intrusivo (M4-7) */
-.pending-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    padding: var(--space-3);
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-}
-
 /* Historial de planes archivados */
 .plan-history__item {
     display: flex;

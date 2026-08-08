@@ -245,15 +245,4 @@ export function recordCount() {
     return total;
 }
 
-/** 1RM estimado del mejor ejercicio, para la tarjeta compartible. */
-export function bestEstimatedOneRepMax() {
-    const data = trainingStore.read();
-    let best = 0;
-    for (const ex of exercisesOf(data.routine)) {
-        const pr = personalRecord(data.sessions, ex.id);
-        if (pr && pr.bestE1rmKg > best) best = pr.bestE1rmKg;
-    }
-    return best > 0 ? best : null;
-}
-
 export { estimatedOneRepMax };

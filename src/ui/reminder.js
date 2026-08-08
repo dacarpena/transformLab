@@ -171,7 +171,7 @@ export function start() {
     }, Math.min(delay, 2 ** 31 - 1));
 }
 
-export function stop() {
+function stop() {
     if (timer !== null) clearTimeout(timer);
     timer = null;
 }

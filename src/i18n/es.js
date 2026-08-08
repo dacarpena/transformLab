@@ -4,7 +4,6 @@
 export const es = {
     // App
     'app.title': 'TransformLab',
-    'app.tagline': 'Seguimiento de transformación corporal con proyección recalibrable',
     'app.skipToContent': 'Ir al contenido',
 
     // Navegación
@@ -23,16 +22,13 @@ export const es = {
     'action.back': 'Atrás',
     'action.next': 'Siguiente',
     'action.reload': 'Recargar',
-    'action.retry': 'Reintentar',
     'action.save': 'Guardar',
-    'action.start': 'Empezar',
     'action.create': 'Crear',
     'action.rename': 'Renombrar',
     'action.delete': 'Borrar',
     'action.switch': 'Cambiar',
     'action.export': 'Exportar',
     'action.import': 'Importar',
-    'action.today': 'Hoy',
     'action.downloadPng': 'Descargar PNG',
     'action.editProfile': 'Editar perfil',
     'action.edit': 'Editar',
@@ -106,10 +102,7 @@ export const es = {
     'onboarding.preview.pending': 'Completa tus datos para ver el plan.',
     'onboarding.preview.targetWeight': 'Peso objetivo',
     'onboarding.preview.duration': 'Duración',
-    'onboarding.preview.phases': 'Fases',
     'onboarding.preview.durationValue': '{days} días · {weeks} semanas',
-    'onboarding.preview.impossible': 'Con estos datos no se puede construir un plan. Ajusta el objetivo.',
-    'onboarding.summary.title': 'Esto es lo que vamos a crear',
     'onboarding.summary.from': 'Punto de partida',
     'onboarding.summary.to': 'Objetivo',
 
@@ -362,7 +355,6 @@ export const es = {
     'checkin.deleteBody': 'Se borrará el registro del {date}. Esta acción no se puede deshacer.',
     'checkin.emptyTitle': 'Aún no has registrado nada',
     'checkin.emptyBody': 'Registra tu peso de esta semana para empezar a comparar tu realidad con el plan.',
-    'checkin.pending': 'Te falta el check-in de esta semana.',
     'checkin.pendingAction': 'Registrarlo ahora',
     'checkin.outOfPlan': 'Esa fecha queda fuera de tu plan.',
     'checkin.weightRequired': 'El peso es obligatorio.',
@@ -404,7 +396,6 @@ export const es = {
     'streak.title': 'Constancia',
     'streak.current': 'Racha actual',
     'streak.longest': 'Mejor racha',
-    'streak.weeks': '{count} semanas',
     'streak.calendar': 'Calendario de adherencia',
     'streak.noAdherence': 'Sin registrar',
 
@@ -416,7 +407,6 @@ export const es = {
     'nutrition.protein': 'Proteína',
     'nutrition.carbs': 'Carbohidratos',
     'nutrition.fat': 'Grasa',
-    'nutrition.grams': '{value} g',
     'nutrition.fromPlan': 'Estas macros salen del objetivo calórico de tu plan para hoy, no de un cálculo aparte.',
     'nutrition.proteinNote': 'La proteína se calcula sobre tu masa magra ({lean} kg), no sobre tu peso total.',
     'nutrition.tightKcal': 'Con las calorías de hoy, la grasa baja al mínimo recomendable.',
@@ -492,7 +482,6 @@ export const es = {
     'training.logSession': 'Registrar sesión',
     'training.sessionSaved': 'Sesión registrada.',
     'training.newRecord': '¡Récord en {exercise}!',
-    'training.suggestion': 'Sugerencia',
     'training.readyToIncrease': 'Listo para subir a {load} kg (+{increment}).',
     'training.keepWorking': 'Sigue en {load} kg hasta completar el rango.',
     'training.noHistory': 'Registra una sesión para empezar a sugerir progresión.',
@@ -549,7 +538,6 @@ export const es = {
     'lang.en': 'English',
 
     // Pie
-    'footer.privacy': 'Tus datos no salen del navegador.',
 
     // Recordatorio semanal (M6-2)
     'reminder.title': 'Recordatorio semanal',

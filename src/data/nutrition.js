@@ -53,7 +53,7 @@ function write(templates) {
  * @param {string} name
  * @returns {string}
  */
-export function freshTemplateId(existing, name) {
+function freshTemplateId(existing, name) {
     const taken = new Set(existing.map((tpl) => tpl?.id).filter(Boolean));
     const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || 'meal';
     let n = existing.length + 1;

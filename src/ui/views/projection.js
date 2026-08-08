@@ -76,7 +76,7 @@ const EVENT_LIMIT = 25;
  * @param {number} spanDays
  * @returns {Grain}
  */
-export function grainForSpan(spanDays) {
+function grainForSpan(spanDays) {
     if (spanDays <= 45) return 'day';
     if (spanDays <= 200) return 'week';
     return 'month';
@@ -94,7 +94,7 @@ export function grainForSpan(spanDays) {
  * @param {number} todayIndex
  * @returns {{ from: number, to: number }}
  */
-export function windowBounds(data, todayIndex) {
+function windowBounds(data, todayIndex) {
     const total = data.plan.totalDays;
     const clamp = (/** @type {number} */ v) => Math.min(Math.max(Math.round(v), 0), total);
 

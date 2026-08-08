@@ -55,7 +55,7 @@ export const SESSIONS_BEFORE_PROGRESSION = 2;
  * cargas de gimnasio hay 90 grupos de esfuerzos exactamente equivalentes.
  * 10 gramos está por debajo de cualquier disco real.
  */
-export const RECORD_MIN_GAIN_KG = 0.01;
+const RECORD_MIN_GAIN_KG = 0.01;
 
 /** @param {unknown} v @returns {v is number} */
 function isFiniteNumber(v) {

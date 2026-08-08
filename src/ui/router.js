@@ -78,15 +78,6 @@ export function current() {
     return activeView?.id ?? '';
 }
 
-/** @param {(id: string) => void} fn @returns {() => void} desuscripción */
-export function onChange(fn) {
-    listeners.push(fn);
-    return () => {
-        const i = listeners.indexOf(fn);
-        if (i >= 0) listeners.splice(i, 1);
-    };
-}
-
 /**
  * Pinta la barra de navegación con las vistas visibles.
  * `aria-current="page"` marca la activa para los lectores de pantalla; el
@@ -288,7 +279,3 @@ export function refreshNav() {
     renderNav();
 }
 
-/** Etiqueta accesible de la barra, para el shell. */
-export function navLabel() {
-    return escapeHtml(t('nav.label'));
-}

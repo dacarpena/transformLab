@@ -160,7 +160,7 @@ function renderHistory(/** @type {*} */ items) {
                                 ${t('checkin.entry', { date: shortDate(item.dateISO), weight: num(item.weightKg) })}
                                 ${signal ? html`<span class="signal signal--${signal}">${t(`deviation.${signal}`)}</span>` : ''}
                             </span>
-                            <button type="button" class="btn btn--sm" data-edit="${item.dateISO}">${t('action.edit') !== 'action.edit' ? t('action.edit') : t('checkin.edit')}</button>
+                            <button type="button" class="btn btn--sm" data-edit="${item.dateISO}">${t('action.edit')}</button>
                         </li>
                     `;
                 })}
@@ -363,10 +363,3 @@ export function setOnSaved(fn) {
     onSaved = fn;
 }
 
-/** Tolerancia de hoy, para que otras vistas la muestren sin recalcularla. */
-export function todayTolerance() {
-    const data = plans.get();
-    if (!data) return null;
-    const today = plans.todayIndex(data, plans.todayISO());
-    return toleranceAt(data.projection, today.dayIndex);
-}

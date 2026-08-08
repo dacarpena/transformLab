@@ -37,7 +37,7 @@ export const MEASURE_KEYS = Object.freeze(['waist', 'hip', 'arm', 'thigh', 'neck
 export const SUBJECTIVE_KEYS = Object.freeze(['energy', 'sleep', 'adherence', 'motivation']);
 
 /** Idiomas soportados por la interfaz (A6). */
-export const LOCALES = Object.freeze(['es', 'en']);
+const LOCALES = Object.freeze(['es', 'en']);
 
 const SEXES = Object.freeze(['male', 'female']);
 const ACTIVITY_LEVELS = Object.freeze(['sedentary', 'light', 'moderate', 'active', 'veryActive']);

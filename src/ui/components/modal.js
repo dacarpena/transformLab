@@ -121,11 +121,6 @@ export function close() {
     if (onClose) onClose();
 }
 
-/** @returns {boolean} */
-export function isOpen() {
-    return openModal !== null;
-}
-
 /**
  * Diálogo de confirmación. `confirmText` obliga a teclear un texto exacto
  * para habilitar el botón: es el patrón de las acciones destructivas (C4).

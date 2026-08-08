@@ -37,7 +37,7 @@ export const MAX_PROFILES = 10;
  * son `pN`, así que nada colisiona con él, y las escrituras accidentales caen
  * en un cajón identificable en vez de contaminar el perfil de alguien.
  */
-export const NO_PROFILE = 'none';
+const NO_PROFILE = 'none';
 
 /** Índice vacío válido. @returns {ProfilesIndex} */
 function emptyIndex() {

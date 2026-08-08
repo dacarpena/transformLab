@@ -71,7 +71,7 @@ export function exercisesOf(/** @type {*} */ routine) {
  * @param {string} name
  * @returns {string}
  */
-export function freshExerciseId(existing, name) {
+function freshExerciseId(existing, name) {
     const taken = new Set(existing.map((e) => e?.id).filter(Boolean));
     const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || 'ex';
     let n = existing.length + 1;
