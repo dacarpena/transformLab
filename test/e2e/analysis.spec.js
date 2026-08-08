@@ -144,32 +144,32 @@ test('una serie sin datos NO desaparece: se queda diciendo por qué', async ({ p
     await expect(page.locator('[data-series-count]')).toContainText('2');
 });
 
-test('el tope de cuatro se explica antes de chocar, y la quinta no se marca', async ({ page }) => {
+test('el tope de ocho se explica antes de chocar, y la novena no se marca', async ({ page }) => {
     await goToAnalysis(page);
     await page.click('[data-open-picker]');
     const dialog = page.locator('[role="dialog"]');
     await expect(dialog).toBeVisible();
 
-    // Marcar hasta llegar a cuatro. Se usa `click` y no `check` a propósito:
-    // `check` AFIRMA que la casilla acaba marcada, y la quinta no debe acabar
+    // Marcar hasta llegar a ocho. Se usa `click` y no `check` a propósito:
+    // `check` AFIRMA que la casilla acaba marcada, y la novena no debe acabar
     // marcada — es el comportamiento que se está probando, no un fallo.
-    while (await dialog.locator('[data-series]:checked').count() < 4) {
+    while (await dialog.locator('[data-series]:checked').count() < 8) {
         const antes = await dialog.locator('[data-series]:checked').count();
         await dialog.locator('[data-series]:not(:checked)').first().click();
         await expect.poll(() => dialog.locator('[data-series]:checked').count()).toBe(antes + 1);
     }
-    // El aviso aparece ANTES de intentar la quinta.
+    // El aviso aparece ANTES de intentar la novena.
     await expect(dialog.locator('[data-picker-limit]')).toBeVisible();
 
-    const quinta = dialog.locator('[data-series]:not(:checked)').first();
-    const quintaId = await quinta.getAttribute('data-series');
-    await quinta.click();
+    const novena = dialog.locator('[data-series]:not(:checked)').first();
+    const novenaId = await novena.getAttribute('data-series');
+    await novena.click();
 
-    // La quinta NO se marca, se dice cuál se ha rechazado, y ninguna se ha
+    // La novena NO se marca, se dice cuál se ha rechazado, y ninguna se ha
     // quitado sola: destruir la intención del usuario sin permiso es peor.
     await expect(page.locator('.toast')).toContainText('No se ha añadido');
-    await expect(dialog.locator(`[data-series="${quintaId}"]`)).not.toBeChecked();
-    await expect(dialog.locator('[data-series]:checked')).toHaveCount(4);
+    await expect(dialog.locator(`[data-series="${novenaId}"]`)).not.toBeChecked();
+    await expect(dialog.locator('[data-series]:checked')).toHaveCount(8);
 });
 
 test('la procedencia va en el TRAZO, no solo en el color, y como texto', async ({ page }) => {
@@ -563,4 +563,91 @@ test.describe('sin la librería de gráficos', () => {
     await expect(page.locator('[data-table] tbody tr').first()).toBeVisible();
     await expect(page.locator('[data-csv]')).toBeVisible();
 });
+});
+
+/* ---------------------------------------------------------------------- *
+ * La gráfica como instrumento (E13-9)
+ * ---------------------------------------------------------------------- */
+
+test('la gráfica ocupa casi toda la pantalla en escritorio', async ({ page }) => {
+    // La petición literal del dueño del producto: «debe verse casi a pantalla
+    // completa con todo el detalle posible». Medido, no supuesto.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+
+    const medidas = await page.evaluate(() => {
+        const wrap = document.querySelector('.view[data-view-id="analysis"] .chart-wrap');
+        const main = document.querySelector('.app__main');
+        return {
+            altoGrafica: wrap?.getBoundingClientRect().height ?? 0,
+            altoVentana: window.innerHeight,
+            anchoMain: main?.getBoundingClientRect().width ?? 0,
+            anchoVentana: window.innerWidth
+        };
+    });
+    // Al menos el 60 % del alto de la ventana para la gráfica sola…
+    expect(medidas.altoGrafica).toBeGreaterThan(medidas.altoVentana * 0.6);
+    // …y el contenido suelta el corsé de lectura de 56rem (~896 px).
+    expect(medidas.anchoMain).toBeGreaterThan(1000);
+});
+
+test('«Músculo vs. grasa» dibuja las dos magnitudes en sus dos ejes, a detalle diario', async ({ page }) => {
+    // EL caso que motivó E13: ver el músculo subir mientras el porcentaje de
+    // grasa baja. Un toque, sin pasar por el selector.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+    await page.click('[data-preset="muscleVsFat"]');
+    await expect.poll(() => page.locator('[data-legend-row]').count()).toBe(3);
+
+    const r = await page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+        const c = /** @type {*} */ (globalThis).Chart.getChart(cv);
+        return {
+            series: c.data.datasets.map((/** @type {*} */ d) => ({ l: d.label, eje: d.yAxisID ?? 'y', n: d.data.length })),
+            escalas: Object.keys(c.options.scales).sort(),
+            // Detalle DIARIO por defecto: la serie prevista trae un punto por día.
+            puntosMusculo: c.data.datasets[0].data.length,
+            dias: c.options.scales.x.max - c.options.scales.x.min
+        };
+    });
+    expect(r.escalas).toEqual(['x', 'y', 'y2']);
+    expect(r.series.find((s) => s.l.includes('Músculo')).eje).toBe('y');
+    expect(r.series.filter((s) => s.l.includes('grasa')).every((s) => s.eje === 'y2')).toBe(true);
+    // Grano día: tantos puntos como días del plan (+1), no 24 semanas.
+    expect(r.puntosMusculo).toBeGreaterThan(r.dias * 0.9);
+});
+
+test('ocho series a la vez se dibujan con ocho colores y ocho marcadores distintos', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+    await page.click('[data-open-picker]');
+    const dialog = page.locator('[role="dialog"]');
+    while (await dialog.locator('[data-series]:checked').count() < 8) {
+        const antes = await dialog.locator('[data-series]:checked').count();
+        await dialog.locator('[data-series]:not(:checked)').first().click();
+        await expect.poll(() => dialog.locator('[data-series]:checked').count()).toBe(antes + 1);
+    }
+    await page.locator('[data-modal-close]').click();
+    await expect.poll(() => page.locator('[data-legend-row]').count()).toBe(8);
+
+    const r = await page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+        const c = /** @type {*} */ (globalThis).Chart.getChart(cv);
+        if (!c) return null;   // ocho unidades pueden no caber en modo raw
+        return {
+            colores: new Set(c.data.datasets.map((/** @type {*} */ d) => d.borderColor)).size,
+            marcadores: new Set(c.data.datasets.map((/** @type {*} */ d) => d.pointStyle)).size,
+            datasets: c.data.datasets.length
+        };
+    });
+    // Con más de dos unidades, la escala efectiva pasa sola a «cambio desde el
+    // inicio» y las ocho caben en un eje. Si el lienzo existe, ocho de todo.
+    if (r) {
+        expect(r.datasets).toBe(8);
+        expect(r.colores).toBe(8);
+        expect(r.marcadores).toBe(8);
+    } else {
+        // Si no se dibujó es porque el aviso lo explica; nunca en silencio.
+        await expect(page.locator('[data-effective-hint]')).toBeVisible();
+    }
 });

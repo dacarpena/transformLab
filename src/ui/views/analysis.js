@@ -49,6 +49,10 @@ import { attachGestures, clampWindow } from '../chart-gestures.js';
  * botón «elige algo» no enseña qué hace la pantalla.
  */
 const PRESETS = Object.freeze([
+    // La primera es LA pregunta del producto —¿sube el músculo mientras baja la
+    // grasa?— y faltaba: la primera prueba real quiso exactamente eso y no lo
+    // encontró. Músculo en kg y grasa en %, dos unidades → dos ejes.
+    { id: 'muscleVsFat', ids: ['proj_muscle_kg', 'proj_fat_pct', 'meas_fat_pct'] },
     { id: 'planVsReal', ids: ['proj_weight', 'meas_weight'] },
     { id: 'energy', ids: ['proj_kcal_target', 'meas_intake_kcal'] },
     { id: 'shape', ids: ['proj_weight', 'meas_waist'] }
@@ -72,7 +76,14 @@ let windowPreset = 'all';
 /** Los límites que fijó el zoom, cuando el periodo es `custom`. @type {{from:number,to:number}|null} */
 let customBounds = null;
 /** @type {(() => void) | null} */ let detachGestures = null;
-/** @type {'day'|'week'|'month'} */ let grain = 'week';
+/**
+ * Detalle DIARIO por defecto: el máximo que existe. La petición literal fue
+ * «con todo el detalle posible», y el coste está pagado — los marcadores se
+ * espacian solos (`markerEvery`) y a pantalla estrecha el grano efectivo baja a
+ * semana. Quien prefiera menos, lo baja y se le guarda.
+ * @type {'day'|'week'|'month'}
+ */
+let grain = 'day';
 /** @type {'raw'|'delta'} */ let normalize = 'raw';
 /** @type {import('../../core/series-catalog.js').SeriesContext | null} */ let context = null;
 /** @type {import('../chart.js').ChartInstance | null} */ let chartInstance = null;
@@ -230,18 +241,15 @@ function mixedNotice() {
     return `${t('analysis.provenance.mixed', { classes: lista })} ${remate}`;
 }
 
-/** La vista entera. */
+/** La vista entera. La gráfica MANDA: una sola tarjeta, sin antesalas. */
 function view() {
     const efectivoGrano = effectiveGrain();
     const efectivaEscala = effectiveNormalize();
 
     return html`
-        <h1 class="card__title">${t('analysis.title')}</h1>
-        <p class="muted">${t('analysis.intro')}</p>
-
-        <section class="card" aria-labelledby="analysis-series">
+        <section class="card" aria-labelledby="analysis-chart">
             <div class="card__header">
-                <h2 id="analysis-series" class="card__title">${t('analysis.series.title')}</h2>
+                <h1 id="analysis-chart" class="card__title">${t('analysis.title')}</h1>
                 <span class="muted" data-series-count>${t('analysis.series.count', { count: selected.length, max: MAX_SERIES })}</span>
             </div>
             <div class="btn-row">
@@ -254,10 +262,6 @@ function view() {
                     `)}
                 </div>
             </div>
-        </section>
-
-        <section class="card" aria-labelledby="analysis-chart">
-            <h2 id="analysis-chart" class="card__title">${t('analysis.chart.title')}</h2>
             <div class="chart-toolbar">
                 ${segmented('analysis.window.label', 'data-window', [
                     { value: 'all', labelKey: 'projection.window.all' },
@@ -298,13 +302,6 @@ function view() {
             </div>
             <details data-table-details>
                 <summary>${t('analysis.table.toggle')}</summary>
-                <!-- Zona desplazable con role=region y tabindex=0: a 320 px
-                     cinco columnas no caben, y algo que se desplaza en horizontal
-                     tiene que ser alcanzable con teclado (WCAG 2.1.1). El
-                     envoltorio propio impide además que ese desplazamiento
-                     contamine el scrollWidth del documento, que es lo que miden
-                     los tests de desborde.
-                     (Sin acentos graves aqui dentro: CIERRAN la plantilla.) -->
                 <div class="table-scroll" role="region" tabindex="0"
                      aria-label="${t('analysis.table.scrollRegion')}" data-table-scroll></div>
             </details>
@@ -776,7 +773,10 @@ export async function mount(/** @type {HTMLElement} */ container) {
     }
     // Primera visita: una comparación rápida aplicada sola. Un lienzo en blanco
     // no enseña qué hace la pantalla.
-    if (selected.length === 0 && !guardado) selected = [...PRESETS[0].ids];
+    if (selected.length === 0 && !guardado) {
+        const inicial = PRESETS.find((p) => p.id === 'planVsReal') ?? PRESETS[0];
+        selected = [...inicial.ids];
+    }
 
     await refresh(container);
     wire(container);

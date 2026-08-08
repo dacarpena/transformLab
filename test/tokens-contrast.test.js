@@ -163,14 +163,19 @@ function simulate(hex, m) {
         .join('');
 }
 
-const SERIES_TOKENS = ['color-series-1', 'color-series-2', 'color-series-3', 'color-series-4'];
+const SERIES_TOKENS = Array.from({ length: 8 }, (_, i) => `color-series-${i + 1}`);
 
-/** Umbrales MEDIDOS, no aspiracionales: ver el comentario de `tokens.css`. */
+/** Umbrales MEDIDOS, no aspiracionales: ver el comentario de `tokens.css`.
+ * Al pasar de 4 a 8 series (E13-9) bajaron de 40/32 a 30/25 — ocho colores no
+ * caben con la separación de cuatro, y se eligió medir el precio y pagarlo
+ * antes que fingir que no existe. 30 sigue siendo distinguible bajo las tres
+ * dicromacias; por debajo de 25 dejaría de serlo y el tope de series volvería
+ * a ser una decisión técnica, no de producto. */
 const SERIES_MIN_CONTRAST = 4.5;
-const SERIES_MIN_DELTA_E = 40;
-const SERIES_MIN_DELTA_E_SEMANTIC = 32;
+const SERIES_MIN_DELTA_E = 30;
+const SERIES_MIN_DELTA_E_SEMANTIC = 25;
 
-test('las cuatro series alcanzan AA sobre las tres superficies', () => {
+test('las ocho series alcanzan AA sobre las tres superficies', () => {
     for (const c of SERIES_TOKENS) {
         for (const s of ['color-bg', 'color-surface', 'color-surface-2']) {
             const ratio = contrast(token(c), token(s));
@@ -179,10 +184,10 @@ test('las cuatro series alcanzan AA sobre las tres superficies', () => {
     }
 });
 
-test('las cuatro series se distinguen entre sí TAMBIÉN con daltonismo', () => {
+test('las ocho series se distinguen entre sí TAMBIÉN con daltonismo', () => {
     // El caso que este test existe para impedir: una paleta elegida por buen
     // gusto que bajaba a ΔE 25 bajo deuteranopía — dos series indistinguibles
-    // para el 6 % de los hombres. La actual mide 40,1 en el peor par.
+    // para el 6 % de los hombres. La actual (8 colores) mide 30,2 en el peor par.
     const vistas = { normal: null, ...DICROMACIAS };
     for (const [nombre, matriz] of Object.entries(vistas)) {
         for (let i = 0; i < SERIES_TOKENS.length; i++) {

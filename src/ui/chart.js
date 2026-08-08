@@ -731,10 +731,7 @@ export function createChart() {
             return { ...fallo, status: 'tooManyUnits', axes: [], rendered: [] };
         }
 
-        const palette = [
-            cssVar('--color-series-1'), cssVar('--color-series-2'),
-            cssVar('--color-series-3'), cssVar('--color-series-4')
-        ];
+        const palette = Array.from({ length: MAX_SERIES }, (_, i) => cssVar(`--color-series-${i + 1}`));
         const { projection, range } = options;
 
         /** @type {*[]} */ const datasets = [];

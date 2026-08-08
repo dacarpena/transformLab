@@ -1253,3 +1253,29 @@ causas, una por lado:
    completa» de Hoy. Con E2E que lo fija.
 
 **802 unitarios · 192 E2E · typecheck limpio.**
+
+### E13-9b — la vista se convierte en el instrumento que se pidió
+
+El veredicto de la segunda prueba real: «no has hecho la gráfica más útil; ahora
+es más confusa». Tenía razón en tres cosas concretas, y las tres se han hecho:
+
+**1. La gráfica manda.** Una sola tarjeta —fuera la antesala de «Series» y el
+párrafo de introducción—, el contenido suelta el corsé de lectura de 56rem
+(`--content-max-wide`, 96rem, vía `:has`) y el lienzo mide
+`clamp(360px, 66vh, 900px)`: más del 60 % del alto de la ventana, fijado por
+test a 1440×900.
+
+**2. Su pregunta tiene botón.** «Músculo vs. grasa» —músculo previsto en kg al
+eje izquierdo, porcentaje de grasa previsto y medido al derecho— es la primera
+comparación rápida. Era LA pregunta del producto y no estaba. Y el detalle por
+defecto pasa de semana a **día**: «todo el detalle posible», literal.
+
+**3. El tope sube de 4 a 8.** Decisión del dueño del producto; el precio se
+midió y se pagó a la vista: la paleta de 8 baja la ΔE mínima de 40,1 a 30,2
+—sigue distinguible bajo las tres dicromacias— y se rehizo la búsqueda entera en
+vez de añadir cuatro colores a los desplegados, porque conservar esos cuatro
+dejaba el mínimo en 22,8. Ganó la medición sobre la continuidad. Ocho marcadores
+(el rombo se queda en el hueco 4: es el contrato del check-in), esquema a
+`maxItems: 8`, y E2E de ocho series con ocho colores y ocho marcadores.
+
+**802 unitarios · 195 E2E · typecheck limpio.**

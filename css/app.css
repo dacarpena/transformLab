@@ -1500,6 +1500,22 @@ button.timeline__event:hover {
 .is-series-2 { color: var(--color-series-2); }
 .is-series-3 { color: var(--color-series-3); }
 .is-series-4 { color: var(--color-series-4); }
+.is-series-5 { color: var(--color-series-5); }
+.is-series-6 { color: var(--color-series-6); }
+.is-series-7 { color: var(--color-series-7); }
+.is-series-8 { color: var(--color-series-8); }
+
+/* Analizar es un INSTRUMENTO, no una tarjeta: la gráfica ocupa casi toda la
+   pantalla. El ancho se suelta en el contenedor (`:has`, disponible en todo
+   navegador que ejecute esta app) y el alto se ata a la ventana, con suelo
+   para móviles apaisados y techo para monitores enormes. */
+.app__main:has(.view[data-view-id="analysis"]) {
+    max-width: var(--content-max-wide);
+}
+
+.view[data-view-id="analysis"] .chart-wrap {
+    height: clamp(360px, 66vh, 900px);
+}
 
 .series-legend {
     display: flex;

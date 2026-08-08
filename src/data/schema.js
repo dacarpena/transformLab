@@ -482,7 +482,7 @@ export const validateSettings = rootValidator({
     // restaurarlos sobre un plan recalibrado señalaría un tramo que ya no existe.
     // Al recargar se vuelve al plan entero, que es un sitio del que se sabe salir.
     analysis: opt(objectOf({
-        seriesIds: arrayOf(str({ maxLength: 40, pattern: SAFE_ID }), { maxItems: 4 }),
+        seriesIds: arrayOf(str({ maxLength: 40, pattern: SAFE_ID }), { maxItems: 8 }),
         window: enumOf(['all', 'phase', '90', '30']),
         grain: enumOf(['day', 'week', 'month']),
         normalize: enumOf(['raw', 'delta'])

@@ -49,7 +49,7 @@ test('los ajustes ya guardados sobreviven a la llegada de `analysis`', () => {
     assert.equal(parsed.ok, true, '`analysis` es `opt()`: su ausencia no tumba los ajustes');
 });
 
-test('la selección de series se acota: cinco no caben y los ids raros se caen', () => {
+test('la selección de series se acota: nueve no caben y los ids raros se caen', () => {
     const base = {
         schemaVersion: SCHEMA_VERSION,
         locale: 'es',
@@ -65,8 +65,12 @@ test('la selección de series se acota: cinco no caben y los ids raros se caen',
     }).ok, true, 'dos series válidas pasan');
 
     assert.equal(conAnalysis({
-        seriesIds: ['a', 'b', 'c', 'd', 'e'], window: 'all', grain: 'week', normalize: 'raw'
-    }).ok, false, 'cinco series se rechazan: el tope de cuatro es del esquema, no solo de la interfaz');
+        seriesIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], window: 'all', grain: 'week', normalize: 'raw'
+    }).ok, true, 'ocho series válidas pasan (tope subido en E13-9)');
+
+    assert.equal(conAnalysis({
+        seriesIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'], window: 'all', grain: 'week', normalize: 'raw'
+    }).ok, false, 'nueve series se rechazan: el tope de ocho es del esquema, no solo de la interfaz');
 
     // El punto y el espacio romperían el namespace de claves si algún día un id
     // acabara formando parte de una: `SAFE_ID` lo impide desde el esquema.

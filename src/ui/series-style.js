@@ -41,11 +41,24 @@ export const PROVENANCE_STYLE = Object.freeze({
     estimated: Object.freeze({ borderDash: [6, 3, 2, 3], borderWidth: 2, tension: 0.15 })
 });
 
-/** Marcador de cada hueco. Cuatro formas que se distinguen a 5 px. */
-export const SLOT_POINT_STYLE = Object.freeze(['circle', 'rect', 'triangle', 'rectRot']);
+/** Marcador de cada hueco. Ocho formas que se distinguen a 5 px. El rombo
+ * (`rectRot`) se queda en el hueco 4: es el marcador del check-in de la v1 y
+ * hay un contrato de test que lo localiza por esa forma. */
+export const SLOT_POINT_STYLE = Object.freeze([
+    'circle', 'rect', 'triangle', 'rectRot', 'star', 'cross', 'rectRounded', 'crossRot'
+]);
 
-/** Cuántas series caben a la vez. No es un límite técnico: ver `docs/v2/PLAN-V2.md`. */
-export const MAX_SERIES = 4;
+/**
+ * Cuántas series caben a la vez.
+ *
+ * Subió de 4 a 8 a petición del dueño del producto tras la primera prueba real
+ * («deben poder graficarse todas las variables que se quieran»). El precio es
+ * medido y está pagado: la paleta de 8 baja la ΔE mínima de 40,1 a 30,2 —sigue
+ * siendo distinguible bajo las tres dicromacias— y con ocho series la leyenda
+ * es una lista, no una fila. Más de ocho ya no se distingue por color+marcador
+ * y ahí el límite vuelve a ser técnico.
+ */
+export const MAX_SERIES = 8;
 
 /**
  * Cuántas veces, como mínimo, debe aparecer el marcador de una serie a lo ancho

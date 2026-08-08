@@ -1016,4 +1016,5 @@ export const es = {
     'analysis.readout.hint': 'Flechas izquierda y derecha para moverte por las fechas; flechas arriba y abajo para cambiar de serie; Inicio y Fin para los extremos.',
     'series.reason.noChart': 'No se ha podido dibujar',
     'projection.goAnalysis': 'Comparar varias series…',
+    'analysis.preset.muscleVsFat': 'Músculo vs. grasa',
 };
