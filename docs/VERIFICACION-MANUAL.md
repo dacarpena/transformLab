@@ -1,8 +1,24 @@
 # Verificación manual
 
+> ## ⚠️ AUDITORÍA HISTÓRICA DE LA v3.1/v4.0 — NO DESCRIBE EL CÓDIGO ACTUAL
+>
+> **Esto no es documentación de la v5.** Describe el árbol de la v3.1 (con
+> reverificaciones puntuales contra la v4.0), que hoy vive congelado en
+> `legacy/` como referencia de solo lectura. Las rutas `js/…` que aparecen aquí
+> **no existen** en este repositorio: la v5 se reconstruyó desde cero en `src/`.
+>
+> **Para qué sigue sirviendo, y es mucho:** es el mapa de minas del port. Cada
+> ficha explica un defecto concreto con su escenario de fallo, y `CLAUDE.md` §1
+> exige leerla antes de portar la pieza correspondiente. Por eso no se borra.
+>
+> **Qué NO hay que hacer con él:** tomarlo como estado actual, ni como plan de
+> trabajo pendiente. El plan vivo es `PLAN-V5.md`. Marcado como histórico en
+> M7-9 (8 de agosto de 2026), cuando se comprobó que la cabecera anterior decía
+> «vigente / remediación no iniciada» sobre un árbol que ya no existía.
+
 Guion reproducible para comprobar a mano el estado de TransformLab. No es una lista de comprobación: cada paso tiene una acción concreta, un resultado esperado que se puede leer en pantalla o en la consola, y el veredicto conocido a día de hoy. Dos personas que lo ejecuten sobre el mismo commit deben obtener el mismo registro.
 
-> **Estado:** guion de referencia sobre el árbol auditado · **Última revisión:** 2 de agosto de 2026 · **Versión verificada:** v3.1, commit `264c1db`
+> **Estado:** HISTÓRICO — guion de la v3.1; el guion vivo de la v5 está en `RELEASE-V5.md` · **Última revisión:** 2 de agosto de 2026 · **Versión verificada:** v3.1, commit `264c1db`
 
 > **Alcance.** Este guion describe el **árbol de trabajo local**, `main` @ `264c1db` (v3.1). **No** describe la v4.0 publicada en `origin/main` (`d0afa49`), que no se ha auditado: el local está **tres commits por detrás** (`git status -sb` → `## main...origin/main [behind 3]`). Las cifras de la columna «Estado actual» proceden de ejecutar el motor de este snapshot. La v4.0 carga trece scripts en lugar de siete y añade cinco módulos (`js/router.js`, `js/checkin.js`, `js/nutrition.js`, `js/training.js`, `js/body-visualizer.js`), así que el recorrido de pantallas es distinto y este guion **no** es válido allí tal cual. Lo que sí se ha reverificado contra `origin/main` es el defecto crítico: el recorte `Math.max(2, Math.min(10, calculatedOtherLean))` sigue presente y la prueba de identidad devuelve los mismos valores. Ver [`ING-01`](./CATALOGO-DE-HALLAZGOS.md#ing-01--el-main-local-está-desincronizado-del-main-publicado-en-github).
 

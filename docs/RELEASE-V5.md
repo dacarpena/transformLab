@@ -59,8 +59,8 @@ Para el mismo perfil A, la v4.0 publicada devolvía **50,9 kg** (IMC 15,7).
 - [x] `http://motifyer.com` → 301 → `https://motifyer.com/`
 - [x] `https://transformlab.pages.dev` sigue funcionando
 - [x] Lighthouse: móvil **99 / 100 / 100 / 100** · escritorio **100 / 100 / 100 / 100**
-- [x] Modo avión sobre el dominio: precache de 54 entradas, la app abre, las
-      nueve secciones cargan y un check-in guardado sin red persiste
+- [x] Modo avión sobre el dominio: precache de 64 entradas, la app abre, las
+      once vistas cargan y un check-in guardado sin red persiste
 
 **Lo único pendiente aquí, y es decisión tuya:** `www.motifyer.com` no
 resuelve. No lo he creado porque es un registro DNS de tu cuenta y hay quien
@@ -135,12 +135,12 @@ En el teléfono, sobre el dominio con HTTPS:
 - [ ] El icono se ve bien en la pantalla de inicio (no recortado ni con marco
       blanco): es lo que comprueba el icono *maskable*
 - [ ] **Con el modo avión activado**, la app abre y se puede navegar por las
-      diez secciones
+      once vistas
 - [ ] Offline, la gráfica de «Hoy» dibuja (Chart.js va precacheado)
 - [ ] Offline, se puede guardar un check-in y sigue ahí al recuperar la red
 
 > El modo avión **ya está comprobado contra el staging real** con un navegador
-> automatizado: precache de 54 entradas, las nueve secciones cargan y la
+> automatizado: precache de 64 entradas, las once vistas cargan y la
 > gráfica dibuja. Lo que falta aquí es el móvil de verdad, que es otra cosa:
 > otro motor (Safari en iOS), otra gestión de memoria y la app instalada en
 > lugar de una pestaña.
@@ -170,7 +170,7 @@ lo que se comprueba aquí es que se pueda **usar**, no que funcione.
 7. **Ajustes → Recordatorio**: actívalo. ¿Pide permiso solo al pulsar? Si lo
    deniegas, ¿lo explica sin insistir?
 8. **Tamaño de letra del sistema al máximo** (Ajustes del móvil → Pantalla):
-   recorre las diez vistas. ¿Se lee todo? ¿Nada se sale por el lado?
+   recorre las once vistas. ¿Se lee todo? ¿Nada se sale por el lado?
 9. **Borra el perfil de prueba** desde la zona de peligro.
 
 ### 3.5 Cierre

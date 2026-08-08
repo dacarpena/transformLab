@@ -1,8 +1,24 @@
 # Deuda técnica y plan de remediación
 
+> ## ⚠️ AUDITORÍA HISTÓRICA DE LA v3.1/v4.0 — NO DESCRIBE EL CÓDIGO ACTUAL
+>
+> **Esto no es documentación de la v5.** Describe el árbol de la v3.1 (con
+> reverificaciones puntuales contra la v4.0), que hoy vive congelado en
+> `legacy/` como referencia de solo lectura. Las rutas `js/…` que aparecen aquí
+> **no existen** en este repositorio: la v5 se reconstruyó desde cero en `src/`.
+>
+> **Para qué sigue sirviendo, y es mucho:** es el mapa de minas del port. Cada
+> ficha explica un defecto concreto con su escenario de fallo, y `CLAUDE.md` §1
+> exige leerla antes de portar la pieza correspondiente. Por eso no se borra.
+>
+> **Qué NO hay que hacer con él:** tomarlo como estado actual, ni como plan de
+> trabajo pendiente. El plan vivo es `PLAN-V5.md`. Marcado como histórico en
+> M7-9 (8 de agosto de 2026), cuando se comprobó que la cabecera anterior decía
+> «vigente / remediación no iniciada» sobre un árbol que ya no existía.
+
 Este documento traduce los 130 hallazgos confirmados de la auditoría en un plan de trabajo ordenado: qué hacer, en qué orden, con qué criterio de finalización y qué decisiones hay que tomar antes de escribir código.
 
-> **Estado:** vigente · **Última revisión:** 1 de agosto de 2026 · **Versión auditada:** v3.1, árbol local `main @ 264c1db` · **Versión publicada:** v4.0, `origin/main @ d0afa49` — **no auditada**
+> **Estado:** HISTÓRICO (v3.1/v4.0) · **Última revisión:** 1 de agosto de 2026 · **Versión auditada:** v3.1, árbol local `main @ 264c1db` · **Versión publicada:** v4.0, `origin/main @ d0afa49` — **no auditada**
 
 > ### ⚠️ Antes de ejecutar este plan: reproyectarlo sobre la v4.0
 >

@@ -1,8 +1,24 @@
 # Modelo de datos
 
+> ## ⚠️ AUDITORÍA HISTÓRICA DE LA v3.1/v4.0 — NO DESCRIBE EL CÓDIGO ACTUAL
+>
+> **Esto no es documentación de la v5.** Describe el árbol de la v3.1 (con
+> reverificaciones puntuales contra la v4.0), que hoy vive congelado en
+> `legacy/` como referencia de solo lectura. Las rutas `js/…` que aparecen aquí
+> **no existen** en este repositorio: la v5 se reconstruyó desde cero en `src/`.
+>
+> **Para qué sigue sirviendo, y es mucho:** es el mapa de minas del port. Cada
+> ficha explica un defecto concreto con su escenario de fallo, y `CLAUDE.md` §1
+> exige leerla antes de portar la pieza correspondiente. Por eso no se borra.
+>
+> **Qué NO hay que hacer con él:** tomarlo como estado actual, ni como plan de
+> trabajo pendiente. El plan vivo es `PLAN-V5.md`. Marcado como histórico en
+> M7-9 (8 de agosto de 2026), cuando se comprobó que la cabecera anterior decía
+> «vigente / remediación no iniciada» sobre un árbol que ya no existía.
+
 Referencia exacta de todas las estructuras de datos de TransformLab: qué campos tiene cada objeto, quién los crea, quién los consume, en qué unidades están y en qué puntos concretos del código el modelo deja de ser coherente consigo mismo.
 
-> **Estado**: descriptivo del código del árbol de trabajo local, sin cambios pendientes de aplicar.
+> **Estado**: HISTÓRICO — describe el modelo de datos de la v3.1. El de la v5 está en `src/data/schema.js`.
 > **Última revisión**: 1 de agosto de 2026.
 > **Versión documentada**: v3.1, `main` @ `264c1db`.
 

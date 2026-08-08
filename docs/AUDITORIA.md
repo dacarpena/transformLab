@@ -1,8 +1,24 @@
 # Auditoría técnica de TransformLab
 
+> ## ⚠️ AUDITORÍA HISTÓRICA DE LA v3.1/v4.0 — NO DESCRIBE EL CÓDIGO ACTUAL
+>
+> **Esto no es documentación de la v5.** Describe el árbol de la v3.1 (con
+> reverificaciones puntuales contra la v4.0), que hoy vive congelado en
+> `legacy/` como referencia de solo lectura. Las rutas `js/…` que aparecen aquí
+> **no existen** en este repositorio: la v5 se reconstruyó desde cero en `src/`.
+>
+> **Para qué sigue sirviendo, y es mucho:** es el mapa de minas del port. Cada
+> ficha explica un defecto concreto con su escenario de fallo, y `CLAUDE.md` §1
+> exige leerla antes de portar la pieza correspondiente. Por eso no se borra.
+>
+> **Qué NO hay que hacer con él:** tomarlo como estado actual, ni como plan de
+> trabajo pendiente. El plan vivo es `PLAN-V5.md`. Marcado como histórico en
+> M7-9 (8 de agosto de 2026), cuando se comprobó que la cabecera anterior decía
+> «vigente / remediación no iniciada» sobre un árbol que ya no existía.
+
 Informe ejecutivo de la auditoría del código de TransformLab: alcance, método, recuento de hallazgos y ficha detallada de los 26 hallazgos de severidad crítica y alta.
 
-> **Estado:** auditoría completada, remediación no iniciada · **Última revisión:** 1 de agosto de 2026 · **Versión auditada:** v3.1, árbol de trabajo local en `main` @ `264c1db`, tres commits por detrás de `origin/main` (`d0afa49`, v4.0), que **no** se ha auditado — ver [§3.4](#34-alcance-no-cubierto)
+> **Estado:** HISTÓRICO — auditoría de la v3.1; la remediación fue la reconstrucción v5, no una corrección in situ · **Última revisión:** 1 de agosto de 2026 · **Versión auditada:** v3.1, árbol de trabajo local en `main` @ `264c1db`, tres commits por detrás de `origin/main` (`d0afa49`, v4.0), que **no** se ha auditado — ver [§3.4](#34-alcance-no-cubierto)
 
 Documentos relacionados: [ARQUITECTURA.md](ARQUITECTURA.md) · [MODELO-DE-DATOS.md](MODELO-DE-DATOS.md) · [METODOLOGIA-CIENTIFICA.md](METODOLOGIA-CIENTIFICA.md) · [CATALOGO-DE-HALLAZGOS.md](CATALOGO-DE-HALLAZGOS.md) · [DEUDA-TECNICA.md](DEUDA-TECNICA.md) · [GUIA-DE-DESARROLLO.md](GUIA-DE-DESARROLLO.md)
 

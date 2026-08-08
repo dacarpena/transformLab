@@ -1,8 +1,24 @@
 # Catálogo de hallazgos
 
+> ## ⚠️ AUDITORÍA HISTÓRICA DE LA v3.1/v4.0 — NO DESCRIBE EL CÓDIGO ACTUAL
+>
+> **Esto no es documentación de la v5.** Describe el árbol de la v3.1 (con
+> reverificaciones puntuales contra la v4.0), que hoy vive congelado en
+> `legacy/` como referencia de solo lectura. Las rutas `js/…` que aparecen aquí
+> **no existen** en este repositorio: la v5 se reconstruyó desde cero en `src/`.
+>
+> **Para qué sigue sirviendo, y es mucho:** es el mapa de minas del port. Cada
+> ficha explica un defecto concreto con su escenario de fallo, y `CLAUDE.md` §1
+> exige leerla antes de portar la pieza correspondiente. Por eso no se borra.
+>
+> **Qué NO hay que hacer con él:** tomarlo como estado actual, ni como plan de
+> trabajo pendiente. El plan vivo es `PLAN-V5.md`. Marcado como histórico en
+> M7-9 (8 de agosto de 2026), cuando se comprobó que la cabecera anterior decía
+> «vigente / remediación no iniciada» sobre un árbol que ya no existía.
+
 Registro completo y navegable de los 130 hallazgos confirmados sobre TransformLab, con su identificador estable, ubicación en el código, escenario de fallo y corrección propuesta.
 
-> **Estado:** vigente · **Última revisión:** 1 de agosto de 2026 · **Versión auditada:** v3.1, commit `264c1db`
+> **Estado:** HISTÓRICO (v3.1/v4.0) · **Última revisión:** 1 de agosto de 2026 · **Versión auditada:** v3.1, commit `264c1db`
 
 > **Alcance.** Los 130 hallazgos describen el **árbol de trabajo local**, `main` @ `264c1db` (v3.1). No describen la v4.0 publicada: `origin/main` está en `d0afa49` y el árbol local va tres commits por detrás (`git status -sb` devuelve `## main...origin/main [behind 3]`). Los dos únicos defectos reejecutados contra la v4.0 —el clamp de `otherLeanTissue` a [2,10] kg y la rama muerta `case 'recomp'`— siguen allí sin cambios, de modo que la prioridad del plan de remediación no varía; el resto de fichas **no** se ha verificado contra la v4.0 y no debe darse por válido allí. Ver `ING-01`.
 
