@@ -115,7 +115,23 @@ export async function register() {
     await pageIsIdle();
 
     try {
-        const registration = await navigator.serviceWorker.register('sw.js', { scope: './' });
+        // `updateViaCache: 'none'` NO es un detalle: es lo que hace que la app
+        // se pueda actualizar. Medido en producción, la zona de Cloudflare
+        // reescribe `Cache-Control` a `max-age=14400` para `.js` —incluido este
+        // `sw.js`, que tiene su propia regla `no-cache` en `_headers` y aun así
+        // llega con cuatro horas de caché—. Sin esta opción, el navegador
+        // comprueba si hay service worker nuevo LEYENDO EL VIEJO de su caché
+        // HTTP, así que durante cuatro horas no hay actualización posible: ni
+        // del service worker, ni por tanto de nada de lo que él precachea.
+        //
+        // Con `none`, la comprobación se salta la caché HTTP. Y como el propio
+        // `sw.js` precachea con `{ cache: 'reload' }`, los módulos que instala
+        // también son frescos. El resultado es que la aplicación se actualiza
+        // bien aunque el ajuste de la zona no cambie nunca.
+        const registration = await navigator.serviceWorker.register('sw.js', {
+            scope: './',
+            updateViaCache: 'none'
+        });
         watchForUpdate(registration);
 
         // Si la actualización la aplica OTRA pestaña, esta se queda ejecutando

@@ -167,3 +167,25 @@ test('Open Graph usa URLs absolutas y apunta a una imagen que existe', () => {
     assert.ok(image);
     assert.ok(existsSync(join(ROOT, 'icons', image[1])), `la imagen de Open Graph no existe: ${image[1]}`);
 });
+
+test('el service worker se registra saltándose la caché HTTP del navegador', () => {
+    // Medido en producción: la zona de Cloudflare reescribe `Cache-Control` a
+    // `max-age=14400` para los `.js`, incluido `sw.js` —que tiene su propia
+    // regla `no-cache` en `_headers` y aun así llega con cuatro horas de caché.
+    //
+    // Sin `updateViaCache: 'none'`, el navegador comprueba si hay service worker
+    // nuevo LEYENDO EL VIEJO de su caché, así que durante cuatro horas no hay
+    // actualización posible: ni del service worker ni de nada de lo que él
+    // precachea. Es el único punto del que depende que la app se pueda
+    // actualizar, y por eso tiene test.
+    const source = readFileSync(join(ROOT, 'src/ui/pwa.js'), 'utf8');
+    assert.match(source, /updateViaCache:\s*'none'/,
+        'el registro del SW debe saltarse la caché HTTP');
+});
+
+test('el precache pide los ficheros con `cache: reload`', () => {
+    // La otra mitad del mismo problema: instalar el service worker nuevo no
+    // sirve de nada si precachea los módulos VIEJOS desde la caché HTTP.
+    const source = readFileSync(join(ROOT, 'sw.js'), 'utf8');
+    assert.match(source, /cache:\s*'reload'/);
+});
