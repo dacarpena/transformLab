@@ -266,6 +266,55 @@ export function generateProjection(plan, initial, profile, options) {
     const expP = SCENARIO_PROGRESS_EXPONENTS.pessimist;
     const expO = SCENARIO_PROGRESS_EXPONENTS.optimist;
 
+    /**
+     * La banda del día: ENVOLVENTE del peso sobre el intervalo de posiciones
+     * entre el escenario retrasado y el adelantado.
+     *
+     * La primera versión muestreaba SOLO los dos extremos, y eso mentía en
+     * cuanto la trayectoria dejaba de ser monótona: en la costura entre volumen
+     * y corte, «retrasado» caía antes del pico y «adelantado» después, los dos
+     * escenarios quedaban al mismo lado del esperado y la banda dibujada NO lo
+     * contenía — 25 días de 176 en el caso de la auditoría-1, visibles en
+     * Proyección desde M3. Los dos números eran correctos uno a uno; la
+     * superficie rellena entre ellos afirmaba algo falso.
+     *
+     * La envolvente responde la pregunta que la banda promete responder: «si mi
+     * progreso va entre retrasado y adelantado, ¿dónde puede estar mi peso?».
+     * Como la posición esperada `d` siempre cae dentro del intervalo, el
+     * esperado queda dentro POR CONSTRUCCIÓN (invariante `escenarios`). En un
+     * plan monótono la envolvente coincide con los dos extremos, así que un
+     * plan de solo definición produce exactamente la banda de antes.
+     *
+     * Los extremos de una función lineal a trozos sobre un intervalo están en
+     * sus dos bordes o en los días enteros interiores: no hace falta muestrear
+     * más fino, y el coste total queda en O(días × anchura del intervalo).
+     *
+     * @param {number} dayIndex
+     * @returns {{ pessimistKg: number, optimistKg: number }}
+     */
+    const bandAt = (dayIndex) => {
+        const t = totalDays === 0 ? 1 : dayIndex / totalDays;
+        const posP = totalDays * Math.pow(t, expP);   // retrasado: ≤ dayIndex
+        const posO = totalDays * Math.pow(t, expO);   // adelantado: ≥ dayIndex
+        const pv = weightAtPosition(posP);
+        const ov = weightAtPosition(posO);
+
+        let lo = Math.min(pv, ov);
+        let hi = Math.max(pv, ov);
+        for (let i = Math.ceil(posP); i <= Math.floor(posO); i++) {
+            const w = expectedWeights[i];
+            if (w < lo) lo = w;
+            if (w > hi) hi = w;
+        }
+        // Cada campo conserva el LADO que su escenario ocupaba: en pérdida el
+        // pesimista es el valor mayor y en ganancia el menor, y los
+        // consumidores (leyenda, catálogo de series) documentan exactamente
+        // eso. Solo se ensancha hasta la envolvente, nunca se reordena.
+        return pv >= ov
+            ? { pessimistKg: hi, optimistKg: lo }
+            : { pessimistKg: lo, optimistKg: hi };
+    };
+
     for (let dayIndex = 0; dayIndex <= totalDays; dayIndex++) {
         const s = stateAt(dayIndex);
         const phase = s.phase;
@@ -274,9 +323,7 @@ export function generateProjection(plan, initial, profile, options) {
         const weightKg = expectedWeights[dayIndex];
         const leanKg = weightKg - fatKg;
 
-        const t = totalDays === 0 ? 1 : dayIndex / totalDays;
-        const pessimistKg = weightAtPosition(totalDays * Math.pow(t, expP));
-        const optimistKg = weightAtPosition(totalDays * Math.pow(t, expO));
+        const { pessimistKg, optimistKg } = bandAt(dayIndex);
 
         const kcal = kcalByDay[dayIndex];
 

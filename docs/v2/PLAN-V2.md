@@ -417,10 +417,10 @@ toque (CLAUDE.md §7).
   (comunidad)» ya avisa de la garantía; si molesta, la vía es una lista de
   bloqueo por id, no una heurística.
 
-- **El peso esperado SALE de su propia banda de escenarios, y el invariante que
-  debía impedirlo no lo comprueba.** Encontrado al escribir los tests de E13-1.
-  Es del motor (M1), no de la gráfica, así que no se toca aquí — pero el usuario
-  lo VE: la banda se dibuja hoy en Proyección.
+- ~~**El peso esperado SALE de su propia banda de escenarios, y el invariante que
+  debía impedirlo no lo comprueba.**~~ **HECHO** el 2026-08-09 (E13-8, ver su
+  bitácora). Encontrado al escribir los tests de E13-1. Era del motor (M1), y el
+  usuario lo VEÍA: la banda se dibuja en Proyección.
 
   Reproducción exacta (varón, 80 kg, 20 % → 15 % y +2 kg de músculo, semilla 1):
 
@@ -865,6 +865,7 @@ etiquetadas de estimación · legibilidad primero.
 - [x] **E13-5 · Vista «Analizar»: selector, leyenda y procedencia**
 - [x] **E13-6 · Lectura accesible con N series, tabla y CSV**
 - [x] **E13-7 · Gestos y preset «custom»**
+- [x] **E13-8 · La banda de escenarios contiene al esperado (motor)**
 
 ## Bitácora
 
@@ -1184,5 +1185,51 @@ Y al mirar de cerca apareció lo importante: **cuando el dibujado fallaba,
 pintaron**. La leyenda mentirosa que esta etapa entera existe para hacer
 imposible, colada por la puerta de atrás del caso de fallo. Ahora el manifiesto
 de un fallo reporta cero puntos con motivo, y hay un test que lo vigila.
+
+**802 unitarios · 191 E2E · typecheck limpio.**
+
+### E13-8 — la banda deja de mentir, y dos tests que defendían la fórmula defectuosa
+
+**El defecto.** La banda muestreaba el peso esperado en las DOS posiciones
+extremas del plan (retrasado `t^1.3`, adelantado `t^0.78`). En una trayectoria
+monótona eso funciona; en la costura entre volumen y corte, «retrasado» cae antes
+del pico y «adelantado» después, los dos escenarios quedan al mismo lado del
+esperado y **la superficie rellena entre ellos no lo contiene** — 25 días de 176
+en la auditoría-1, visibles en Proyección desde M3. Los dos números eran
+correctos uno a uno; el área que se dibujaba entre ellos afirmaba algo falso.
+
+**El arreglo.** La banda del día `d` es ahora la **envolvente** del peso sobre el
+intervalo de posiciones entre los dos escenarios: «si tu progreso va entre
+retrasado y adelantado, tu peso está en este rango». Como la posición esperada
+`d` siempre cae dentro del intervalo, el esperado queda dentro **por
+construcción**. Cada campo conserva el lado de su escenario (en pérdida el
+pesimista sigue siendo el valor mayor): solo se ensancha, nunca se reordena.
+Sobre una trayectoria lineal a trozos, los extremos solo pueden estar en los
+bordes del intervalo o en los días enteros interiores — no hace falta muestrear
+más fino.
+
+**Verificado en tres frentes:**
+
+- **Regresión cero en planes monótonos**, medida y no supuesta: en un plan de
+  definición pura, la banda nueva coincide con la fórmula vieja con diferencia
+  máxima `0.00e+0`.
+- **Barrido adversarial**: 128 planes (2 sexos × 4 pesos × 4 grasas × 5
+  objetivos), 28 193 días comprobados, **cero fuera**.
+- **Mutación**: quitar el bucle de la envolvente pone el invariante en rojo.
+
+**El invariante `escenarios` por fin muerde.** Llevaba desde M1 prometiendo en su
+nombre «pesimista ≤ esperado ≤ optimista» mientras su cuerpo solo comprobaba
+finitud y cierre. Y de paso el nombre afirmaba un orden que ni es cierto ni debe
+serlo —en pérdida el pesimista pesa MÁS—; ahora se llama por lo que garantiza:
+**la banda CONTIENE al esperado cada día**, con la envolvente como aserción.
+
+**Y dos tests más que había que corregir, no apaciguar.**
+`core-generator.test.js` y `core-timeline.test.js` REIMPLEMENTABAN la fórmula de
+los dos extremos como oráculo — un test que duplica la fórmula defiende la
+fórmula, no la propiedad, y aquí defendían justo la defectuosa. El primero ahora
+recalcula la envolvente por su cuenta y exige igualdad exacta más contención y
+conservación de lados; el segundo pasa de «la banda VALE la muestra del extremo»
+a «la banda CONTIENE el esperado del día equivalente», que es lo que `windowFor`
+significa de verdad.
 
 **802 unitarios · 191 E2E · typecheck limpio.**

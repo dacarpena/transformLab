@@ -106,9 +106,35 @@ test('escenarios: pesimista ≤ esperado ≤ optimista en posición de plan, y l
         const posO = T * Math.pow(t, SCENARIO_PROGRESS_EXPONENTS.optimist);
         // orden en posición de plan: el pesimista va por detrás, el optimista por delante
         assert.ok(posP <= d.dayIndex + 1e-9 && d.dayIndex <= posO + 1e-9, `día ${d.dayIndex}`);
-        // y la banda es exactamente la trayectoria esperada evaluada en esas posiciones
-        assert.ok(Math.abs(d.band.pessimistKg - at(posP)) < 1e-9, `día ${d.dayIndex}: pesimista fuera de la trayectoria`);
-        assert.ok(Math.abs(d.band.optimistKg - at(posO)) < 1e-9, `día ${d.dayIndex}: optimista fuera de la trayectoria`);
+
+        // La banda es la ENVOLVENTE del peso sobre [posP, posO] (E13-8). La
+        // versión anterior de este test afirmaba «banda = trayectoria evaluada
+        // en los dos extremos», que era EXACTAMENTE el defecto: en una
+        // trayectoria no monótona los dos extremos pueden caer al mismo lado
+        // del esperado y la banda dibujada no lo contenía. Un test que
+        // reimplementa la fórmula defiende la fórmula, no la propiedad.
+        //
+        // El oráculo recalcula la envolvente por su cuenta: bordes del
+        // intervalo más los días enteros interiores (la trayectoria es lineal
+        // a trozos, así que los extremos solo pueden estar ahí).
+        let lo = Math.min(at(posP), at(posO));
+        let hi = Math.max(at(posP), at(posO));
+        for (let i = Math.ceil(posP); i <= Math.floor(posO); i++) {
+            lo = Math.min(lo, proj.daily[i].weightKg);
+            hi = Math.max(hi, proj.daily[i].weightKg);
+        }
+        const bandLo = Math.min(d.band.pessimistKg, d.band.optimistKg);
+        const bandHi = Math.max(d.band.pessimistKg, d.band.optimistKg);
+        assert.ok(Math.abs(bandLo - lo) < 1e-9 && Math.abs(bandHi - hi) < 1e-9,
+            `día ${d.dayIndex}: banda [${bandLo}, ${bandHi}] ≠ envolvente [${lo}, ${hi}]`);
+        // ...y por tanto contiene al esperado, que es lo que el usuario ve.
+        assert.ok(d.weightKg >= bandLo - 1e-9 && d.weightKg <= bandHi + 1e-9,
+            `día ${d.dayIndex}: esperado fuera de su banda`);
+        // Cada campo conserva el LADO de su escenario: solo se ensancha, no se
+        // reordena (los consumidores documentan que en pérdida el pesimista es
+        // el valor mayor).
+        if (at(posP) > at(posO)) assert.ok(d.band.pessimistKg >= d.band.optimistKg, `día ${d.dayIndex}: lados invertidos`);
+        if (at(posP) < at(posO)) assert.ok(d.band.pessimistKg <= d.band.optimistKg, `día ${d.dayIndex}: lados invertidos`);
     }
     const last = proj.daily.at(-1);
     assert.ok(last);

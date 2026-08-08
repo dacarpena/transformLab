@@ -85,9 +85,17 @@ test('la ventana se estrecha al acercarse al objetivo, y deja de mostrarse como 
 
 test('PROPIEDAD: la ventana reproduce la banda que dibuja el motor', () => {
     // Éste es el test que impide que la ventana sea un número bonito sin
-    // significado. Si el día `toDay` es cuando el PESIMISTA llega a donde el
-    // esperado está el día `d`, entonces la banda pesimista de `toDay` tiene
-    // que valer, en peso, lo que el esperado vale en `d`.
+    // significado. Si `toDay` es el día en que el PESIMISTA llega a donde el
+    // esperado está el día `d`, la banda de `toDay` tiene que CONTENER el peso
+    // esperado de `d` — y la de `fromDay` (donde llega el optimista), también.
+    //
+    // «Contener» y no «valer»: desde E13-8 la banda es la ENVOLVENTE del peso
+    // sobre el intervalo de posiciones entre los dos escenarios, así que en un
+    // tramo no monótono el borde puede ser un pico intermedio y no la muestra
+    // del extremo. La versión anterior de este test comparaba contra la muestra
+    // del extremo, es decir, reimplementaba la fórmula vieja — que era
+    // exactamente la defectuosa. La posición `d` sigue dentro del intervalo de
+    // `toDay` por construcción, así que la contención es la propiedad exacta.
     const { projection, totalDays, dateAt } = fixture();
     const daily = projection.daily;
     let comprobados = 0;
@@ -97,11 +105,15 @@ test('PROPIEDAD: la ventana reproduce la banda que dibuja el motor', () => {
         const esperado = daily[d].weightKg;
         // tolerancia de un día de trayectoria: `windowFor` redondea hacia fuera
         const pasoDiario = Math.abs(daily[d].weightKg - daily[d + 1].weightKg) + 0.02;
+        const margen = pasoDiario * 3;
 
-        assert.ok(Math.abs(daily[w.toDay].band.pessimistKg - esperado) < pasoDiario * 3,
-            `día ${d}: la banda pesimista de ${w.toDay} vale ${daily[w.toDay].band.pessimistKg.toFixed(3)}, se esperaba ~${esperado.toFixed(3)}`);
-        assert.ok(Math.abs(daily[w.fromDay].band.optimistKg - esperado) < pasoDiario * 3,
-            `día ${d}: la banda optimista de ${w.fromDay} vale ${daily[w.fromDay].band.optimistKg.toFixed(3)}, se esperaba ~${esperado.toFixed(3)}`);
+        for (const [nombre, dia] of [['toDay', w.toDay], ['fromDay', w.fromDay]]) {
+            const banda = daily[dia].band;
+            const lo = Math.min(banda.pessimistKg, banda.optimistKg) - margen;
+            const hi = Math.max(banda.pessimistKg, banda.optimistKg) + margen;
+            assert.ok(esperado >= lo && esperado <= hi,
+                `día ${d}: el esperado ${esperado.toFixed(3)} queda fuera de la banda de ${nombre}=${dia} [${lo.toFixed(3)}, ${hi.toFixed(3)}]`);
+        }
         comprobados++;
     }
     assert.ok(comprobados > 10, `solo se comprobaron ${comprobados} puntos`);

@@ -331,13 +331,18 @@ test('la banda del peso envuelve la línea, y NO se llama lower/upper', () => {
     assert.ok(pesimistaMayor > 0,
         'si el pesimista nunca fuera el mayor, `lower`/`upper` sería un nombre correcto y este renombrado sobraría');
 
-    // NO se comprueba aquí que el esperado caiga DENTRO de la banda, y no es un
-    // olvido: hoy NO se cumple. En este mismo plan, 25 de 176 días tienen el
-    // esperado fuera de su banda, concentrados en volumen (14 de 25 días). Es un
-    // defecto del MOTOR, anotado en el BACKLOG de `docs/v2/PLAN-V2.md` con su
-    // reproducción, junto con el hallazgo de que el invariante `escenarios`
-    // promete ese orden en su NOMBRE y no lo comprueba en su cuerpo. Afirmarlo
-    // aquí sería poner en rojo un test de la gráfica por un fallo que no es suyo.
+    // Y el esperado cae DENTRO de la banda cada día. Cuando se escribió este
+    // test eso NO se cumplía (25 días de 176 fuera, sobre todo en volumen) y la
+    // aserción se dejó fuera a propósito con una nota; E13-8 arregló el motor
+    // —la banda es ahora la envolvente sobre el intervalo de posiciones— y la
+    // aserción entra. El vigilante principal es el invariante `escenarios` de
+    // `test/invariants.test.js`; esta es su sombra vista desde el catálogo.
+    for (let i = 0; i < r.points.length; i++) {
+        const lo = Math.min(r.band.pessimist[i].y, r.band.optimist[i].y);
+        const hi = Math.max(r.band.pessimist[i].y, r.band.optimist[i].y);
+        assert.ok(r.points[i].y >= lo - 1e-9 && r.points[i].y <= hi + 1e-9,
+            `punto ${i}: esperado ${r.points[i].y} fuera de [${lo}, ${hi}]`);
+    }
 
     // Y ninguna otra serie trae banda: la del peso es la del motor, no un
     // adorno que se pueda pintar sobre cualquier cosa.

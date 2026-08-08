@@ -175,7 +175,18 @@ test('coherencia_energetica — el déficit acumulado de cada fase equivale a su
     }
 });
 
-test('escenarios — pesimista ≤ esperado ≤ optimista en posición de plan y los tres cierran el plan', () => {
+test('escenarios — la banda CONTIENE al esperado cada día y los tres cierran el plan', () => {
+    // Este invariante estuvo AÑOS prometiendo en su nombre un orden que su
+    // cuerpo nunca comprobaba: solo miraba finitud y cierre. El hueco se pagó
+    // en E13-1, cuando el catálogo de series encontró 25 días de 176 con el
+    // peso esperado FUERA de su propia banda — la banda se dibujaba en
+    // Proyección desde M3, así que el usuario la veía mentir.
+    //
+    // La aserción de fondo es de ENVOLVENTE, no de orden numérico: en una fase
+    // de pérdida el pesimista pesa MÁS que el esperado y en una de ganancia
+    // pesa MENOS, así que «pesimista ≤ esperado ≤ optimista» no es cierto ni
+    // debe serlo. Lo que la gráfica promete al rellenar entre las dos líneas es
+    // que el esperado queda DENTRO, y eso es lo que se fija aquí.
     for (const c of CASES) {
         assert.equal(c.proj.scenariosClose, true, c.name);
         const last = c.proj.daily.at(-1);
@@ -183,7 +194,14 @@ test('escenarios — pesimista ≤ esperado ≤ optimista en posición de plan y
         assert.ok(Math.abs(last.band.pessimistKg - last.weightKg) < 1e-6, c.name);
         assert.ok(Math.abs(last.band.optimistKg - last.weightKg) < 1e-6, c.name);
         for (const d of c.proj.daily) {
-            assert.ok(Number.isFinite(d.band.pessimistKg) && Number.isFinite(d.band.optimistKg), `${c.name} día ${d.dayIndex}`);
+            const { pessimistKg, optimistKg } = d.band;
+            assert.ok(Number.isFinite(pessimistKg) && Number.isFinite(optimistKg), `${c.name} día ${d.dayIndex}`);
+            const lo = Math.min(pessimistKg, optimistKg);
+            const hi = Math.max(pessimistKg, optimistKg);
+            assert.ok(
+                d.weightKg >= lo - 1e-9 && d.weightKg <= hi + 1e-9,
+                `${c.name} día ${d.dayIndex}: esperado ${d.weightKg.toFixed(3)} FUERA de la banda [${lo.toFixed(3)}, ${hi.toFixed(3)}]`
+            );
         }
     }
 });
