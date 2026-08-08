@@ -25,6 +25,13 @@ import * as toast from './components/toast.js';
 const DECLINED_KEY = 'ui.recalDeclinedFingerprint';
 
 /**
+ * Cuántas recalibraciones se conservan. Cada una archiva el plan completo, y
+ * `localStorage` tiene cuota: veinte son más de lo que nadie va a mirar y muy
+ * por debajo del máximo de 100 que admite el esquema.
+ */
+const MAX_HISTORY_ENTRIES = 20;
+
+/**
  * ¿Procede ofrecer una recalibración ahora mismo?
  * @returns {import('../core/tracking.js').RecalibrationVerdict & { evaluations: any[] }}
  */
@@ -150,7 +157,11 @@ function applyRecalibration(latest) {
         schemaVersion: SCHEMA_VERSION,
         current: built.value.plan,
         params: { startDateISO: nextProfile.startDateISO, seed: 0, fluctuation: data.fluctuation },
-        history: [...(planRecord.history ?? []), archived]
+        // Podado: cada entrada guarda el PLAN ENTERO, así que el historial
+        // crecía sin cota en un almacén con cuota — y `storage.js` ya devuelve
+        // errores de cuota que la interfaz traduce. Se conservan las últimas,
+        // que son las que alguien miraría; el esquema admite hasta 100.
+        history: [...(planRecord.history ?? []), archived].slice(-MAX_HISTORY_ENTRIES)
     };
     const checkedPlan = validateCollection('plan', nextPlanRecord);
     if (!checkedPlan.ok) return { ok: false, error: 'recal.failed' };

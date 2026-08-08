@@ -18,14 +18,10 @@ import { macrosFor, refeedMacros, splitIntoMeals } from '../../core/nutrition.js
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty, error as errorState } from '../components/state.js';
+import { int as num } from '../format.js';
 
 let mealCount = 4;
 let refeedToday = false;
-
-/** @param {number} n */
-function num(n) {
-    return Number.isFinite(n) ? Math.round(n) : '—';
-}
 
 /** Plantillas guardadas por el usuario. */
 function readTemplates() {
@@ -161,7 +157,10 @@ function renderTemplates(templates) {
 function draw(container) {
     const data = plans.get();
     if (!data) {
-        render(container, errorState({ titleKey: 'nutrition.title', bodyKey: 'nutrition.noPlan', actions: [] }));
+        // Sin plan no es un ERROR, es un estado vacío. Con `errorState` esto
+        // pintaba un `role="alert"` SIN ninguna salida, que es exactamente lo
+        // que la cabecera de `state.js` declara prohibido (ficha H-013).
+        render(container, empty({ icon: '🍽', titleKey: 'nutrition.title', bodyKey: 'nutrition.noPlan', actions: [] }));
         return;
     }
     const today = plans.todayIndex(data, plans.todayISO());

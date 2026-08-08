@@ -13,7 +13,7 @@ import { t } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as checkins from '../../data/checkins.js';
 import { shapeFor, waistToShoulderRatio, calibrationFrom } from '../../core/silhouette.js';
-import { error as errorState } from '../components/state.js';
+import { empty, error as errorState } from '../components/state.js';
 
 const W = 180;
 const H = 320;
@@ -137,7 +137,9 @@ function renderFigure(shape, labelKey, color) {
 export function mount(container) {
     const data = plans.get();
     if (!data) {
-        render(container, errorState({ titleKey: 'body.title', bodyKey: 'nutrition.noPlan', actions: [] }));
+        // Estado vacío, no error: ver el comentario equivalente en nutrition.
+        // Y con clave propia — antes tomaba prestada la de Nutrición.
+        render(container, empty({ icon: '◐', titleKey: 'body.title', bodyKey: 'body.noPlan', actions: [] }));
         return;
     }
     const today = plans.todayIndex(data, plans.todayISO());

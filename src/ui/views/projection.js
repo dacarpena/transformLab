@@ -37,6 +37,7 @@ import { buildTimeline, groupByPhase } from '../../core/timeline.js';
 import { aestheticMilestonesFor, textOf } from '../../core/milestones.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { empty, error as errorState } from '../components/state.js';
+import { num } from '../format.js';
 
 /** @typedef {'weight'|'fatPct'|'muscle'|'kcal'} Metric */
 /** @typedef {'day'|'week'|'month'} Grain */
@@ -59,11 +60,6 @@ let showAllEvents = false;
  * anuncia con su contador — nunca en silencio.
  */
 const EVENT_LIMIT = 25;
-
-/** @param {number} value @param {number} digits */
-function num(value, digits = 1) {
-    return Number.isFinite(value) ? value.toFixed(digits) : '—';
-}
 
 /**
  * El detalle que le corresponde a una ventana por su anchura.

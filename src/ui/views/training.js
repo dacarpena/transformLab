@@ -18,6 +18,7 @@ import { personalRecord, newRecordsIn, suggestProgression, sessionVolumeKg, esti
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
+import { num } from '../format.js';
 
 /** @returns {{ routine: any, sessions: any[] }} */
 function readTraining() {
@@ -40,11 +41,6 @@ function writeTraining(data) {
 function exercisesOf(routine) {
     if (!routine || !Array.isArray(routine.days)) return [];
     return routine.days.flatMap((day) => (Array.isArray(day.exercises) ? day.exercises : []));
-}
-
-/** @param {number} n */
-function num(n, d = 1) {
-    return Number.isFinite(n) ? n.toFixed(d) : '—';
 }
 
 /**

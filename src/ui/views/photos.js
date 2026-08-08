@@ -18,9 +18,21 @@ import * as plans from '../plan-state.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
+import { bytes as formatBytes } from '../format.js';
 
 /** URLs de objeto vivas, para revocarlas al desmontar (si no, fuga). */
 /** @type {string[]} */ let liveUrls = [];
+
+/**
+ * Testigo del dibujado en curso.
+ *
+ * `draw()` es asíncrona (lee blobs de IndexedDB uno a uno) y `unmount()` es
+ * síncrona: al navegar rápido, `revokeAll()` limpiaba las URLs vivas y el
+ * `draw()` en vuelo seguía creando MÁS justo después, que ya no las revocaba
+ * nadie. Fuga real, y creciente con el número de fotos. Cada dibujado toma un
+ * testigo; si al volver de un `await` el testigo ya no es el suyo, se retira.
+ */
+let drawToken = 0;
 
 /** Fechas elegidas en el comparador antes/después. */
 /** @type {{ before: string, after: string }} */
@@ -40,12 +52,6 @@ function writeMeta(items) {
     return storage.set('photos', checked.value).ok;
 }
 
-/** @param {number} bytes */
-function formatBytes(bytes) {
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function revokeAll() {
     for (const url of liveUrls) URL.revokeObjectURL(url);
     liveUrls = [];
@@ -57,8 +63,10 @@ async function draw(container) {
     const profileId = storage.getActiveProfile();
     const meta = readMeta();
 
+    const token = ++drawToken;
     const usage = await photosDb.usage(profileId);
     const list = await photosDb.list(profileId);
+    if (token !== drawToken || !container.isConnected) return;
 
     if (!list.ok) {
         render(container, html`
@@ -77,6 +85,12 @@ async function draw(container) {
     const withBlobs = [];
     for (const item of meta) {
         const record = await photosDb.get(profileId, item.id);
+        // Si mientras llegaba este blob el usuario cambió de vista o se lanzó
+        // otro dibujado, se sueltan las URLs de ESTE y se abandona.
+        if (token !== drawToken || !container.isConnected) {
+            for (const u of withBlobs) URL.revokeObjectURL(u.url);
+            return;
+        }
         if (!record.ok || !record.value) continue;
         const url = URL.createObjectURL(record.value.blob);
         liveUrls.push(url);
@@ -237,5 +251,6 @@ export function mount(container) {
 
 /** Revoca las URLs de objeto: sin esto, cada visita a la vista fuga memoria. */
 export function unmount() {
+    drawToken++; // invalida cualquier dibujado en vuelo
     revokeAll();
 }

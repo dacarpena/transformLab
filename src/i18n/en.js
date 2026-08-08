@@ -471,6 +471,7 @@ export const en = {
     'milestones.category.cuello': 'Neck',
 
     'body.title': 'Silhouette',
+    'body.noPlan': 'You need an active plan to see your projected silhouette.',
     'body.start': 'Start',
     'body.today': 'Today',
     'body.goal': 'Goal',

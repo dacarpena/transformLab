@@ -471,6 +471,7 @@ export const es = {
     'milestones.category.cuello': 'Cuello',
 
     'body.title': 'Silueta',
+    'body.noPlan': 'Necesitas un plan activo para ver tu silueta proyectada.',
     'body.start': 'Inicio',
     'body.today': 'Hoy',
     'body.goal': 'Objetivo',

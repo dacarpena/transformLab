@@ -33,6 +33,7 @@
 
 import { muscleOffsetKg, toScaleMuscle, toSkeletalMuscle } from '../core/scale.js';
 import { t } from '../i18n/i18n.js';
+import { num } from './format.js';
 
 /**
  * @typedef {Object} MuscleUnits
@@ -53,11 +54,6 @@ const IDENTITY = Object.freeze(/** @type {MuscleUnits} */ ({
     label: () => t('muscleUnits.label.skeletal'),
     secondary: () => ''
 }));
-
-/** Un decimal, como el resto de cifras de la interfaz. @param {number} n */
-function num1(n) {
-    return Number.isFinite(n) ? n.toFixed(1) : '—';
-}
 
 /**
  * ¿Está este perfil en unidades de báscula? **La única definición.**
@@ -102,7 +98,7 @@ export function muscleUnitsFor(initial) {
         toDisplay: (kg) => toScaleMuscle(kg, offsetKg),
         fromInput: (kg) => toSkeletalMuscle(kg, offsetKg),
         label: () => t('muscleUnits.label.scale'),
-        secondary: (kg) => t('muscleUnits.secondary', { value: num1(kg) })
+        secondary: (kg) => t('muscleUnits.secondary', { value: num(kg) })
     };
 }
 

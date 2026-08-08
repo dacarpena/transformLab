@@ -20,16 +20,12 @@ import * as modal from '../components/modal.js';
 import * as checkins from '../../data/checkins.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { error as errorState } from '../components/state.js';
+import { num } from '../format.js';
 
 /** @type {(() => void) | null} */
 let onGoToCheckin = null;
 /** @type {(() => void) | null} */
 let onGoToProjection = null;
-
-/** @param {number} value @param {number} digits */
-function num(value, digits = 1) {
-    return Number.isFinite(value) ? value.toFixed(digits) : '—';
-}
 
 /**
  * Cabecera HOY.

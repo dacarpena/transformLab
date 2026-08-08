@@ -17,20 +17,10 @@ import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import { evaluateSeries, streakOf, adherenceCalendar } from '../../core/tracking.js';
 import { empty } from '../components/state.js';
+import { num, signed } from '../format.js';
 
 /** @type {(() => void) | null} */
 let onGoToCheckin = null;
-
-/** @param {number} n @param {number} d */
-function num(n, d = 1) {
-    return Number.isFinite(n) ? n.toFixed(d) : '—';
-}
-
-/** @param {number} n */
-function signed(n) {
-    if (!Number.isFinite(n)) return '—';
-    return `${n >= 0 ? '+' : ''}${n.toFixed(1)}`;
-}
 
 /** Historial de check-ins con su señal de desviación. */
 function renderHistory(evaluations) {

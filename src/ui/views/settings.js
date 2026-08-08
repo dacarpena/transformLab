@@ -19,18 +19,14 @@ import * as router from '../router.js';
 import * as reminder from '../reminder.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
+import { bytes as formatBytes, num } from '../format.js';
+import { longDate } from '../dates.js';
+import * as recalibrate from '../recalibrate.js';
 
 /** @type {(() => void) | null} */
 let onProfilesChanged = null;
 /** @type {(() => void) | null} */
 let onEditProfile = null;
-
-/** @param {number} bytes */
-function formatBytes(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function renderProfileSection() {
     const data = plans.get();
@@ -207,6 +203,41 @@ function renderLegalSection() {
     `;
 }
 
+/**
+ * Historial de planes archivados.
+ *
+ * Existía todo menos esto: `recalibrate.history()` documentaba «para la vista
+ * de ajustes» y no la llamaba nadie, las cuatro claves `recal.*` estaban
+ * traducidas y `.plan-history__item` esperaba en el CSS. Mientras tanto, el
+ * modal de recalibración le promete al usuario que **«el plan actual se
+ * guardará en el historial»** — y no había historial que abrir. Se cumple la
+ * promesa en vez de retirarla: el dato ya se guardaba.
+ */
+function renderPlanHistorySection() {
+    const entries = recalibrate.history();
+    if (entries.length === 0) return '';
+    return html`
+        <section class="card" aria-labelledby="set-history">
+            <h2 id="set-history" class="card__title">${t('recal.history')}</h2>
+            <ul class="profile-list">
+                ${[...entries].reverse().map((entry) => html`
+                    <li class="plan-history__item">
+                        <span>
+                            <strong>${t(`recal.reason.${entry.reason}`) !== `recal.reason.${entry.reason}`
+                                ? t(`recal.reason.${entry.reason}`)
+                                : entry.reason}</strong>
+                            <span class="muted"> · ${t('recal.archivedAt', { date: longDate(entry.archivedAtISO) })}</span>
+                        </span>
+                        <span class="muted numeric">${t('recal.planSummary', {
+                            days: entry.days, target: num(entry.targetKg)
+                        })}</span>
+                    </li>
+                `)}
+            </ul>
+        </section>
+    `;
+}
+
 function renderDangerSection() {
     const active = profiles.getActive();
     const list = profiles.list();
@@ -234,6 +265,7 @@ function draw(container) {
         ${renderLanguageSection()}
         ${renderReminderSection()}
         ${renderDataSection()}
+        ${renderPlanHistorySection()}
         ${renderLegalSection()}
         ${renderDangerSection()}
     `);

@@ -22,6 +22,7 @@ import { evaluateCheckin, toleranceAt } from '../../core/tracking.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
+import { num } from '../format.js';
 
 /** @type {(() => void) | null} */
 let onSaved = null;
@@ -34,11 +35,6 @@ function activeMeasures() {
         return configured.filter((k) => MEASURE_KEYS.includes(k));
     }
     return ['waist'];
-}
-
-/** @param {number} n @param {number} d */
-function num(n, d = 1) {
-    return Number.isFinite(n) ? n.toFixed(d) : '—';
 }
 
 /** Formulario de alta o edición. */
