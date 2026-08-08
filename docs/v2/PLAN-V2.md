@@ -562,3 +562,51 @@ Invariantes: `cribado_duro` (probado bandera a bandera, las diez),
 los dos idiomas) y `selector_determinista`.
 
 **631 unitarios · 117 E2E · typecheck limpio.**
+
+### V2-M6 · Entrenamiento por músculo + recuperación — cerrada el 2026-08-08
+
+`src/core/training-plan.js` (prescripción, progresión y deload) sobre el
+`muscle-volume.js` y el catálogo de 556 ejercicios que ya existían. Vista
+integrada en Entreno: no una sección nueva de navegación, sino la misma pantalla
+contestando qué toca hacer.
+
+**El prompt pedía «solo cuentan los sets del motor primario» y eso está
+DELIBERADAMENTE no implementado**, porque sobre el catálogo real produce un
+absurdo medible: el peso muerto tiene «lower back» como primario y solo 11 de
+556 ejercicios tienen glúteo como primario, así que alguien que sentadillea tres
+veces por semana acumularía CERO estímulo de glúteo. El defecto que se temía era
+doblar el volumen indirecto; el real es ANULARLO. Se cuenta con pesos —1 el
+primario, 0,4 el secundario— y verificado en navegador: una rutina de sentadilla
++ press da **4,8 series efectivas de glúteo**, que con la regla original habrían
+sido 0.
+
+Las tres decisiones que sostienen el módulo:
+
+- **Los landmarks no son globales.** Escalan por experiencia y por recuperación
+  DECLARADA. La recuperación baja solo el TECHO: el mínimo efectivo no baja
+  porque uno duerma mal, porque por debajo de él no hay estímulo y fingir que sí
+  lo hay sería mentir en la dirección cómoda.
+- **La frecuencia REPARTE el volumen, no lo crea.** Entrenar pecho tres días da
+  las mismas series repartidas mejor. Modelarlo al revés hace que la app
+  recomiende entrenar más días «para ganar más», que es falso.
+- **El deload se dispara por SEÑALES**, nunca por calendario: recuperación baja,
+  algún grupo por encima del MRV, o marcas estancadas. Y el silencio del usuario
+  no cuenta como señal — quien no rellena las métricas no recibe una descarga
+  por callarse. Se OFRECE, no se aplica (B9).
+
+Dos defectos propios, encontrados en navegador con una rutina real:
+
+1. **Prescribía «5,8 series»**, que nadie hace. El volumen MEDIDO es
+   fraccionario por diseño; el PRESCRITO no. Se redondea antes de sumar, no
+   después, o el decimal se arrastraría semana tras semana.
+2. Los textos decían «1 semanas» y «1 repeticiones». Reescritos para no depender
+   de concordancia de plural, en vez de montar maquinaria de pluralización.
+
+Y uno ajeno: el E2E de la rutina usaba `.profile-item` sin acotar y pasó a
+resolver once elementos al añadirse los diez grupos musculares.
+
+Los invariantes se verificaron con **mutación deliberada del código**: hacer que
+la frecuencia multiplique el volumen rompe 3 tests, que el silencio dispare el
+deload rompe 1, y que la recuperación baje el MEV rompe 1.
+
+**662 unitarios · 124 E2E · typecheck limpio.**

@@ -85,7 +85,7 @@ function freshExerciseId(existing, name) {
 
 /**
  * Añade un ejercicio al primer día de la rutina, creándola si no existía.
- * @param {{ name: string, sets: number, reps: number }} input
+ * @param {{ name: string, sets: number, reps: number, catalogId?: string | null }} input
  * @param {{ dayName: string }} context nombre del día por si hay que crear la rutina
  * @returns {TrainingResult}
  */
@@ -106,7 +106,17 @@ export function addExercise(input, context) {
         ...days[0],
         exercises: [
             ...(Array.isArray(days[0].exercises) ? days[0].exercises : []),
-            { id, name: input.name, sets: input.sets, reps: input.reps, loadKg: null }
+            {
+                id,
+                name: input.name,
+                sets: input.sets,
+                reps: input.reps,
+                loadKg: null,
+                // Sin enlace al catálogo, `null` y no ausente: la diferencia se
+                // ve en la vista de volumen, que lo declara como ejercicio no
+                // atribuible en vez de contarlo como cero series.
+                catalogId: input.catalogId ?? null
+            }
         ]
     };
     return write({ ...data, routine: { ...(data.routine ?? {}), days } });

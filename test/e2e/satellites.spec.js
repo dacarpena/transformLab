@@ -153,7 +153,10 @@ test('la rutina de entrenamiento se crea, registra y detecta el récord', async 
     await page.fill('[data-reps]', '8');
     await page.locator('.modal [data-go]').click();
 
-    await expect(page.locator('.profile-item')).toContainText('Press banca');
+    // Acotado a la tarjeta de la RUTINA: desde V2-M6 la vista también lista los
+    // diez grupos musculares, y un `.profile-item` a secas resuelve a once.
+    const rutina = page.locator('[aria-labelledby="routine-title"]');
+    await expect(rutina.locator('.profile-item')).toContainText('Press banca');
 
     // Primera sesión: NO es récord, es el primer registro
     await page.locator('[data-log-session]').click();
@@ -165,7 +168,7 @@ test('la rutina de entrenamiento se crea, registra y detecta el récord', async 
     await page.locator('[data-log-session]').click();
     await page.fill('[data-log-load]', '70');
     await page.locator('.modal [data-go]').click();
-    await expect(page.locator('.profile-item').first()).toContainText('70.0 kg');
+    await expect(rutina.locator('.profile-item').first()).toContainText('70.0 kg');
 });
 
 test('la silueta dibuja los tres estados con la misma regla', async ({ page }) => {

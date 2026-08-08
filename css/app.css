@@ -1373,3 +1373,11 @@ button.timeline__event:hover {
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: var(--space-2);
 }
+
+/* Zonas de volumen (V2-M6). El color acompaña al texto de la insignia, que ya
+   dice la zona: el color no es la única señal (WCAG 1.4.1). */
+.badge--zone-belowMv     { background: var(--color-text-muted); }
+.badge--zone-belowMev    { background: var(--color-phase-transition); }
+.badge--zone-productive  { background: var(--color-success); }
+.badge--zone-aboveMav    { background: var(--color-warning); }
+.badge--zone-aboveMrv    { background: var(--color-danger); }

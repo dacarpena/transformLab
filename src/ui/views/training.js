@@ -17,10 +17,20 @@ import * as trainingStore from '../../data/training.js';
 import { exercisesOf } from '../../data/training.js';
 import * as plans from '../plan-state.js';
 import { personalRecord, newRecordsIn, suggestProgression, sessionVolumeKg } from '../../core/training.js';
+import { volumeReport } from '../../core/muscle-volume.js';
+import { weeklyPlan } from '../../core/training-plan.js';
+import * as exercisesDb from '../../data/exercises-db.js';
+import * as checkins from '../../data/checkins.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
 import { num } from '../format.js';
+
+/**
+ * Catálogo de ejercicios, cargado bajo demanda. `null` = todavía no está.
+ * @type {Record<string, import('../../data/exercises-db.js').Exercise> | null}
+ */
+let catalog = null;
 
 function renderRoutine(/** @type {*} */ data) {
     const exercises = exercisesOf(data.routine);
@@ -68,6 +78,142 @@ function renderRoutine(/** @type {*} */ data) {
     `;
 }
 
+/**
+ * Volumen por grupo muscular (V2-M6).
+ *
+ * ES LA PIEZA QUE CONVIERTE «hice 4 series de sentadilla» EN «tu glúteo lleva
+ * 4,4 series efectivas esta semana, por debajo de su mínimo». Y declara los
+ * ejercicios que no puede atribuir: contarlos como cero en silencio haría que la
+ * app le dijera a alguien que no entrena un músculo que sí entrena.
+ */
+function renderVolume(/** @type {*} */ data, /** @type {*} */ catalog) {
+    if (catalog === null) {
+        return html`
+            <section class="card">
+                <h2 class="card__title">${t('volume.title')}</h2>
+                <p class="muted" role="status">${t('volume.loading')}</p>
+            </section>
+        `;
+    }
+
+    // El catálogo se indexa por el id del ejercicio EN LA RUTINA, no por el del
+    // catálogo: las sesiones referencian lo que el usuario tiene apuntado.
+    /** @type {Record<string, *>} */ const porRutina = {};
+    for (const ex of exercisesOf(data.routine)) {
+        if (ex.catalogId && catalog[ex.catalogId]) porRutina[ex.id] = catalog[ex.catalogId];
+    }
+
+    const semanas = Math.max(1, Math.min(8, data.sessions.length === 0 ? 1 : weeksSpanned(data.sessions)));
+    const report = volumeReport({
+        sessions: data.sessions,
+        catalog: porRutina,
+        trainingStatus: plans.get()?.profile?.user?.trainingStatus ?? 'intermediate',
+        weeks: semanas
+    });
+    const plan = weeklyPlan({
+        report,
+        trainingStatus: plans.get()?.profile?.user?.trainingStatus ?? 'intermediate',
+        checkins: checkins.list(),
+        sessionsPerWeek: sessionsPerWeek(data.sessions, semanas)
+    });
+
+    return html`
+        <section class="card" aria-labelledby="volume-title">
+            <div class="card__header">
+                <h2 id="volume-title" class="card__title">${t('volume.title')}</h2>
+            </div>
+            <p class="muted">${t('volume.explain', { weeks: semanas })}</p>
+
+            ${plan.deload.offer
+                // Se OFRECE, no se aplica (B9). Igual que la recalibración.
+                ? html`
+                    <p class="notice notice--warning">
+                        <span class="notice__icon" aria-hidden="true">⚠</span>
+                        <span>${t('volume.deloadOffer', {
+                            reasons: plan.deload.reasons.map((/** @type {string} */ r) => t(r)).join(' ')
+                        })}</span>
+                    </p>
+                `
+                : ''}
+
+            <ul class="profile-list">
+                ${plan.groups.map((/** @type {*} */ g) => html`
+                    <li class="profile-item">
+                        <span class="food-row">
+                            <span class="food-row__name">${t(`muscle.${g.group}`)}</span>
+                            <span class="muted numeric">${t('volume.sets', {
+                                sets: g.currentSets, mev: g.landmarks.mev, mav: g.landmarks.mav
+                            })}</span>
+                            <span class="muted">${t(`volume.action.${g.action}`, {
+                                sets: g.targetSets, rir: g.rir
+                            })}</span>
+                        </span>
+                        <span class="badge badge--zone-${g.zone}">${t(`volume.zone.${g.zone}`)}</span>
+                    </li>
+                `)}
+            </ul>
+
+            ${report.unknown.length > 0
+                ? html`
+                    <p class="notice">
+                        <span class="notice__icon" aria-hidden="true">◌</span>
+                        <span>${t('volume.unattributed', { n: report.unknown.length })}</span>
+                    </p>
+                `
+                : ''}
+            <p class="muted">${plan.recovery.declared
+                ? t('volume.recovery', { score: Math.round(plan.recovery.score * 100) })
+                : t('volume.recoveryUnknown')}</p>
+        </section>
+    `;
+}
+
+/**
+ * Busca en el catálogo por nombre.
+ *
+ * El catálogo está en inglés («Barbell Squat») y el usuario escribe en
+ * castellano, así que la coincidencia es por subcadena normalizada y se acepta
+ * que no siempre encuentre. Traducir 556 nombres a mano es trabajo de otra
+ * milestone; fingir una traducción automática daría nombres que nadie busca.
+ * @param {Record<string, *>} catalog
+ * @param {string} query
+ * @param {number} limit
+ * @returns {Array<*>}
+ */
+function matchExercises(catalog, query, limit) {
+    const terms = String(query ?? '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return [];
+    const hits = [];
+    for (const ex of Object.values(catalog)) {
+        const haystack = ex.name.toLowerCase();
+        if (terms.every((term) => haystack.includes(term))) hits.push(ex);
+        if (hits.length >= limit * 4) break;
+    }
+    return hits.sort((a, b) => a.name.length - b.name.length).slice(0, limit);
+}
+
+/** Los grupos que trabaja un ejercicio, ya traducidos. */
+function muscleSummary(/** @type {*} */ ex) {
+    return Object.entries(ex.muscles)
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
+        .map(([group, weight]) => `${t(`muscle.${group}`)}${weight === 1 ? '' : '*'}`)
+        .join(' · ');
+}
+
+/** Semanas distintas que abarcan las sesiones registradas. */
+function weeksSpanned(/** @type {*[]} */ sessions) {
+    if (sessions.length === 0) return 1;
+    const fechas = sessions.map((s) => Date.parse(`${s.dateISO}T00:00:00Z`)).filter(Number.isFinite);
+    if (fechas.length === 0) return 1;
+    const dias = (Math.max(...fechas) - Math.min(...fechas)) / 86400000;
+    return Math.max(1, Math.ceil((dias + 1) / 7));
+}
+
+/** Sesiones por semana, para repartir el volumen prescrito. */
+function sessionsPerWeek(/** @type {*[]} */ sessions, /** @type {number} */ semanas) {
+    return Math.max(1, Math.round(sessions.length / Math.max(1, semanas)));
+}
+
 function renderSessions(/** @type {*} */ data) {
     if (data.sessions.length === 0) return '';
     return html`
@@ -91,13 +237,23 @@ function draw(container) {
     render(container, html`
         <h1 class="card__title">${t('training.title')}</h1>
         ${renderRoutine(data)}
+        ${renderVolume(data, catalog)}
         ${renderSessions(data)}
     `);
 }
 
 /** @param {HTMLElement} container */
-export function mount(container) {
+export async function mount(container) {
     draw(container);
+
+    // Después del primer pintado: la rutina y los récords no dependen del
+    // catálogo, y esperar 556 fichas para enseñarlos sería castigar al usuario.
+    if (catalog === null) {
+        const loaded = await exercisesDb.load();
+        if (loaded.ok) catalog = loaded.value;
+        else console.warn('[training] no se pudo cargar el catálogo:', loaded.error);
+        draw(container);
+    }
 
     on(container, 'click', '[data-add-exercise]', () => {
         const dialog = modal.open({
@@ -107,6 +263,16 @@ export function mount(container) {
                     <span class="field__label">${t('training.exerciseName')}</span>
                     <input type="text" class="input" data-name autocomplete="off">
                 </label>
+                <!--
+                    El enlace al catalogo es lo que permite atribuir las series a
+                    un grupo muscular. Es OPCIONAL: quien quiera apuntar un
+                    ejercicio suyo puede, y la vista de volumen lo declara como
+                    no atribuible en vez de contarlo como cero.
+                -->
+                <div data-catalog-picker>
+                    <p class="muted">${t('training.pickFromCatalog')}</p>
+                    <ul class="profile-list" data-catalog-results></ul>
+                </div>
                 <div class="field-grid">
                     <label class="field">
                         <span class="field__label">${t('training.sets')}</span>
@@ -123,6 +289,44 @@ export function mount(container) {
                 </div>
             `
         });
+        /**
+         * El ejercicio del catálogo que el usuario haya elegido, si alguno.
+         * @type {string | null}
+         */
+        let catalogId = null;
+
+        // Buscar mientras se teclea el nombre. Los resultados van a su propio
+        // contenedor: recrear el `<input>` en cada tecla pierde el foco y hace
+        // imposible escribir.
+        const nameInput = /** @type {HTMLInputElement | null} */ (dialog.querySelector('[data-name]'));
+        const results = /** @type {HTMLElement | null} */ (dialog.querySelector('[data-catalog-results]'));
+        nameInput?.addEventListener('input', () => {
+            catalogId = null;
+            if (results === null || catalog === null) return;
+            const hits = matchExercises(catalog, nameInput.value, 6);
+            render(results, html`${hits.map((ex) => html`
+                <li class="profile-item">
+                    <span class="food-row">
+                        <span class="food-row__name">${ex.name}</span>
+                        <span class="muted">${muscleSummary(ex)}</span>
+                    </span>
+                    <button type="button" class="btn btn--sm" data-pick="${ex.id}">
+                        ${t('training.useThis')}
+                    </button>
+                </li>
+            `)}`);
+        });
+        results?.addEventListener('click', (event) => {
+            const button = /** @type {HTMLElement} */ (event.target).closest('[data-pick]');
+            if (!button || catalog === null) return;
+            catalogId = button.getAttribute('data-pick');
+            const elegido = catalogId ? catalog[catalogId] : null;
+            if (elegido && nameInput) nameInput.value = elegido.name;
+            render(results, html`<li class="profile-item">
+                <span>${t('training.picked', { name: elegido?.name ?? '' })}</span>
+            </li>`);
+        });
+
         dialog.querySelector('[data-go]')?.addEventListener('click', () => {
             const name = sanitizeText(/** @type {HTMLInputElement | null} */ (dialog.querySelector('[data-name]'))?.value, 80);
             if (name === '') {
@@ -133,7 +337,7 @@ export function mount(container) {
             const reps = Math.max(1, Math.round(Number(/** @type {HTMLInputElement | null} */ (dialog.querySelector('[data-reps]'))?.value) || 10));
 
             const added = trainingStore.addExercise(
-                { name, sets, reps }, { dayName: t('training.routine') });
+                { name, sets, reps, catalogId }, { dayName: t('training.routine') });
             if (!added.ok) {
                 toast.error('error.generic');
                 return;

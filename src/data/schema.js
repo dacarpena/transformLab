@@ -410,7 +410,13 @@ export const validateTraining = rootValidator({
                 name: str({ maxLength: 80 }),
                 sets: num({ min: 1, max: 20, integer: true }),
                 reps: num({ min: 1, max: 100, integer: true }),
-                loadKg: opt(num({ min: 0, max: 500 }))
+                loadKg: opt(num({ min: 0, max: 500 })),
+                // Enlace al catálogo de ejercicios (V2-M6), OPCIONAL. Sin él la
+                // rutina sigue funcionando —el usuario puede escribir el
+                // nombre que quiera— pero sus series no se pueden atribuir a
+                // ningún grupo muscular, y la vista lo DICE en vez de contarlas
+                // como cero en silencio.
+                catalogId: opt(str({ maxLength: 60, pattern: SAFE_ID }))
             }), { maxItems: 40 })
         }), { maxItems: 14 })
     })),
