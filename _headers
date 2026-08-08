@@ -15,6 +15,25 @@
 # desde IndexedDB con URL de objeto y la tarjeta compartible sale de un canvas.
 # `connect-src 'self'` deja registrar el service worker y nada más.
 
+# SIN CACHÉ DE NAVEGADOR (`Cache-Control: no-cache` en la regla global), y esto
+# es un ARREGLO, no una precaución.
+#
+# Cloudflare Pages sirve por defecto `max-age=14400`: CUATRO HORAS. Medido en
+# producción tras un despliegue real, con el service worker desregistrado y sus
+# cachés vaciadas, el navegador seguía ejecutando `i18n.js` y `format.js`
+# viejos mientras servía `es.js` NUEVO. No era una versión atrasada: era una
+# MEZCLA de dos, que es el peor fallo posible y justo el que `CACHE_VERSION`
+# existe para evitar en la capa del service worker. En la capa HTTP no había
+# nada que lo impidiera.
+#
+# Aquí ningún fichero lleva huella en el nombre —no hay bundler—, así que
+# cachear por tiempo es siempre incorrecto: la URL de `format.js` es la misma
+# ayer y hoy. `no-cache` NO desactiva la caché: obliga a revalidar, y la
+# respuesta normal es un 304 vacío con el ETag que Pages ya envía.
+#
+# El modo sin conexión no depende de esto: lo da el service worker, que sí
+# cachea, sí está versionado y sí tiene su test.
+
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
@@ -23,6 +42,7 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   X-Frame-Options: DENY
+  Cache-Control: no-cache
 
 # El service worker no se cachea: si el navegador sirve uno viejo, la
 # aplicación se queda clavada en una versión que ya no existe.

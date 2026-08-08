@@ -173,6 +173,37 @@ test('la CSP cierra por defecto y no deja escapar nada al exterior', () => {
     assert.match(CSP, /img-src 'self' data: blob:/);
 });
 
+test('_headers manda revalidar SIEMPRE: nada se cachea por tiempo', () => {
+    // Medido en producción: Cloudflare Pages sirve `max-age=14400` por defecto,
+    // y con eso el navegador ejecutaba `i18n.js` y `format.js` viejos mientras
+    // servía `es.js` nuevo — una MEZCLA de dos versiones, que es el peor fallo
+    // posible. Aquí ningún fichero lleva huella en el nombre, así que cachear
+    // por tiempo es siempre incorrecto.
+    const global = HEADERS.split('\n/sw.js')[0];
+    assert.match(global, /Cache-Control:\s*no-cache/,
+        'la regla global debe mandar revalidar');
+
+    // Y que a nadie se le ocurra volver a poner un max-age largo. Se miran solo
+    // las DIRECTIVAS: los comentarios de este mismo fichero citan el 14400 que
+    // motivó el arreglo, y contarlos haría que el test se delatara a sí mismo.
+    const directivas = HEADERS.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+    const maxAges = [...directivas.matchAll(/max-age=(\d+)/g)].map((m) => Number(m[1]));
+    for (const edad of maxAges) {
+        assert.ok(edad === 0, `hay un max-age de ${edad} s en _headers`);
+    }
+});
+
+test('_headers no lleva comentarios DENTRO de una regla', () => {
+    // Cloudflare no documenta que los admita, y un `_headers` mal parseado
+    // tumbaría la CSP entera: un riesgo desproporcionado para colocar una
+    // explicación que cabe encima del bloque.
+    for (const linea of HEADERS.split('\n')) {
+        if (/^\s+/.test(linea) && linea.trim().startsWith('#')) {
+            assert.fail(`comentario dentro de una regla: ${linea.trim()}`);
+        }
+    }
+});
+
 test('_headers trae nosniff y una Referrer-Policy que no filtra la ruta', () => {
     assert.match(HEADERS, /X-Content-Type-Options:\s*nosniff/);
     assert.match(HEADERS, /Referrer-Policy:\s*strict-origin-when-cross-origin/);
