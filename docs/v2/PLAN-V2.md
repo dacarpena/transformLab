@@ -610,3 +610,44 @@ la frecuencia multiplique el volumen rompe 3 tests, que el silencio dispare el
 deload rompe 1, y que la recuperación baje el MEV rompe 1.
 
 **662 unitarios · 124 E2E · typecheck limpio.**
+
+### V2-M7 · Pasos / NEAT — cerrada el 2026-08-08
+
+`src/core/steps.js` y `src/data/steps.js`, con la tarjeta en la vista de Gasto —
+que es donde corresponde, porque los pasos son una **covariable** del gasto
+medido, no una pantalla aparte.
+
+**La trampa de este módulo es aritmética y se llama doble conteo.** El
+multiplicador de actividad del onboarding YA incluye andar; sumar encima las
+kilocalorías de los pasos cuenta lo mismo dos veces e infla el gasto del que
+cuelga todo el plan. La solución es `BASELINE_STEPS`: cada nivel de actividad
+lleva asociados los pasos que ese estilo de vida ya supone (franjas de
+Tudor-Locke), y lo que aporta el podómetro es la DIFERENCIA. Andar exactamente
+los pasos de tu nivel aporta cero, y eso es lo que comprueba el invariante
+`sin_doble_conteo` — verificado además con **mutación deliberada**: sumar el
+bruto en vez del delta rompe 5 tests, y hacer que un nivel desconocido caiga a
+cero pasos de referencia rompe 1.
+
+El delta **puede ser negativo, y eso es una función**: quien se declaró activo y
+lleva una semana en el sofá está gastando menos de lo que el plan supone, y
+saberlo es justo lo que explica que la báscula no baje.
+
+Dos decisiones más:
+
+- **Entrada manual**, y la razón no es pereza: Apple Health y Google Fit no son
+  accesibles desde una aplicación web, y cualquier integración por nube exigiría
+  cuenta y llamadas de red con datos del usuario. Es la recomendación que el
+  propio plan traía.
+- **El objetivo diario sale del nivel declarado, no de un 10 000 universal**.
+  Esa cifra salió de una campaña de marketing japonesa de 1965, no de un
+  estudio, y ponerla de meta a alguien sedentario es fijarle algo que no va a
+  cumplir.
+
+La constante (0,04 kcal/paso a 70 kg) se contrastó con la vía MET: 10 000 pasos
+≈ 8 km ≈ 96 min a 3,5 MET dan 411 kcal frente a las 400 de la constante. Que dos
+caminos independientes coincidan al 3 % es lo que la hace usable; hay un test
+que lo comprueba.
+
+Y por tercera vez en la v2, un texto decía «Media de 1 días». Reescrito.
+
+**681 unitarios · 132 E2E · typecheck limpio.**

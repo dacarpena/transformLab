@@ -24,6 +24,8 @@ import { empty, error as errorState } from '../components/state.js';
 import { listDate } from '../dates.js';
 import { num, int } from '../format.js';
 import { measuredExpenditure, compareWithFormula, MIN_DAYS } from '../../core/expenditure.js';
+import { neatAverage, tradeOff, dailyTarget, MAX_DAILY_STEPS } from '../../core/steps.js';
+import * as stepsStore from '../../data/steps.js';
 
 /** El TDEE que el plan usa hoy, según la proyección. */
 function formulaTdee(/** @type {*} */ data) {
@@ -155,6 +157,79 @@ function renderIntakeForm() {
     `;
 }
 
+/**
+ * Pasos: la covariable del gasto, NO un sumando (V2-M7).
+ *
+ * El multiplicador de actividad del onboarding ya incluye andar. Lo que esta
+ * tarjeta enseña es la DIFERENCIA respecto a lo que ese nivel ya suponía —que
+ * puede ser negativa, y entonces explica por qué la báscula no baja— y el canje
+ * «más pasos o menos comida», como escenario y no como consejo.
+ */
+function renderSteps(/** @type {*} */ data) {
+    const user = data.profile?.user ?? {};
+    const today = plans.todayIndex(data, plans.todayISO());
+    const weightKg = data.projection.daily[today.dayIndex]?.weightKg ?? data.profile?.initial?.weightKg ?? 70;
+    const objetivo = dailyTarget(user.activityLevel);
+    const media = neatAverage({
+        entries: stepsStore.list(),
+        activityLevel: user.activityLevel,
+        weightKg
+    });
+    const hoy = stepsStore.findByDate(plans.todayISO());
+    const canje = tradeOff({ extraSteps: 3000, weightKg });
+
+    return html`
+        <section class="card" aria-labelledby="steps-title">
+            <div class="card__header">
+                <h2 id="steps-title" class="card__title">${t('steps.title')}</h2>
+            </div>
+            <p class="muted">${t('steps.explain', { target: int(objetivo) })}</p>
+
+            <label class="field">
+                <span class="field__label">${t('steps.today')}</span>
+                <input class="input" type="number" inputmode="numeric" min="0" max="${String(MAX_DAILY_STEPS)}"
+                       data-field="steps" value="${hoy ? String(hoy.steps) : ''}">
+            </label>
+            <div class="btn-row">
+                <button type="button" class="btn" data-save-steps>${t('action.save')}</button>
+            </div>
+
+            ${media === null
+                ? html`<p class="muted">${t('steps.noneYet')}</p>`
+                : html`
+                    <div class="metrics">
+                        <div class="metric">
+                            <span class="metric__value">${int(media.meanSteps)}</span>
+                            <span class="metric__label">${t('steps.mean', { days: media.days })}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric__value">${int(media.delta.deltaKcal)}</span>
+                            <span class="metric__label">${t('steps.deltaLabel')}</span>
+                        </div>
+                    </div>
+                    <!--
+                        La clave de todo el modulo, dicha: los pasos AFINAN el
+                        gasto, no lo inflan. Sumarlos sobre el multiplicador
+                        contaria lo mismo dos veces. (Sin acentos graves aqui
+                        dentro: CIERRAN la plantilla.)
+                    -->
+                    <p class="muted">${media.delta.deltaKcal === 0
+                        ? t('steps.onTarget')
+                        : media.delta.deltaKcal > 0
+                            ? t('steps.above', { steps: int(media.delta.deltaSteps), kcal: int(media.delta.deltaKcal) })
+                            : t('steps.below', { steps: int(Math.abs(media.delta.deltaSteps)), kcal: int(Math.abs(media.delta.deltaKcal)) })}</p>
+                `}
+
+            <p class="muted">${t('steps.tradeOff', {
+                steps: int(canje.extraSteps),
+                kcal: int(canje.kcalPerDay),
+                kg: num(canje.kgPerMonth, 2)
+            })}</p>
+            <p class="muted">${t('steps.noDoubleCount')}</p>
+        </section>
+    `;
+}
+
 /** @param {HTMLElement} container */
 function draw(container) {
     const data = plans.get();
@@ -175,6 +250,7 @@ function draw(container) {
         render(container, html`
             <h1 class="visually-hidden">${t('expenditure.title')}</h1>
             ${renderMeasured(measured, formulaTdee(data))}
+            ${renderSteps(data)}
             ${renderIntakeForm()}
         `);
     } catch (err) {
@@ -212,6 +288,22 @@ export function mount(container) {
             toast.error('error.generic');
             return;
         }
+        draw(container);
+    });
+
+    on(container, 'click', '[data-save-steps]', () => {
+        const input = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-field="steps"]'));
+        const steps = Number(input?.value);
+        if (!Number.isFinite(steps) || steps < 0) {
+            toast.error('steps.invalidCount');
+            return;
+        }
+        const saved = stepsStore.save({ dateISO: plans.todayISO(), steps });
+        if (!saved.ok) {
+            toast.error('error.generic');
+            return;
+        }
+        toast.success('steps.saved');
         draw(container);
     });
 

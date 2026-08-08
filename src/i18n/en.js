@@ -766,4 +766,19 @@ export const en = {
     "muscle.glutes": "Glutes",
     "muscle.calves": "Calves",
     "muscle.core": "Core",
+
+    // V2-M7 · steps and NEAT
+    "steps.title": "Your steps",
+    "steps.explain": "Your activity level already assumes about {target} steps a day. What counts here is the difference from that, not raw steps.",
+    "steps.today": "Steps today",
+    "steps.saved": "Steps saved.",
+    "steps.invalidCount": "Enter how many steps you took today.",
+    "steps.noneYet": "Log your steps for a few days and I will tell you how far they are from what your plan assumes.",
+    "steps.mean": "Daily average ({days} d)",
+    "steps.deltaLabel": "kcal/day difference",
+    "steps.onTarget": "You walk exactly what your activity level assumes. Nothing to adjust.",
+    "steps.above": "You walk {steps} more steps a day than your plan assumes: about {kcal} extra kcal, already accounted for in measured expenditure.",
+    "steps.below": "You walk {steps} FEWER steps a day than your plan assumes: about {kcal} kcal you are not burning. If the scale is not moving, start here.",
+    "steps.tradeOff": "The trade: {steps} more steps a day is about {kcal} kcal, which over a month equals {kg} kg of fat. You can walk them or you can eat that much less — your call.",
+    "steps.noDoubleCount": "These calories are NOT added to your daily target. Your activity multiplier already counts your walking; adding them again would count the same thing twice.",
 };

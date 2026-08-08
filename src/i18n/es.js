@@ -766,4 +766,19 @@ export const es = {
     "muscle.glutes": "Glúteos",
     "muscle.calves": "Gemelos",
     "muscle.core": "Core",
+
+    // V2-M7 · pasos y NEAT
+    "steps.title": "Tus pasos",
+    "steps.explain": "Tu nivel de actividad ya supone unos {target} pasos al día. Lo que cuenta aquí es la diferencia con eso, no los pasos en bruto.",
+    "steps.today": "Pasos de hoy",
+    "steps.saved": "Pasos guardados.",
+    "steps.invalidCount": "Escribe cuántos pasos has dado hoy.",
+    "steps.noneYet": "Apunta tus pasos unos días y te digo cuánto se desvían de lo que tu plan supone.",
+    "steps.mean": "Media diaria ({days} d)",
+    "steps.deltaLabel": "kcal/día de diferencia",
+    "steps.onTarget": "Andas justo lo que tu nivel de actividad supone. No hay nada que ajustar.",
+    "steps.above": "Andas {steps} pasos más al día de lo que tu plan supone: unas {kcal} kcal extra que ya está descontando el gasto medido.",
+    "steps.below": "Andas {steps} pasos MENOS al día de lo que tu plan supone: unas {kcal} kcal que no estás gastando. Si la báscula no baja, empieza por aquí.",
+    "steps.tradeOff": "El canje: {steps} pasos más al día son unas {kcal} kcal, que a final de mes equivalen a {kg} kg de grasa. Puedes andarlos o puedes comer eso menos — tú decides.",
+    "steps.noDoubleCount": "Estas calorías NO se suman a tu objetivo diario. Tu multiplicador de actividad ya cuenta lo que andas; sumarlas otra vez sería contar lo mismo dos veces.",
 };
