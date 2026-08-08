@@ -417,6 +417,37 @@ toque (CLAUDE.md §7).
   (comunidad)» ya avisa de la garantía; si molesta, la vía es una lista de
   bloqueo por id, no una heurística.
 
+- **El peso esperado SALE de su propia banda de escenarios, y el invariante que
+  debía impedirlo no lo comprueba.** Encontrado al escribir los tests de E13-1.
+  Es del motor (M1), no de la gráfica, así que no se toca aquí — pero el usuario
+  lo VE: la banda se dibuja hoy en Proyección.
+
+  Reproducción exacta (varón, 80 kg, 20 % → 15 % y +2 kg de músculo, semilla 1):
+
+  ```
+  días con el esperado FUERA de su banda, por fase:
+     adaptation       0/15
+     recomposition    8/88
+     bulk            14/25     <-- más de la mitad de la fase
+     cut              3/4
+     transition       0/14
+     maintenance      0/30
+  ```
+
+  Día 120, en volumen: esperado 77,7050 · optimista 77,6935 · pesimista 77,2572.
+  El escenario **optimista gana menos peso que el esperado**, que es
+  contradictorio en una fase cuyo objetivo es ganar. Apunta a que la banda se
+  deriva de una tasa de pérdida de GRASA aplicada al peso, correcta en déficit e
+  invertida cuando el motor del cambio es la ganancia de músculo.
+
+  **Y el vigilante tiene un agujero:** el invariante se llama `escenarios —
+  pesimista ≤ esperado ≤ optimista en posición de plan` pero su cuerpo
+  (`test/invariants.test.js:178`) solo comprueba que los tres cierran el plan y
+  que los números son finitos. **Nunca comprueba el orden que promete su
+  nombre.** Es la misma familia que los tres defectos de E13-0: un nombre que
+  afirma más que su código. Arreglar el motor sin arreglar antes el invariante
+  dejaría el mismo hueco abierto.
+
 ### V2-M3 · Menú que cuadra macros — cerrada el 2026-08-08
 
 `src/core/menu.js`: un **solver combinatorio**, no un modelo ni «IA». Recibe las
@@ -827,7 +858,7 @@ series · vista propia «Analizar» · los grupos musculares entran como series
 etiquetadas de estimación · legibilidad primero.
 
 - [x] **E13-0 · Los tres defectos de datos**
-- [ ] E13-1 · Catálogo de series puro + las 3 funciones que faltan
+- [x] **E13-1 · Catálogo de series puro + las 3 funciones que faltan**
 - [ ] E13-2 · `drawSeries` por extracción + invariante de hitos + precálculo de fases
 - [ ] E13-3 · `drawMulti` + manifiesto + ejes + estilos + paleta
 - [ ] E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`
@@ -877,3 +908,56 @@ mano** (solo la de báscula): se ha quitado, porque dos copias de una regla es
 justo como volvió a divergir.
 
 **744 unitarios · 152 E2E · typecheck limpio.**
+
+### E13-1 — 44 series, y las trampas de unidad convertidas en estructura
+
+`src/core/series-catalog.js` es la fuente única de qué se puede dibujar. Cuarenta
+y cuatro specs en ocho grupos, cada uno declarando **una función productora, no
+puntos resueltos**: el catálogo tiene que ser enumerable sin datos —el selector
+lista las 44 antes de que exista ninguna proyección— y resolver 44 × 1096 puntos
+por dibujado sería absurdo cuando se pintan cuatro.
+
+**Lo que de verdad hace este fichero es hacer imposible la confusión que hundió
+la v4.0.** El músculo aparece en tres unidades DISTINTAS, y no por pedantería:
+
+| unidad | qué es | rango |
+|---|---|---|
+| `kgMuscleSkeletal` | lo que produce el motor | 25–45 |
+| `kgMuscleScale` | lo que marca una báscula doméstica (magra menos hueso) | 50–70 |
+| `kgMuscleGroup` | un grupo suelto | 1,8–7 |
+
+Con un solo id compartirían eje: los diez grupos aplastados contra el suelo, y
+lo medido y lo proyectado comparados sin pasar por la aduana. Con tres ids, el
+planificador de ejes lo impide solo y **un test puede fijarlo**. Hay uno por
+trampa, y los tres se comprobaron con mutación deliberada: cambiar la unidad de
+la báscula a esquelética, o la del grupo a global, o el agregado del tonelaje de
+suma a endpoint, pone su trampa en rojo.
+
+`provenance` reutiliza el vocabulario de `muscleSource` (`measured`/`estimated`/
+`derived`, A3 y E10) más `projected`. No se inventa un eje nuevo, se extiende el
+que ya existe. Y los ids usan `_` en vez de `.` para caber en el `SAFE_ID` del
+esquema, que es lo que los hace persistibles sin superficie de validación nueva.
+
+Tres funciones que el producto necesitaba y no tenía, cada una en su casa y no
+en el catálogo: **`training.e1rmSeries`** (el mejor 1RM de cada DÍA;
+`personalRecord` colapsa el histórico entero a un solo esfuerzo, que sirve para
+anunciar un récord y no para dibujar una progresión), **`training.tonnageSeries`**
+(por FECHA: dos sesiones el martes son un día de entrenamiento) y
+**`nutrition.macroSeries`** (criterio único: el día que no resuelve **no produce
+punto** — un cero ahí diría «ese día no comes nada», que es una afirmación, no un
+hueco).
+
+**Un renombrado que parece cosmético y no lo es.** La banda de escenarios se
+llama `pessimist`/`optimist`, no `lower`/`upper`: en una fase de pérdida el
+escenario pesimista pesa MÁS que el esperado, así que el «inferior» es el mayor.
+Con los nombres numéricos, una leyenda que dijera «entre X e Y» los imprimiría al
+revés durante todo el déficit.
+
+**Y un defecto del MOTOR encontrado por el camino, anotado en el BACKLOG y no
+tocado aquí** (§7, regla anti-alcance): el peso esperado **sale de su propia
+banda** 25 días de 176, concentrados en volumen (14 de 25). Peor: el invariante
+que debía impedirlo se llama `escenarios — pesimista ≤ esperado ≤ optimista` y su
+cuerpo **nunca comprueba ese orden**. Misma familia que los tres defectos de
+E13-0: un nombre que afirma más que su código.
+
+**765 unitarios · typecheck limpio.**

@@ -245,3 +245,81 @@ export function sessionVolumeKg(session) {
     }
     return total;
 }
+
+/**
+ * El mejor 1RM estimado de cada día que tocó ese ejercicio.
+ *
+ * Existe porque `personalRecord()` colapsa TODO el histórico a un solo mejor
+ * esfuerzo: sirve para anunciar un récord, no para dibujar una progresión. Una
+ * gráfica necesita el récord de cada día, no el de la vida.
+ *
+ * Por DÍA y no por sesión: dos sesiones el mismo día son un día de
+ * entrenamiento, y la gráfica tiene como mucho un punto por día. Si las hay, se
+ * queda con el mejor esfuerzo del día — que es lo que significa «mi 1RM ese día».
+ *
+ * @param {Session[]} sessions
+ * @param {string} exerciseId
+ * @returns {Array<{ dateISO: string, e1rmKg: number, loadKg: number, reps: number }>}
+ *   orden creciente por fecha
+ */
+export function e1rmSeries(sessions, exerciseId) {
+    if (!Array.isArray(sessions) || typeof exerciseId !== 'string') return [];
+
+    /** @type {Map<string, { dateISO: string, e1rmKg: number, loadKg: number, reps: number }>} */
+    const byDate = new Map();
+    for (const session of sessions) {
+        if (!session || typeof session !== 'object' || !Array.isArray(session.entries)) continue;
+        if (typeof session.dateISO !== 'string') continue;
+        for (const entry of session.entries) {
+            if (!entry || entry.exerciseId !== exerciseId || !Array.isArray(entry.sets)) continue;
+            for (const set of entry.sets) {
+                if (!set) continue;
+                const e1rm = estimatedOneRepMax(set.reps, set.loadKg);
+                if (!isFiniteNumber(e1rm)) continue;
+                const previo = byDate.get(session.dateISO);
+                if (!previo || e1rm > previo.e1rmKg) {
+                    byDate.set(session.dateISO, {
+                        dateISO: session.dateISO, e1rmKg: e1rm,
+                        loadKg: set.loadKg, reps: set.reps
+                    });
+                }
+            }
+        }
+    }
+    return [...byDate.values()].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+}
+
+/**
+ * Tonelaje por FECHA: series × reps × carga de todo lo que se movió ese día.
+ *
+ * `sessionVolumeKg` solo sabe de una sesión suelta, y quien mira una gráfica de
+ * tonelaje pregunta «cuánto moví el martes», no «cuánto moví en la segunda de
+ * las dos sesiones del martes». Se suman.
+ *
+ * Ojo al agregar esta serie a una granularidad más gruesa: es una SUMA, no un
+ * nivel. Muestrear el día de cierre de la semana enseñaría el tonelaje de un
+ * día donde el usuario espera el de la semana.
+ *
+ * @param {Session[]} sessions
+ * @returns {Array<{ dateISO: string, kg: number, sessions: number }>}
+ *   orden creciente por fecha
+ */
+export function tonnageSeries(sessions) {
+    if (!Array.isArray(sessions)) return [];
+
+    /** @type {Map<string, { dateISO: string, kg: number, sessions: number }>} */
+    const byDate = new Map();
+    for (const session of sessions) {
+        if (!session || typeof session !== 'object') continue;
+        if (typeof session.dateISO !== 'string') continue;
+        const kg = sessionVolumeKg(session);
+        const previo = byDate.get(session.dateISO);
+        if (previo) {
+            previo.kg += kg;
+            previo.sessions += 1;
+        } else {
+            byDate.set(session.dateISO, { dateISO: session.dateISO, kg, sessions: 1 });
+        }
+    }
+    return [...byDate.values()].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+}

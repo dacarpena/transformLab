@@ -4,15 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-    estimatedOneRepMax,
-    personalRecord,
-    newRecordsIn,
-    suggestProgression,
-    sessionVolumeKg,
-    LOAD_STEPS_KG,
-    SESSIONS_BEFORE_PROGRESSION
-} from '../src/core/training.js';
+import { estimatedOneRepMax, personalRecord, newRecordsIn, suggestProgression, sessionVolumeKg, LOAD_STEPS_KG, SESSIONS_BEFORE_PROGRESSION, e1rmSeries, tonnageSeries } from '../src/core/training.js';
 
 /** @param {string} id @param {string} dateISO @param {Array<[number, number]>} sets */
 function session(id, dateISO, sets, exerciseId = 'squat') {
@@ -216,4 +208,64 @@ test('barrido: ningún par de esfuerzos con el MISMO 1RM produce un récord', ()
         }
     }
     assert.ok(checked > 50, `se esperaban muchos empates, se probaron ${checked}`);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Series para la gráfica (E13-1)
+ * ---------------------------------------------------------------------- */
+
+test('e1rmSeries da el mejor esfuerzo de CADA día, no el de toda la vida', () => {
+    const sessions = [
+        { id: 's1', dateISO: '2026-03-01', entries: [
+            { exerciseId: 'squat', sets: [{ reps: 10, loadKg: 80 }, { reps: 5, loadKg: 95 }] }
+        ] },
+        { id: 's2', dateISO: '2026-03-08', entries: [
+            { exerciseId: 'squat', sets: [{ reps: 8, loadKg: 90 }] },
+            { exerciseId: 'bench', sets: [{ reps: 5, loadKg: 200 }] }
+        ] }
+    ];
+
+    const serie = e1rmSeries(/** @type {*} */ (sessions), 'squat');
+    assert.equal(serie.length, 2, 'un punto por día que tocó el ejercicio');
+    // Día 1: 80×(1+10/30)=106,67 frente a 95×(1+5/30)=110,83 → gana el segundo.
+    assert.equal(serie[0].dateISO, '2026-03-01');
+    assert.ok(Math.abs(serie[0].e1rmKg - 110.833) < 0.01);
+    assert.equal(serie[0].loadKg, 95, 'se guarda el esfuerzo que produjo el máximo, no otro');
+    assert.ok(Math.abs(serie[1].e1rmKg - 114) < 0.01);
+
+    // El press banca del día 8 NO contamina la sentadilla, aunque su 1RM sea
+    // mucho mayor: `personalRecord` filtra por ejercicio y esto también.
+    assert.ok(serie.every((p) => p.e1rmKg < 120));
+    assert.deepEqual(e1rmSeries(/** @type {*} */ (sessions), 'inexistente'), []);
+    assert.deepEqual(e1rmSeries(/** @type {*} */ (null), 'squat'), []);
+});
+
+test('e1rmSeries se queda con el mejor de DOS sesiones del mismo día', () => {
+    const sessions = [
+        { id: 'a', dateISO: '2026-03-01', entries: [{ exerciseId: 'squat', sets: [{ reps: 5, loadKg: 90 }] }] },
+        { id: 'b', dateISO: '2026-03-01', entries: [{ exerciseId: 'squat', sets: [{ reps: 3, loadKg: 100 }] }] }
+    ];
+    const serie = e1rmSeries(/** @type {*} */ (sessions), 'squat');
+    assert.equal(serie.length, 1, 'dos sesiones el mismo día son UN punto en la gráfica');
+    assert.ok(Math.abs(serie[0].e1rmKg - 110) < 0.01, '100×(1+3/30)=110 gana a 90×(1+5/30)=105');
+});
+
+test('tonnageSeries suma las sesiones del mismo día y ordena por fecha', () => {
+    const sessions = [
+        { id: 'b', dateISO: '2026-03-08', entries: [
+            { exerciseId: 'squat', sets: [{ reps: 5, loadKg: 100 }] }
+        ] },
+        { id: 'a1', dateISO: '2026-03-01', entries: [
+            { exerciseId: 'squat', sets: [{ reps: 10, loadKg: 50 }] }
+        ] },
+        { id: 'a2', dateISO: '2026-03-01', entries: [
+            { exerciseId: 'bench', sets: [{ reps: 10, loadKg: 40 }] }
+        ] }
+    ];
+    const serie = tonnageSeries(/** @type {*} */ (sessions));
+    assert.deepEqual(serie, [
+        { dateISO: '2026-03-01', kg: 900, sessions: 2 },
+        { dateISO: '2026-03-08', kg: 500, sessions: 1 }
+    ]);
+    assert.deepEqual(tonnageSeries(/** @type {*} */ ('no')), []);
 });

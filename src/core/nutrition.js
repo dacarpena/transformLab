@@ -186,3 +186,33 @@ export function splitIntoMeals(macros, mealCount) {
     }
     return { ok: true, value: out };
 }
+
+/**
+ * Una macro a lo largo de toda la proyección.
+ *
+ * `macrosFor` es punto a punto y devuelve `NutritionResult`: mapearlo desde la
+ * vista obligaba a cada llamador a decidir qué hacer con los días que no
+ * resuelven, y ya había dos criterios distintos conviviendo. Aquí el criterio es
+ * UNO y está escrito: **un día que no resuelve no produce punto**. La serie sale
+ * con un hueco, que es la verdad, en vez de un cero, que sería mentira.
+ *
+ * @param {{ daily?: DailyPoint[] }} projection
+ * @param {'proteinG'|'carbsG'|'fatG'|'kcal'} macro
+ * @returns {Array<{ x: number, y: number }>} x = dayIndex absoluto
+ */
+export function macroSeries(projection, macro) {
+    const daily = projection?.daily;
+    if (!Array.isArray(daily)) return [];
+    const claves = ['proteinG', 'carbsG', 'fatG', 'kcal'];
+    if (!claves.includes(macro)) return [];
+
+    /** @type {Array<{ x: number, y: number }>} */ const points = [];
+    for (let i = 0; i < daily.length; i++) {
+        const result = macrosFor(daily[i]);
+        if (!result.ok) continue;
+        const y = /** @type {*} */ (result.value)[macro];
+        if (!isFiniteNumber(y)) continue;
+        points.push({ x: i, y });
+    }
+    return points;
+}

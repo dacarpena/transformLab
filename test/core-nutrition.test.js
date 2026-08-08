@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeComposition, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
-import { macrosFor, refeedMacros, PROTEIN_G_PER_KG_LEAN, FAT_PCT_OF_KCAL } from '../src/core/nutrition.js';
+import { macrosFor, refeedMacros, macroSeries, PROTEIN_G_PER_KG_LEAN, FAT_PCT_OF_KCAL } from '../src/core/nutrition.js';
 
 const PROFILE = { sex: /** @type {const} */ ('male'), age: 30, heightCm: 175, activityLevel: /** @type {const} */ ('moderate'), trainingStatus: /** @type {const} */ ('intermediate') };
 
@@ -190,4 +190,48 @@ test('el refeed declara lo que CUESTA, porque el motor no lo modela', () => {
     assert.ok(none.ok);
     assert.equal(none.value.costKcal, 0);
     assert.equal(none.value.costKg, 0);
+});
+
+/* ---------------------------------------------------------------------- *
+ * macroSeries (E13-1)
+ * ---------------------------------------------------------------------- */
+
+test('macroSeries produce un punto por día resoluble, con x absoluto', () => {
+    const comp = makeComposition({ weightKg: 80, fatPct: 20, sex: 'male' });
+    assert.ok(comp.ok);
+    const plan = planPhases(comp.value, { fatPct: 15, muscleKg: comp.value.muscleKg + 2 }, PROFILE);
+    assert.ok(plan.ok);
+    const proj = generateProjection(plan.value, comp.value, PROFILE, {
+        startDateISO: '2026-08-03', seed: 1, fluctuation: false
+    });
+    assert.ok(proj.ok);
+
+    const prote = macroSeries(proj.value, 'proteinG');
+    assert.equal(prote.length, proj.value.daily.length,
+        'todos los días de un plan válido resuelven sus macros');
+    assert.equal(prote[0].x, 0, 'x es el dayIndex absoluto, no un índice de array recortado');
+    assert.equal(prote.at(-1).x, proj.value.daily.length - 1);
+    for (const p of prote) assert.ok(Number.isFinite(p.y) && p.y > 0);
+
+    // El mismo criterio para las cuatro; ninguna inventa un cero.
+    for (const macro of ['carbsG', 'fatG', 'kcal']) {
+        const s = macroSeries(proj.value, /** @type {*} */ (macro));
+        assert.ok(s.length > 0, macro);
+        assert.ok(s.every((p) => Number.isFinite(p.y)), macro);
+    }
+});
+
+test('macroSeries omite el día que no resuelve, en vez de escribir un cero', () => {
+    // Un punto sin calorías objetivo NO produce macro. Un cero ahí sería decir
+    // «ese día no comes nada», que es una afirmación, no un hueco.
+    const roto = { daily: [
+        { dayIndex: 0, phaseType: 'cut', leanKg: 60, kcal: { targetKcal: 2200 } },
+        { dayIndex: 1, phaseType: 'cut', leanKg: 60, kcal: { targetKcal: 0 } },
+        { dayIndex: 2, phaseType: 'cut', leanKg: 60, kcal: { targetKcal: 2100 } }
+    ] };
+    const s = macroSeries(/** @type {*} */ (roto), 'proteinG');
+    assert.deepEqual(s.map((p) => p.x), [0, 2], 'el día 1 no produce punto');
+
+    assert.deepEqual(macroSeries(/** @type {*} */ (null), 'proteinG'), []);
+    assert.deepEqual(macroSeries(/** @type {*} */ (roto), /** @type {*} */ ('inventada')), []);
 });
