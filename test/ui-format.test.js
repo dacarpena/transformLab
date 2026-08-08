@@ -133,13 +133,15 @@ test('nadie usa `toFixed` en la interfaz fuera de format.js', () => {
     // Dos excepciones, las dos declaradas y las dos por el mismo motivo de
     // fondo: ahí el número NO es texto que alguien lea.
     //
-    // - `muscle-grid.js`: la geometría de un SVG. En un atributo `d` el punto
-    //   decimal es obligatorio; una coma partiría el camino en dos coordenadas.
+    // - `spark.js`: la geometría de un SVG. En un atributo `d` el punto decimal
+    //   es obligatorio; una coma partiría el camino en dos coordenadas. (La
+    //   excepción se mudó con el código: era de `muscle-grid.js` hasta que E13-7
+    //   extrajo la geometría a un módulo compartido.)
     // - `csv.js`: un campo de hoja de cálculo. `Intl` metería separadores de
     //   MILLAR, y un «13.000» con punto de millar es otro número —o dos
     //   columnas—. El CSV solo cambia el separador DECIMAL, que es lo único que
     //   la hoja necesita para interpretarlo bien.
-    const EXCEPCIONES = new Set(['src/ui/format.js', 'src/ui/muscle-grid.js', 'src/ui/csv.js']);
+    const EXCEPCIONES = new Set(['src/ui/format.js', 'src/ui/spark.js', 'src/ui/csv.js']);
     /** @type {string[]} */ const culpables = [];
 
     for (const file of jsFilesUnder('src/ui')) {

@@ -1014,4 +1014,5 @@ export const en = {
     'analysis.csv.hint': 'Dates in YYYY-MM-DD format. Numbers and the separator follow the app language; each series carries its provenance in its header.',
     'analysis.csv.failed': 'The download could not be prepared. The data is still in the table.',
     'analysis.readout.hint': 'Left and right arrows move through the dates; up and down arrows switch series; Home and End jump to the ends.',
+    'series.reason.noChart': 'It could not be drawn',
 };

@@ -802,7 +802,17 @@ export function createChart() {
             extraPlugins: [phaseBandsPlugin(projection), todayLinePlugin(() => options.todayIndex)],
             maxTicks: options.maxTicks
         });
-        if (!ok) return { ...fallo, rendered, axes: plan.axes };
+        if (!ok) {
+            // El manifiesto dice lo que se DIBUJÓ, y aquí no se dibujó nada. Sin
+            // esto, la leyenda anunciaba «24 puntos» de una serie que no existe
+            // en el lienzo — exactamente la mentira que este manifiesto viene a
+            // hacer imposible, colada por la puerta de atrás del caso de fallo.
+            return {
+                ...fallo,
+                rendered: rendered.map((s) => ({ ...s, pointCount: 0, reason: 'series.reason.noChart' })),
+                axes: plan.axes
+            };
+        }
 
         announceMode = 'multi';
         multiSeries = series;

@@ -77,33 +77,6 @@ async function goToAnalysis(page) {
 }
 
 /**
- * Deja la página SIN service worker, de verdad.
- *
- * Hacen falta las TRES cosas, y cada una cierra un agujero distinto:
- *
- * 1. **Desregistrar y vaciar cachés.** Bloquear la red no basta para simular
- *    «Chart.js no está»: el SW precachea el vendor y lo sirve de su caché,
- *    saltándose la intercepción de Playwright — el mismo mecanismo que sirve
- *    módulos viejos al desarrollar.
- * 2. **Bloquear `sw.js`.** Al recargar, `pwa.js` vuelve a registrarlo: sin esto
- *    el SW nuevo entra en carrera con el test y unas veces toma el control a
- *    tiempo de servir el vendor y otras no. Era el origen de que la misma
- *    ejecución pasara o fallara sin tocar nada.
- * 3. **Esperar a que `controller` sea null.** Desregistrar no es instantáneo: el
- *    SW sigue controlando la página hasta que la suelta.
- */
-async function sinServiceWorker(page) {
-    await page.route('**/sw.js', (route) => route.abort());
-    await page.evaluate(async () => {
-        for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
-        for (const k of await caches.keys()) await caches.delete(k);
-    });
-    await page.reload();
-    await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller === null))
-        .toBe(true);
-}
-
-/**
  * Despliega la tabla. Va PLEGADA por omisión a propósito —la gráfica es el
  * contenido principal, mismo criterio que la rejilla de músculo—, y dentro de un
  * `details` cerrado `innerText` devuelve cadena vacía.
@@ -312,20 +285,6 @@ test('a 320 px se dibuja más grueso, y el control refleja lo EFECTIVO', async (
     expect(desborda).toBe(false);
 });
 
-test('sin Chart.js la vista no ofrece nada destructivo', async ({ page }) => {
-    await sinServiceWorker(page);
-    await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
-    await page.reload();
-    // `navToAnalysis` y no `goToAnalysis`: aquí el lienzo NO va a dibujarse
-    // nunca, que es justo lo que se está comprobando.
-    await navToAnalysis(page);
-
-    const vista = page.locator('.view[data-view-id="analysis"]');
-    await expect(vista).toContainText(/no se ha podido|no está disponible/i);
-    // H-013: la salida de un error jamás es borrar datos.
-    await expect(vista.locator('[data-clear-all], [data-delete-profile], [data-reset]')).toHaveCount(0);
-});
-
 test('no hay errores de consola al recorrer la vista', async ({ page }) => {
     /** @type {string[]} */ const errores = [];
     page.on('console', (msg) => { if (msg.type() === 'error') errores.push(msg.text()); });
@@ -375,19 +334,6 @@ test('la unidad NO se repite: el nombre no la lleva y la cabecera sí', async ({
     expect(grasa).toBeTruthy();
     // «Grasa prevista (%) (%, Prevista)» era el defecto: la unidad dos veces.
     expect(grasa.match(/%/g)?.length ?? 0).toBe(1);
-});
-
-test('la tabla y el CSV sobreviven a que Chart.js no cargue', async ({ page }) => {
-    await sinServiceWorker(page);
-    await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
-    await page.reload();
-    await navToAnalysis(page);
-
-    // Los números son lo que el usuario vino a ver: un fallo de la librería de
-    // gráficos no puede llevárselos.
-    await openTable(page);
-    await expect(page.locator('[data-table] tbody tr').first()).toBeVisible();
-    await expect(page.locator('[data-csv]')).toBeVisible();
 });
 
 test('el CSV lleva ISO, separador del idioma, procedencia y sin fórmulas', async ({ page }) => {
@@ -466,4 +412,155 @@ test('a 320 px la tabla se desplaza sin desbordar el documento', async ({ page }
     });
     expect(r.desbordaDoc).toBe(false);
     expect(r.enfocable).toBe('0');
+});
+
+/* ---------------------------------------------------------------------- *
+ * Gestos (E13-7)
+ * ---------------------------------------------------------------------- */
+
+/** La ventana visible del lienzo, en índices de día. */
+function ventana(page) {
+    return page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+        const c = /** @type {*} */ (globalThis).Chart?.getChart(cv);
+        return c ? { from: c.options.scales.x.min, to: c.options.scales.x.max } : null;
+    });
+}
+
+test('la rueda SIN modificador no roba el desplazamiento de la página', async ({ page }) => {
+    await goToAnalysis(page);
+    const antes = await ventana(page);
+    // El lienzo NO está enfocado: la rueda es de la página. Robarla dejaría al
+    // usuario atrapado en una gráfica de 460 px de alto.
+    await page.locator('[data-canvas]').hover();
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(200);
+    expect(await ventana(page)).toEqual(antes);
+});
+
+test('la rueda con Ctrl hace zoom, y el periodo deja de decir «Todo»', async ({ page }) => {
+    await goToAnalysis(page);
+    const antes = await ventana(page);
+    await page.locator('[data-canvas]').hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -240);
+    await page.keyboard.up('Control');
+
+    await expect.poll(async () => {
+        const v = await ventana(page);
+        return v ? v.to - v.from : null;
+    }).toBeLessThan(antes.to - antes.from);
+
+    // Y ningún botón de periodo sigue pulsado: dejar «Todo» encendido mientras
+    // se mira un tramo sería un control afirmando lo que la gráfica contradice.
+    await expect(page.locator('[data-window][aria-pressed="true"]')).toHaveCount(0);
+});
+
+test('el zoom sobrevive a un redibujado: el preset no se lo come', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.locator('[data-canvas]').hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -240);
+    await page.keyboard.up('Control');
+    await expect.poll(async () => (await ventana(page)).to - (await ventana(page)).from)
+        .toBeLessThan(150);
+    const conZoom = await ventana(page);
+
+    // Cambiar de escala redibuja la gráfica entera. Sin `preset: custom`, la
+    // ventana se recalcularía desde el preset y el zoom se desharía solo.
+    await page.click('[data-normalize="delta"]');
+    await page.waitForTimeout(400);
+    expect(await ventana(page)).toEqual(conZoom);
+});
+
+test('doble clic devuelve el plan entero', async ({ page }) => {
+    await goToAnalysis(page);
+    const completo = await ventana(page);
+    await page.locator('[data-canvas]').hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -240);
+    await page.keyboard.up('Control');
+    await expect.poll(async () => (await ventana(page)).to - (await ventana(page)).from)
+        .toBeLessThan(completo.to - completo.from);
+
+    await page.locator('[data-canvas]').dblclick();
+    await expect.poll(() => ventana(page)).toEqual(completo);
+});
+
+test('un zoom NO pisa el periodo guardado', async ({ page }) => {
+    await goToAnalysis(page);
+    await page.click('[data-window="90"]');   // esto SÍ se guarda
+    await page.waitForTimeout(300);
+
+    await page.locator('[data-canvas]').hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -240);
+    await page.keyboard.up('Control');
+    await page.waitForTimeout(400);
+
+    // Dos índices de día solo significan algo dentro de ESTE plan: restaurarlos
+    // sobre uno recalibrado señalaría un tramo que ya no existe. El zoom vive en
+    // memoria y lo guardado sigue siendo el periodo que el usuario eligió.
+    const guardado = await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.settings'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{}').analysis?.window;
+    });
+    expect(guardado).toBe('90');
+});
+
+/* ---------------------------------------------------------------------- *
+ * Cuando Chart.js no está
+ * ---------------------------------------------------------------------- */
+
+test.describe('sin la librería de gráficos', () => {
+    // `serviceWorkers: 'block'` es la pieza que faltaba, y costó encontrarla:
+    // **`page.route` NO intercepta lo que sirve un service worker**. El SW ya
+    // estaba instalado con el vendor en su precaché antes de que el test
+    // pudiera bloquear nada, así que lo servía de su caché y la gráfica se
+    // dibujaba igual. Desregistrarlo a posteriori era una carrera de tres capas
+    // —SW, caché HTTP y el `pwa.js` que vuelve a registrarlo al recargar— y el
+    // test pasaba unas veces y fallaba otras. Impedir que exista lo resuelve de
+    // raíz, y de paso es lo que de verdad se quiere probar: la app SIN gráfica.
+    test.use({ serviceWorkers: 'block' });
+
+    test.beforeEach(async ({ page }) => {
+        await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
+        await page.goto('/');
+        await page.evaluate(() => localStorage.clear());
+        await page.reload();
+        await onboard(page);
+    });
+
+    test('sin Chart.js la vista no ofrece nada destructivo', async ({ page }) => {
+    // `navToAnalysis` y no `goToAnalysis`: aquí el lienzo NO va a dibujarse
+    // nunca, que es justo lo que se está comprobando.
+    await navToAnalysis(page);
+
+    const vista = page.locator('.view[data-view-id="analysis"]');
+    await expect(vista).toContainText(/no se ha podido|no está disponible/i);
+    // H-013: la salida de un error jamás es borrar datos.
+    await expect(vista.locator('[data-clear-all], [data-delete-profile], [data-reset]')).toHaveCount(0);
+});
+
+    test('la leyenda no anuncia puntos de un lienzo que no se dibujó', async ({ page }) => {
+        await navToAnalysis(page);
+        // El manifiesto dice lo que se DIBUJÓ. Con la gráfica caída eso es nada,
+        // y la leyenda tiene que decirlo: anunciar «24 puntos» de una serie que
+        // no está en ningún lienzo es la misma mentira, entrando por el caso de
+        // fallo en vez de por el normal.
+        for (const fila of await page.locator('[data-legend-row]').all()) {
+            await expect(fila).toHaveAttribute('data-state', 'emptyWindow');
+            await expect(fila).not.toContainText(/\d+ puntos/);
+        }
+    });
+
+    test('la tabla y el CSV sobreviven a que Chart.js no cargue', async ({ page }) => {
+    await navToAnalysis(page);
+
+    // Los números son lo que el usuario vino a ver: un fallo de la librería de
+    // gráficos no puede llevárselos.
+    await openTable(page);
+    await expect(page.locator('[data-table] tbody tr').first()).toBeVisible();
+    await expect(page.locator('[data-csv]')).toBeVisible();
+});
 });

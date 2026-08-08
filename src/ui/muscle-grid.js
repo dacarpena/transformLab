@@ -29,65 +29,11 @@ import { html } from './dom.js';
 import { t } from '../i18n/i18n.js';
 import { num } from './format.js';
 import { MUSCLE_GROUPS } from '../core/muscle-volume.js';
+import { pathOf, bandPath, sample } from './spark.js';
 
 /** Tamaño del lienzo de cada gráfica pequeña, en unidades de `viewBox`. */
 const W = 120;
 const H = 36;
-
-/**
- * Camino SVG de una serie, normalizado al lienzo.
- *
- * La escala vertical es COMÚN a la banda y a la línea, y se calcula sobre el
- * conjunto de los tres escenarios: con escalas distintas la banda podría salir
- * por debajo de la línea que envuelve, que es exactamente la clase de gráfica
- * que engaña sin mentir en ningún número.
- *
- * @param {number[]} values
- * @param {number} min
- * @param {number} max
- * @returns {string}
- */
-function pathOf(values, min, max) {
-    if (values.length === 0) return '';
-    const span = max - min;
-    // Una serie plana no puede dividir por cero: se dibuja en el centro.
-    const y = (/** @type {number} */ v) => (span <= 0 ? H / 2 : H - ((v - min) / span) * H);
-    const x = (/** @type {number} */ i) => (values.length === 1 ? 0 : (i / (values.length - 1)) * W);
-    return values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
-}
-
-/**
- * Área cerrada entre dos series, para pintar la banda.
- * @param {number[]} lower @param {number[]} upper @param {number} min @param {number} max
- * @returns {string}
- */
-function bandPath(lower, upper, min, max) {
-    if (lower.length === 0) return '';
-    const span = max - min;
-    const y = (/** @type {number} */ v) => (span <= 0 ? H / 2 : H - ((v - min) / span) * H);
-    const x = (/** @type {number} */ i) => (lower.length === 1 ? 0 : (i / (lower.length - 1)) * W);
-    const ida = upper.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
-    const vuelta = [...lower].reverse()
-        .map((v, i) => `L${x(lower.length - 1 - i).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
-    return `${ida} ${vuelta} Z`;
-}
-
-/**
- * Muestrea una serie larga a un número manejable de puntos.
- *
- * Un plan de 200 días son 200 puntos por grupo y 2 000 en la rejilla. A 120
- * unidades de ancho, más de ~60 puntos no añaden un píxel de información y sí
- * multiplican por tres el tamaño del documento.
- * @template T
- * @param {T[]} list
- * @param {number} maxPoints
- * @returns {T[]}
- */
-function sample(list, maxPoints = 60) {
-    if (list.length <= maxPoints) return list;
-    const step = (list.length - 1) / (maxPoints - 1);
-    return Array.from({ length: maxPoints }, (_, i) => list[Math.round(i * step)]);
-}
 
 /**
  * Una tarjeta: nombre, cifras y la gráfica pequeña.
@@ -116,8 +62,8 @@ function card(serie, todayIndex) {
     const svg = html`
         <svg class="muscle-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
              role="img" aria-label="${t(`muscle.${serie.group}`)}" focusable="false">
-            <path class="muscle-spark__band" d="${bandPath(pesimista, optimista, min, max)}"></path>
-            <path class="muscle-spark__line" d="${pathOf(esperado, min, max)}"></path>
+            <path class="muscle-spark__band" d="${bandPath(pesimista, optimista, min, max, W, H)}"></path>
+            <path class="muscle-spark__line" d="${pathOf(esperado, min, max, W, H)}"></path>
         </svg>
     `;
 

@@ -1014,4 +1014,5 @@ export const es = {
     'analysis.csv.hint': 'Fechas en formato AAAA-MM-DD. Los números y el separador siguen el idioma de la aplicación; la procedencia de cada serie va en su encabezado.',
     'analysis.csv.failed': 'No se ha podido preparar la descarga. Los datos siguen en la tabla.',
     'analysis.readout.hint': 'Flechas izquierda y derecha para moverte por las fechas; flechas arriba y abajo para cambiar de serie; Inicio y Fin para los extremos.',
+    'series.reason.noChart': 'No se ha podido dibujar',
 };

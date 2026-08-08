@@ -39,6 +39,7 @@ import { toCsv, toBlob, formatNumber } from '../csv.js';
 import { empty, error as errorState } from '../components/state.js';
 import { SERIES, UNITS, seriesById, resolveSeries } from '../../core/series-catalog.js';
 import { MAX_SERIES, PROVENANCE_STYLE } from '../series-style.js';
+import { attachGestures, clampWindow } from '../chart-gestures.js';
 
 /** @typedef {import('../../core/series-catalog.js').ResolvedSeries} ResolvedSeries */
 
@@ -59,7 +60,18 @@ const GROUP_ORDER = Object.freeze([
 ]);
 
 /** @type {string[]} */ let selected = [];
-/** @type {'all'|'phase'|'90'|'30'} */ let windowPreset = 'all';
+/**
+ * El periodo elegido. `custom` no es un botón: lo produce el zoom.
+ *
+ * SIN esta variante, la ventana se derivaría del preset en CADA redibujado y
+ * cualquier cosa que redibuje —marcar una serie, cambiar de escala— se comería
+ * el zoom del usuario al instante. Los gestos funcionarían y se desharían solos.
+ * @type {'all'|'phase'|'90'|'30'|'custom'}
+ */
+let windowPreset = 'all';
+/** Los límites que fijó el zoom, cuando el periodo es `custom`. @type {{from:number,to:number}|null} */
+let customBounds = null;
+/** @type {(() => void) | null} */ let detachGestures = null;
 /** @type {'day'|'week'|'month'} */ let grain = 'week';
 /** @type {'raw'|'delta'} */ let normalize = 'raw';
 /** @type {import('../../core/series-catalog.js').SeriesContext | null} */ let context = null;
@@ -106,6 +118,9 @@ function effectiveNormalize() {
 function windowBounds(data, todayIndex) {
     const total = data.plan.totalDays;
     const clamp = (/** @type {number} */ v) => Math.min(Math.max(Math.round(v), 0), total);
+    if (windowPreset === 'custom' && customBounds) {
+        return clampWindow(customBounds.from, customBounds.to, { from: 0, to: total });
+    }
     if (windowPreset === 'phase') {
         let start = 0;
         for (const phase of data.plan.phases) {
@@ -521,6 +536,66 @@ async function redraw(/** @type {HTMLElement} */ container) {
     }
 
     renderHints(container, data);
+    wireGestures(container, canvas, data);
+}
+
+/**
+ * Conecta los gestos al lienzo recién dibujado.
+ *
+ * Se reconecta en cada dibujado porque `render` recrea el nodo del lienzo; lo
+ * primero es soltar los anteriores, o cada redibujado dejaría otra capa de
+ * escuchas sobre un nodo muerto.
+ * @param {HTMLElement} container @param {HTMLCanvasElement} canvas @param {*} data
+ */
+function wireGestures(container, canvas, data) {
+    detachGestures?.();
+    const instancia = chartInstance;
+    if (!instancia) return;
+    const total = data.plan.totalDays;
+
+    detachGestures = attachGestures(canvas, {
+        getWindow: () => {
+            const today = plans.todayIndex(data, plans.todayISO());
+            return windowBounds(data, today.dayIndex);
+        },
+        getBounds: () => ({ from: 0, to: total }),
+        dayAtPixel: (px) => {
+            const escala = /** @type {*} */ (instancia).scaleX?.() ?? null;
+            if (escala) return escala(px);
+            // Sin acceso a la escala, se interpola sobre la ventana visible.
+            const today = plans.todayIndex(data, plans.todayISO());
+            const w = windowBounds(data, today.dayIndex);
+            return w.from + (px / Math.max(1, canvas.clientWidth)) * (w.to - w.from);
+        },
+        pixelsPerDay: () => {
+            const today = plans.todayIndex(data, plans.todayISO());
+            const w = windowBounds(data, today.dayIndex);
+            return canvas.clientWidth / Math.max(1, w.to - w.from);
+        },
+        onWindow: (from, to) => {
+            windowPreset = 'custom';
+            customBounds = { from, to };
+            // `setWindow` mueve la escala sin reconstruir la gráfica: es lo que
+            // permite que un gesto continuo se sienta continuo.
+            instancia.setWindow(from, to);
+            refreshWindowButtons(container);
+        }
+    });
+}
+
+/**
+ * Apaga los botones de periodo cuando la ventana ya no es la de ninguno.
+ *
+ * Dejar «Todo» pulsado mientras se mira un tramo de treinta días sería el mismo
+ * defecto que la leyenda mentirosa: un control afirmando algo que la gráfica
+ * contradice.
+ * @param {HTMLElement} container
+ */
+function refreshWindowButtons(container) {
+    for (const boton of container.querySelectorAll('[data-window]')) {
+        boton.setAttribute('aria-pressed',
+            boton.getAttribute('data-window') === windowPreset ? 'true' : 'false');
+    }
 }
 
 /** Cuántas filas se enseñan antes de pedir permiso para el resto. */
@@ -637,7 +712,15 @@ function resolveSelection(/** @type {*} */ data) {
 /** Guarda el estado de la vista. Si falla, se avisa pero NO se revierte nada. */
 function persist() {
     const r = settingsStore.patch({
-        analysis: { seriesIds: selected.slice(0, MAX_SERIES), window: windowPreset, grain, normalize }
+        analysis: {
+            seriesIds: selected.slice(0, MAX_SERIES),
+            // Un zoom son dos índices de día que solo significan algo dentro de
+            // ESTE plan: restaurarlos sobre uno recalibrado señalaría un tramo
+            // que ya no existe. Al recargar se vuelve al plan entero, que es un
+            // sitio del que se sabe salir.
+            window: windowPreset === 'custom' ? 'all' : windowPreset,
+            grain, normalize
+        }
     });
     if (!r.ok) toast.error('analysis.saveFailed');
 }
@@ -730,6 +813,7 @@ function wire(/** @type {HTMLElement} */ container) {
 
     on(container, 'click', '[data-window]', async (_event, target) => {
         windowPreset = /** @type {*} */ (target.getAttribute('data-window'));
+        customBounds = null;
         persist();
         await refresh(container);
     });
@@ -745,6 +829,7 @@ function wire(/** @type {HTMLElement} */ container) {
     });
     on(container, 'click', '[data-widen-window]', async () => {
         windowPreset = 'all';
+        customBounds = null;
         persist();
         await refresh(container);
     });
@@ -904,6 +989,10 @@ function openPicker(/** @type {HTMLElement} */ container) {
 }
 
 export function unmount() {
+    detachGestures?.();
+    detachGestures = null;
+    windowPreset = 'all';
+    customBounds = null;
     showAllRows = false;
     chartInstance?.destroy();
     chartInstance = null;

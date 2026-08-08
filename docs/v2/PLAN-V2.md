@@ -864,7 +864,7 @@ etiquetadas de estimación · legibilidad primero.
 - [x] **E13-4 · Modo «cambio desde el inicio» + rebase en `setWindow`**
 - [x] **E13-5 · Vista «Analizar»: selector, leyenda y procedencia**
 - [x] **E13-6 · Lectura accesible con N series, tabla y CSV**
-- [ ] E13-7 · Gestos, tira de contexto y preset «custom»
+- [x] **E13-7 · Gestos y preset «custom»**
 
 ## Bitácora
 
@@ -1145,3 +1145,44 @@ carrera para servir el vendor de su caché. Ahora se bloquea también `sw.js` y 
 espera a que `controller` sea null — cuatro pasadas seguidas en verde.
 
 **795 unitarios · 185 E2E · typecheck limpio.**
+
+### E13-7 — gestos sin dependencias, y una mentira que se coló por el caso de fallo
+
+Rueda, arrastre, pellizco y doble clic, **sin `chartjs-plugin-zoom`**: todo pasa
+por `setWindow`, que ya movía la ventana sin reconstruir la gráfica. Tres
+decisiones que no son de implementación:
+
+- **La rueda solo hace zoom con `Ctrl`/`⌘` o con el lienzo enfocado.** Una rueda
+  que siempre llama a `preventDefault` deja al usuario atrapado en una gráfica de
+  460 px de alto. Hay test de que sin modificador la ventana no se mueve.
+- **Un movimiento por fotograma**, coalescido con `requestAnimationFrame`: un
+  trackpad dispara decenas de eventos por gesto y sin esto el zoom se vuelve
+  pegajoso justo cuando debería ir fluido.
+- **Menos de cuatro píxeles no es un arrastre, es un clic.** Sin ese umbral, el
+  temblor de un dedo convertiría cada toque en un paneo minúsculo.
+
+**`preset: 'custom'` es lo que hace que el zoom SOBREVIVA.** La ventana se
+derivaba del preset en cada redibujado, así que cualquier cosa que redibujara
+—marcar una serie, cambiar de escala— se comía el zoom al instante: los gestos
+habrían funcionado y se habrían deshecho solos. Y al hacer zoom **ningún botón de
+periodo queda pulsado**: dejar «Todo» encendido mientras se mira un tramo de
+treinta días sería un control afirmando lo que la gráfica contradice. El zoom NO
+se persiste — dos índices de día solo significan algo dentro de ESTE plan.
+
+`spark.js` recoge la geometría de sparkline que vivía en `muscle-grid.js`; la
+excepción de `toFixed` se mudó con el código, que es donde tenía que estar.
+
+**Un test intermitente que resultó ser un defecto real.** El de «sin Chart.js»
+pasaba unas veces y fallaba otras. Tras descartar tiempos, la causa era que
+**`page.route` NO intercepta lo que sirve un service worker**: el SW ya tenía el
+vendor en su precaché antes de que el test pudiera bloquear nada. La solución es
+`test.use({ serviceWorkers: 'block' })` — impedir que exista, en vez de pelearse
+con él.
+
+Y al mirar de cerca apareció lo importante: **cuando el dibujado fallaba,
+`drawMulti` devolvía el manifiesto con «24 puntos» de series que nunca se
+pintaron**. La leyenda mentirosa que esta etapa entera existe para hacer
+imposible, colada por la puerta de atrás del caso de fallo. Ahora el manifiesto
+de un fallo reporta cero puntos con motivo, y hay un test que lo vigila.
+
+**802 unitarios · 191 E2E · typecheck limpio.**
