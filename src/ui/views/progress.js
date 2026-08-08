@@ -11,6 +11,7 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
+import { shortDate } from '../dates.js';
 import { SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as plans from '../plan-state.js';
@@ -32,7 +33,7 @@ function renderHistory(/** @type {*} */ evaluations) {
                     <li class="profile-item">
                         <span>
                             <strong class="numeric">${num(e.actualKg)} ${t('today.unit.kg')}</strong>
-                            <span class="muted"> · ${e.dateISO}</span>
+                            <span class="muted"> · ${shortDate(e.dateISO)}</span>
                         </span>
                         <span>
                             <span class="signal signal--${e.signal}">${t(`deviation.${e.signal}`)}</span>
@@ -115,7 +116,7 @@ function renderMuscle(data, evaluations) {
                     <li class="profile-item">
                         <span>
                             <strong class="numeric">${num(r.actual)} ${t('today.unit.kg')}</strong>
-                            <span class="muted"> · ${r.dateISO}</span>
+                            <span class="muted"> · ${shortDate(r.dateISO)}</span>
                         </span>
                         <span class="muted numeric">
                             ${t('progress.muscle.expected', { value: num(r.expected) })}
@@ -180,9 +181,9 @@ function renderStreak(/** @type {*} */ items, /** @type {*} */ startDateISO) {
                 ${calendar.map((day) => html`
                     <li class="calendar__cell"
                         data-css-level="${day.adherence === null ? 0 : day.adherence / 10}"
-                        title="${day.dateISO}">
+                        title="${shortDate(day.dateISO)}">
                         <span class="visually-hidden">
-                            ${day.dateISO}: ${day.adherence === null
+                            ${shortDate(day.dateISO)}: ${day.adherence === null
                                 ? t('streak.noAdherence')
                                 : t('checkin.subjective.scale', { value: day.adherence })}
                         </span>

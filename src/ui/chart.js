@@ -19,7 +19,7 @@
 import { html, render } from './dom.js';
 import { t } from '../i18n/i18n.js';
 import { muscleUnitsFor } from './muscle-units.js';
-import { axisLabel } from './dates.js';
+import { axisLabel, longDate } from './dates.js';
 
 /** @typedef {import('../core/generator.js').Projection} Projection */
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
@@ -581,7 +581,9 @@ export function announce(readout, projection, index) {
             : t('chart.kcalEven');
         readout.textContent = t('chart.readoutKcal', {
             day: point.dayIndex,
-            date: point.dateISO,
+            // Fecha larga y no ISO: esto lo LEE un lector de pantalla, donde
+            // «dos mil veintiséis guion cero ocho» es lo peor de los dos mundos.
+            date: longDate(point.dateISO),
             target: point.kcal.targetKcal,
             tdee: point.kcal.tdeeKcal,
             balance,
@@ -591,7 +593,7 @@ export function announce(readout, projection, index) {
     }
     readout.textContent = t('chart.readout', {
         day: point.dayIndex,
-        date: point.dateISO,
+        date: longDate(point.dateISO),
         weight: (point.weightKg + point.fluctuationKg).toFixed(1),
         fat: point.fatPct.toFixed(1),
         muscle: muscleUnits.toDisplay(point.muscleKg).toFixed(1),

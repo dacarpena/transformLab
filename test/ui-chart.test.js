@@ -31,7 +31,7 @@ import {
     seriesAnchors,
     setWindow
 } from '../src/ui/chart.js';
-import { shortDate, monthYear, axisLabel } from '../src/ui/dates.js';
+import { shortDate, monthYear, axisLabel, longDate } from '../src/ui/dates.js';
 import { muscleUnitsFor } from '../src/ui/muscle-units.js';
 import { makeComposition, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
@@ -166,7 +166,9 @@ test('announce describe el punto con sus tres métricas y su fase', () => {
 
     const d0 = proj.daily[0];
     assert.match(r.textContent, /Día 0/);
-    assert.match(r.textContent, new RegExp(d0.dateISO));
+    // Fecha legible, NO el ISO: esto lo lee un lector de pantalla (M7-4).
+    assert.equal(r.textContent.includes(d0.dateISO), false, `ISO crudo en la lectura: ${r.textContent}`);
+    assert.match(r.textContent, new RegExp(longDate(d0.dateISO)));
     assert.match(r.textContent, new RegExp(d0.weightKg.toFixed(1).replace('.', '\\.')));
     assert.ok(!r.textContent.includes('{'), `quedó un placeholder: ${r.textContent}`);
     // la fase va traducida, no como código interno

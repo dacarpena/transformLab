@@ -10,6 +10,7 @@
 
 import { html, render } from '../dom.js';
 import { t, getLocale } from '../../i18n/i18n.js';
+import { shortDate } from '../dates.js';
 import * as plans from '../plan-state.js';
 import { aestheticMilestonesFor, nextAesthetic, byCategory, textOf } from '../../core/milestones.js';
 import { empty } from '../components/state.js';
@@ -66,7 +67,7 @@ export function mount(container) {
                 </div>
                 <p><strong>${catalogText(next.title)}</strong></p>
                 <p class="secondary">${catalogText(next.description)}</p>
-                <p class="muted">${t('milestones.onDay', { day: next.dayIndex, date: next.dateISO })}</p>
+                <p class="muted">${t('milestones.onDay', { day: next.dayIndex, date: shortDate(next.dateISO) })}</p>
             </section>
         ` : ''}
 
@@ -103,7 +104,7 @@ export function mount(container) {
                         <span class="muted numeric">
                             ${m.fromStart
                                 ? t('milestones.fromStart')
-                                : html`${m.reached ? '✓ ' : ''}${t('milestones.onDay', { day: m.dayIndex, date: m.dateISO })}`}
+                                : html`${m.reached ? '✓ ' : ''}${t('milestones.onDay', { day: m.dayIndex, date: shortDate(m.dateISO) })}`}
                         </span>
                     </li>
                 `)}

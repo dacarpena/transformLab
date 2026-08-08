@@ -11,64 +11,16 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
-import { SCHEMA_VERSION, validateCollection, sanitizeText } from '../../data/schema.js';
-import * as storage from '../../data/storage.js';
+import { shortDate } from '../dates.js';
+import { sanitizeText } from '../../data/schema.js';
+import * as trainingStore from '../../data/training.js';
+import { exercisesOf } from '../../data/training.js';
 import * as plans from '../plan-state.js';
 import { personalRecord, newRecordsIn, suggestProgression, sessionVolumeKg, estimatedOneRepMax } from '../../core/training.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty } from '../components/state.js';
 import { num } from '../format.js';
-
-/** @returns {{ routine: any, sessions: any[] }} */
-function readTraining() {
-    const stored = storage.get('training');
-    if (!stored.ok || stored.value === null) return { routine: null, sessions: [] };
-    const parsed = validateCollection('training', stored.value);
-    if (!parsed.ok) return { routine: null, sessions: [] };
-    return { routine: parsed.value.routine, sessions: parsed.value.sessions };
-}
-
-/** @param {{ routine: any, sessions: any[] }} data @returns {boolean} */
-function writeTraining(data) {
-    const record = { schemaVersion: SCHEMA_VERSION, routine: data.routine, sessions: data.sessions };
-    const checked = validateCollection('training', record);
-    if (!checked.ok) return false;
-    return storage.set('training', checked.value).ok;
-}
-
-/** Ejercicios de la rutina, aplanados. */
-function exercisesOf(/** @type {*} */ routine) {
-    if (!routine || !Array.isArray(routine.days)) return [];
-    return routine.days.flatMap((/** @type {*} */ day) => (Array.isArray(day.exercises) ? day.exercises : []));
-}
-
-/**
- * Id nuevo que NO colisiona con ninguno existente.
- *
- * El generador anterior era `ex_${existing.length + 1}_${nombre}`, y eso
- * reutiliza el índice tras un borrado: añadir «Curl», añadir «Curl», borrar el
- * primero y añadir «Curl» otra vez producía dos ejercicios con el mismo id.
- * A partir de ahí, el modal de sesión leía siempre el primer campo (perdiendo
- * lo tecleado en el segundo) y borrar uno borraba los dos.
- *
- * El id se restringe además a `[A-Za-z0-9_]`, para que nunca pueda romper un
- * selector CSS ni el esquema de validación.
- * @param {Array<{id?: string}>} existing
- * @param {string} name
- * @returns {string}
- */
-function freshExerciseId(existing, name) {
-    const taken = new Set(existing.map((e) => e?.id).filter(Boolean));
-    const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || 'ex';
-    let n = existing.length + 1;
-    let id = `ex_${n}_${slug}`;
-    while (taken.has(id)) {
-        n += 1;
-        id = `ex_${n}_${slug}`;
-    }
-    return id;
-}
 
 function renderRoutine(/** @type {*} */ data) {
     const exercises = exercisesOf(data.routine);
@@ -124,7 +76,7 @@ function renderSessions(/** @type {*} */ data) {
             <ul class="profile-list">
                 ${[...data.sessions].reverse().slice(0, 12).map((s) => html`
                     <li class="profile-item">
-                        <span>${s.dateISO}</span>
+                        <span>${shortDate(s.dateISO)}</span>
                         <span class="muted numeric">${t('training.volume', { kg: Math.round(sessionVolumeKg(s)) })}</span>
                     </li>
                 `)}
@@ -135,7 +87,7 @@ function renderSessions(/** @type {*} */ data) {
 
 /** @param {HTMLElement} container */
 function draw(container) {
-    const data = readTraining();
+    const data = trainingStore.read();
     render(container, html`
         <h1 class="card__title">${t('training.title')}</h1>
         ${renderRoutine(data)}
@@ -180,13 +132,9 @@ export function mount(container) {
             const sets = Math.max(1, Math.round(Number(/** @type {HTMLInputElement | null} */ (dialog.querySelector('[data-sets]'))?.value) || 3));
             const reps = Math.max(1, Math.round(Number(/** @type {HTMLInputElement | null} */ (dialog.querySelector('[data-reps]'))?.value) || 10));
 
-            const data = readTraining();
-            const existing = exercisesOf(data.routine);
-            const id = freshExerciseId(existing, name);
-            const routine = data.routine ?? { days: [{ name: t('training.routine'), exercises: [] }] };
-            routine.days[0].exercises = [...(routine.days[0].exercises ?? []), { id, name, sets, reps, loadKg: null }];
-
-            if (!writeTraining({ ...data, routine })) {
+            const added = trainingStore.addExercise(
+                { name, sets, reps }, { dayName: t('training.routine') });
+            if (!added.ok) {
                 toast.error('error.generic');
                 return;
             }
@@ -198,12 +146,7 @@ export function mount(container) {
     on(container, 'click', '[data-remove-exercise]', (_event, target) => {
         const id = target.getAttribute('data-remove-exercise');
         if (!id) return;
-        const data = readTraining();
-        if (!data.routine) return;
-        data.routine.days = data.routine.days.map((/** @type {*} */ day) => ({
-            ...day, exercises: (day.exercises ?? []).filter((/** @type {*} */ ex) => ex.id !== id)
-        }));
-        if (!writeTraining(data)) {
+        if (!trainingStore.removeExercise(id).ok) {
             toast.error('error.generic');
             return;
         }
@@ -211,7 +154,7 @@ export function mount(container) {
     });
 
     on(container, 'click', '[data-log-session]', () => {
-        const data = readTraining();
+        const data = trainingStore.read();
         const exercises = exercisesOf(data.routine);
         if (exercises.length === 0) return;
 
@@ -263,11 +206,8 @@ export function mount(container) {
                 modal.close();
                 return;
             }
-            const fresh = readTraining();
-            const id = `s_${dateISO}`;
-            const sessions = [...fresh.sessions.filter((s) => s.id !== id), { id, dateISO, entries }];
-
-            if (!writeTraining({ ...fresh, sessions })) {
+            const saved = trainingStore.saveSession({ dateISO, entries });
+            if (!saved.ok) {
                 toast.error('error.generic');
                 return;
             }
@@ -275,7 +215,7 @@ export function mount(container) {
 
             // los récords se anuncian DESPUÉS de guardar, comparando contra
             // todo el histórico anterior
-            const records = newRecordsIn(sessions, id);
+            const records = newRecordsIn(saved.value.sessions, trainingStore.sessionIdFor(dateISO));
             for (const exerciseId of records) {
                 const ex = exercises.find((/** @type {*} */ e) => e.id === exerciseId);
                 if (ex) toast.success('training.newRecord', { exercise: ex.name });
@@ -296,7 +236,7 @@ export function mount(container) {
  * decisión E9c descarta.
  */
 export function recordCount() {
-    const data = readTraining();
+    const data = trainingStore.read();
     const ordered = [...data.sessions].sort((a, b) => String(a.dateISO).localeCompare(String(b.dateISO)));
     let total = 0;
     for (let i = 0; i < ordered.length; i += 1) {
@@ -307,7 +247,7 @@ export function recordCount() {
 
 /** 1RM estimado del mejor ejercicio, para la tarjeta compartible. */
 export function bestEstimatedOneRepMax() {
-    const data = readTraining();
+    const data = trainingStore.read();
     let best = 0;
     for (const ex of exercisesOf(data.routine)) {
         const pr = personalRecord(data.sessions, ex.id);

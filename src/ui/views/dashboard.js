@@ -16,6 +16,7 @@ import { t } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
+import { drawPlanChart } from '../plan-chart.js';
 import * as modal from '../components/modal.js';
 import * as checkins from '../../data/checkins.js';
 import { evaluateSeries } from '../../core/tracking.js';
@@ -218,48 +219,9 @@ function renderChartSection(/** @type {*} */ data) {
  * primero del documento.
  */
 async function redraw(/** @type {*} */ container) {
-    const data = plans.get();
-    if (!data) return;
-    const host = container.querySelector('[data-chart-host]');
-    const canvas = /** @type {HTMLCanvasElement | null} */ (container.querySelector('[data-canvas]'));
-    const readout = /** @type {HTMLElement | null} */ (container.querySelector('[data-readout]'));
-    if (!host || !canvas || !readout) return;
-
-    if (!await chart.ensureLoaded()) {
-        chart.renderFallback(/** @type {HTMLElement} */ (host));
-        return;
-    }
-    // El usuario puede haber cambiado de vista mientras llegaba el vendor.
-    if (!container.isConnected) return;
-
-    const today = plans.todayIndex(data, plans.todayISO());
-    const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
-    const ok = chart.draw({
-        canvas,
-        readout,
-        projection: data.projection,
-        metric: 'weight',
-        muscle: muscleUnitsOf(data),
-        todayIndex: today.dayIndex,
-        range: { from: 0, to: data.plan.totalDays },
-        checkins: evaluations.map((e) => ({
-            dayIndex: e.dayIndex,
-            actualKg: e.actualKg,
-            fatPct: checkins.findByDate(e.dateISO)?.fatPct ?? null,
-            signal: e.signal
-        })),
-        onMilestone: (m) => {
-            modal.open({
-                titleKey: 'chart.milestoneModalTitle',
-                size: 'sm',
-                body: html`
-                    <p>${chart.milestoneLabel(m, muscleUnitsOf(data))}</p>
-                    <p class="muted">${t('chart.milestoneDay', { day: m.dayIndex, date: m.dateISO })}</p>
-                `
-            });
-        }
-    });
-    if (!ok) chart.renderFallback(/** @type {HTMLElement} */ (host));
+    // Métrica y rango los fija esta vista; el resto es común con Proyección y
+    // vive en `plan-chart.js` desde M7-4, cuando las dos copias divergieron.
+    await drawPlanChart(container, { metric: 'weight' });
 }
 
 /**

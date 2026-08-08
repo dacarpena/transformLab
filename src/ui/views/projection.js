@@ -27,6 +27,7 @@ import { html, raw, render, on } from '../dom.js';
 import { t, getLocale } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import * as chart from '../chart.js';
+import { drawPlanChart } from '../plan-chart.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import * as checkins from '../../data/checkins.js';
@@ -34,8 +35,8 @@ import * as storage from '../../data/storage.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import { shortDate, longDate } from '../dates.js';
 import { buildTimeline, groupByPhase } from '../../core/timeline.js';
-import { aestheticMilestonesFor, textOf } from '../../core/milestones.js';
 import { evaluateSeries } from '../../core/tracking.js';
+import { aestheticMilestonesFor, textOf } from '../../core/milestones.js';
 import { empty, error as errorState } from '../components/state.js';
 import { num } from '../format.js';
 
@@ -521,7 +522,7 @@ function renderTimeline(data, today) {
                     ${g.events.map((/** @type {*} */ e) => {
                         const inner = html`
                             <span class="timeline__dot ${e.kind === 'aesthetic' ? 'timeline__dot--hollow' : (e.phaseType ? `is-phase-${e.phaseType}` : '')}" aria-hidden="true"></span>
-                            <span class="timeline__when numeric">${e.beforePlan ? shortDate(e.dateISO) : shortDate(e.dateISO)}</span>
+                            <span class="timeline__when numeric">${shortDate(e.dateISO)}</span>
                             <span class="timeline__what">${eventContent(e, muscle)}</span>
                         `;
                         const marker = g.current && e.dayIndex > today.dayIndex && !g.events.slice(0, g.events.indexOf(e)).some((/** @type {*} */ p) => p.dayIndex > today.dayIndex)
@@ -609,65 +610,21 @@ function draw(container) {
     void redraw(container);
 }
 
-/** Redibuja el lienzo. Asíncrona porque Chart.js se carga bajo demanda. */
+/**
+ * Redibuja el lienzo con la métrica, granularidad y ventana de ESTA vista.
+ * El resto —cargar el vendor, evaluar los check-ins, el modal del hito— es
+ * común con Hoy y vive en `plan-chart.js` desde M7-4, cuando las dos copias
+ * llevaban ya dos divergencias que nadie había decidido.
+ */
 async function redraw(/** @type {*} */ container) {
     const data = plans.get();
     if (!data) return;
-    const host = container.querySelector('[data-chart-host]');
-    const canvas = /** @type {HTMLCanvasElement | null} */ (container.querySelector('[data-canvas]'));
-    const readout = /** @type {HTMLElement | null} */ (container.querySelector('[data-readout]'));
-    if (!host || !canvas || !readout) return;
+    const { ok, checkinCount } = await drawPlanChart(container, { metric, grain, range: windowBounds });
+    if (!ok) return;
 
-    if (!await chart.ensureLoaded()) {
-        chart.renderFallback(/** @type {HTMLElement} */ (host));
-        return;
-    }
-    // el usuario pudo cambiar de vista mientras llegaba el vendor
-    if (!container.isConnected) return;
-
-    const today = plans.todayIndex(data, plans.todayISO());
-    const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
-    const ok = chart.draw({
-        canvas,
-        readout,
-        projection: data.projection,
-        metric,
-        grain,
-        muscle: muscleUnitsOf(data),
-        todayIndex: today.dayIndex,
-        range: windowBounds(data, today.dayIndex),
-        checkins: evaluations.map((e) => {
-            const record = checkins.findByDate(e.dateISO);
-            return {
-                dayIndex: e.dayIndex,
-                actualKg: e.actualKg,
-                fatPct: record?.fatPct ?? null,
-                // Sin reenviar esto, la métrica de músculo no dibujaba NINGÚN
-                // check-in aunque el perfil fuera de báscula y lo hubiera
-                // guardado: `chart.js` filtra por `scaleMuscleKg` y aquí
-                // llegaba undefined. La funcionalidad de E12-7 quedaba muerta.
-                scaleMuscleKg: record?.scaleMuscleKg ?? null,
-                signal: e.signal
-            };
-        }),
-        onMilestone: (m) => {
-            modal.open({
-                titleKey: 'chart.milestoneModalTitle',
-                size: 'sm',
-                body: html`
-                    <p>${chart.milestoneLabel(m, muscleUnitsOf(data))}</p>
-                    <p class="muted">${t('chart.milestoneDay', { day: m.dayIndex, date: longDate(m.dateISO) })}</p>
-                `
-            });
-        }
-    });
-    if (!ok) {
-        chart.renderFallback(/** @type {HTMLElement} */ (host));
-        return;
-    }
     const legendHost = container.querySelector('[data-legend]');
     if (legendHost) {
-        render(/** @type {HTMLElement} */ (legendHost), renderLegend(evaluations.length > 0, muscleUnitsOf(data)));
+        render(/** @type {HTMLElement} */ (legendHost), renderLegend(checkinCount > 0, muscleUnitsOf(data)));
     }
 }
 

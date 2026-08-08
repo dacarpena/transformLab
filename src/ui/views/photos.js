@@ -11,6 +11,7 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
+import { shortDate } from '../dates.js';
 import { SCHEMA_VERSION, validateCollection } from '../../data/schema.js';
 import * as storage from '../../data/storage.js';
 import * as photosDb from '../../data/photos-db.js';
@@ -132,7 +133,7 @@ async function draw(container) {
                         <span class="field__label">${t('photos.before')}</span>
                         <select class="input" data-before>
                             ${withBlobs.map((p) => html`
-                                <option value="${p.id}" ${p.id === comparison.before ? 'selected' : ''}>${p.dateISO}</option>
+                                <option value="${p.id}" ${p.id === comparison.before ? 'selected' : ''}>${shortDate(p.dateISO)}</option>
                             `)}
                         </select>
                     </label>
@@ -140,19 +141,19 @@ async function draw(container) {
                         <span class="field__label">${t('photos.after')}</span>
                         <select class="input" data-after>
                             ${withBlobs.map((p) => html`
-                                <option value="${p.id}" ${p.id === comparison.after ? 'selected' : ''}>${p.dateISO}</option>
+                                <option value="${p.id}" ${p.id === comparison.after ? 'selected' : ''}>${shortDate(p.dateISO)}</option>
                             `)}
                         </select>
                     </label>
                 </div>
                 <div class="photo-compare">
                     <figure>
-                        <img src="${before?.url ?? ''}" alt="${t('photos.before')}: ${before?.dateISO ?? ''}">
-                        <figcaption>${before?.dateISO ?? ''}</figcaption>
+                        <img src="${before?.url ?? ''}" alt="${t('photos.before')}: ${before ? shortDate(before.dateISO) : ''}">
+                        <figcaption>${before ? shortDate(before.dateISO) : ''}</figcaption>
                     </figure>
                     <figure>
-                        <img src="${after?.url ?? ''}" alt="${t('photos.after')}: ${after?.dateISO ?? ''}">
-                        <figcaption>${after?.dateISO ?? ''}</figcaption>
+                        <img src="${after?.url ?? ''}" alt="${t('photos.after')}: ${after ? shortDate(after.dateISO) : ''}">
+                        <figcaption>${after ? shortDate(after.dateISO) : ''}</figcaption>
                     </figure>
                 </div>
             </section>
@@ -166,9 +167,9 @@ async function draw(container) {
                     <ul class="photo-grid">
                         ${withBlobs.map((p) => html`
                             <li class="photo-item">
-                                <img src="${p.url}" alt="${p.dateISO}" loading="lazy">
+                                <img src="${p.url}" alt="${shortDate(p.dateISO)}" loading="lazy">
                                 <div class="photo-item__bar">
-                                    <span class="muted">${p.dateISO}</span>
+                                    <span class="muted">${shortDate(p.dateISO)}</span>
                                     <button type="button" class="btn btn--sm btn--danger"
                                             data-delete-photo="${p.id}" data-date="${p.dateISO}">
                                         ${t('action.delete')}

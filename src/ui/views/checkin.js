@@ -12,6 +12,7 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
+import { shortDate } from '../dates.js';
 import { MEASURE_KEYS, SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
@@ -156,7 +157,7 @@ function renderHistory(/** @type {*} */ items) {
                     return html`
                         <li class="profile-item">
                             <span>
-                                ${t('checkin.entry', { date: item.dateISO, weight: num(item.weightKg) })}
+                                ${t('checkin.entry', { date: shortDate(item.dateISO), weight: num(item.weightKg) })}
                                 ${signal ? html`<span class="signal signal--${signal}">${t(`deviation.${signal}`)}</span>` : ''}
                             </span>
                             <button type="button" class="btn btn--sm" data-edit="${item.dateISO}">${t('action.edit') !== 'action.edit' ? t('action.edit') : t('checkin.edit')}</button>

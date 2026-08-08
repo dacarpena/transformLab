@@ -718,7 +718,7 @@ los otros.
 - [x] M7-1 · Defectos reales y promesas incumplidas: `formatBytes` unificado (una foto de 500 B se leía «0 KB» en Fotos y «500 B» en Ajustes), el historial de planes que `recal.explain` prometía y no se podía abrir, los `role="alert"` sin salida de `nutrition` y `body`, y la fuga de URLs de objeto de `photos.js`.
 - [x] M7-2 · `src/ui/` entra en el comprobador de tipos. Los 24 ficheros declaraban `// @ts-check` sin estar incluidos en `tsconfig.json`: 7 053 líneas, la mitad del código, escribiendo JSDoc sin cobrar el beneficio. Aparecieron 10 errores reales, casi todos en la frontera core↔UI con el patrón `Result<T>`.
 - [x] M7-3 · Manifiesto único de vistas (`main.js` y los tres specs beben de él) y test que ate `CACHE_VERSION` al contenido de `PRECACHE`.
-- [ ] M7-4 · Helpers compartidos (`redraw` de la gráfica, `dates.js` en todas las vistas) y `src/data/nutrition.js` + `src/data/training.js`, hoy sin un solo test porque su persistencia vive dentro de la vista.
+- [x] M7-4 · Helpers compartidos (`redraw` de la gráfica, `dates.js` en todas las vistas) y `src/data/nutrition.js` + `src/data/training.js`, hoy sin un solo test porque su persistencia vive dentro de la vista.
 - [x] M7-5 · El N+1 cuadrático de check-ins.
 - [ ] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
 - [ ] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
@@ -726,6 +726,26 @@ los otros.
 - [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
 
 ### Bitácora M7
+
+**M7-4 (2026-08-08) · lo compartido deja de estar copiado.** `redraw` estaba
+duplicado casi línea a línea entre Hoy y Proyección, y ya llevaba DOS
+divergencias que nadie había decidido: Hoy no reenviaba `scaleMuscleKg` (latente
+solo porque su métrica es fija) y formateaba la fecha del hito en ISO crudo.
+Ahora `src/ui/plan-chart.js` lo hace una vez y las vistas solo pasan lo que
+cambia: métrica, granularidad y ventana.
+
+`src/data/nutrition.js` y `src/data/training.js` sacan la persistencia de dentro
+de las vistas, que era la razón de que esas dos no tuvieran **ni un test** desde
+M5: no había nada importable desde Node que probar. Y lo que había ahí dentro no
+era pintar, era integridad de datos — el generador de ids que no colisionan tras
+un borrado, la sesión que reemplaza en vez de duplicar, la validación previa a
+escribir. 22 tests nuevos.
+
+`dates.js` pasa de una vista a siete. La misma fecha se leía «14 de febrero de
+2027» en Proyección y «2027-02-14» en Check-in, Progreso, Hitos, Fotos y
+Entreno. **Y en la lectura accesible de la gráfica**, que es la que oye un lector
+de pantalla: eso solo apareció mirándolo en el navegador, no en los tests, y es
+donde más molestaba.
 
 **M7-3 (2026-08-08) · añadir una vista cuesta un sitio.** `src/ui/views/_manifest.js`
 declara qué vistas hay, cómo se llaman, en qué orden salen y cuáles caben en la

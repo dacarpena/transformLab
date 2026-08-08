@@ -11,8 +11,8 @@
 
 import { html, render, on } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
-import { SCHEMA_VERSION, validateCollection, sanitizeText } from '../../data/schema.js';
-import * as storage from '../../data/storage.js';
+import { sanitizeText } from '../../data/schema.js';
+import * as nutritionStore from '../../data/nutrition.js';
 import * as plans from '../plan-state.js';
 import { macrosFor, refeedMacros, splitIntoMeals } from '../../core/nutrition.js';
 import * as modal from '../components/modal.js';
@@ -22,25 +22,6 @@ import { int as num } from '../format.js';
 
 let mealCount = 4;
 let refeedToday = false;
-
-/** Plantillas guardadas por el usuario. */
-function readTemplates() {
-    const stored = storage.get('nutrition');
-    if (!stored.ok || stored.value === null) return [];
-    const parsed = validateCollection('nutrition', stored.value);
-    return parsed.ok ? parsed.value.mealTemplates : [];
-}
-
-/**
- * @param {Array<*>} templates
- * @returns {boolean}
- */
-function writeTemplates(templates) {
-    const record = { schemaVersion: SCHEMA_VERSION, mealTemplates: templates };
-    const checked = validateCollection('nutrition', record);
-    if (!checked.ok) return false;
-    return storage.set('nutrition', checked.value).ok;
-}
 
 /** Tarjeta de macros del día. */
 function renderMacros(/** @type {*} */ macros, /** @type {*} */ point) {
@@ -178,7 +159,7 @@ function draw(container) {
         <h1 class="card__title">${t('nutrition.title')}</h1>
         ${renderMacros(macros, point)}
         ${renderMeals(macros)}
-        ${renderTemplates(readTemplates())}
+        ${renderTemplates(nutritionStore.listTemplates())}
     `);
 }
 
@@ -240,15 +221,14 @@ export function mount(container) {
                 const value = Number(/** @type {HTMLInputElement} */ (input).value);
                 if (key) macros[key] = Number.isFinite(value) ? Math.max(0, value) : 0;
             }
-            const templates = readTemplates();
-            // el id se deriva del número de plantillas, sin reloj ni azar
-            const id = `meal_${templates.length + 1}_${name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '')}`;
-            const next = [...templates, {
-                id, name,
-                macros: { kcal: macros.kcal, proteinG: macros.proteinG, carbsG: macros.carbsG, fatG: macros.fatG },
-                notes: null
-            }];
-            if (!writeTemplates(next)) {
+            const saved = nutritionStore.addTemplate({
+                name,
+                macros: /** @type {*} */ ({
+                    kcal: macros.kcal, proteinG: macros.proteinG,
+                    carbsG: macros.carbsG, fatG: macros.fatG
+                })
+            });
+            if (!saved.ok) {
                 toast.error('error.generic');
                 return;
             }
@@ -261,8 +241,7 @@ export function mount(container) {
     on(container, 'click', '[data-delete-template]', (_event, target) => {
         const id = target.getAttribute('data-delete-template');
         if (!id) return;
-        const next = readTemplates().filter((/** @type {*} */ tpl) => tpl.id !== id);
-        if (!writeTemplates(next)) {
+        if (!nutritionStore.removeTemplate(id).ok) {
             toast.error('error.generic');
             return;
         }
