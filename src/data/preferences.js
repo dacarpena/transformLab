@@ -27,13 +27,18 @@ const KEY = 'preferences';
  * @property {number|null} mealsPerDay
  * @property {number|null} householdSize
  * @property {string|null} controlLevel
+ * @property {string[]} activeModules
  */
 
 /** Valor por defecto: sin restricciones y omnívoro. */
 function empty() {
     return {
         hardExclusions: [], softExclusions: [], dietType: null,
-        mealsPerDay: null, householdSize: null, controlLevel: null
+        mealsPerDay: null, householdSize: null, controlLevel: null,
+        // Vacío significa «no contestado»: sus lectores caen a los activos de
+        // fábrica. Poner aquí los de fábrica haría imposible distinguir «no ha
+        // elegido» de «eligió justo eso».
+        activeModules: []
     };
 }
 
@@ -59,7 +64,8 @@ export function get() {
         dietType: v.dietType ?? null,
         mealsPerDay: v.mealsPerDay ?? null,
         householdSize: v.householdSize ?? null,
-        controlLevel: v.controlLevel ?? null
+        controlLevel: v.controlLevel ?? null,
+        activeModules: v.activeModules ?? []
     };
 }
 
@@ -87,7 +93,9 @@ export function save(patch) {
             : current.dietType,
         mealsPerDay: patch.mealsPerDay !== undefined ? patch.mealsPerDay : current.mealsPerDay,
         householdSize: patch.householdSize !== undefined ? patch.householdSize : current.householdSize,
-        controlLevel: patch.controlLevel !== undefined ? patch.controlLevel : current.controlLevel
+        controlLevel: patch.controlLevel !== undefined ? patch.controlLevel : current.controlLevel,
+        activeModules: patch.activeModules !== undefined
+            ? limpiarLista(patch.activeModules, 20) : current.activeModules
     };
 
     const checked = validateCollection(KEY, next);

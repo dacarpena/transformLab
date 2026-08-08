@@ -18,6 +18,7 @@ import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
 import { drawPlanChart } from '../plan-chart.js';
 import * as checkins from '../../data/checkins.js';
+import { renderPlanSummary } from '../plan-summary.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { error as errorState } from '../components/state.js';
 import { num } from '../format.js';
@@ -266,6 +267,7 @@ export function mount(container) {
 
     render(container, html`
         ${renderToday(data, today, evaluations)}
+        ${renderPlanSummary({ ...data, todayIndex: today.dayIndex })}
         ${renderPlan(data)}
         ${renderChartSection(data)}
     `);
@@ -294,6 +296,22 @@ export function mount(container) {
     on(container, 'click', '[data-go-checkin]', () => {
         if (onGoToCheckin) onGoToCheckin();
     });
+
+    // Cada línea del plan integral lleva a la vista de su módulo. Se delega al
+    // router en vez de a un callback por módulo: siete `setOnGoToX` serían
+    // exactamente el coste que M7-3 quitó de en medio.
+    on(container, 'click', '[data-go-module]', (_event, target) => {
+        const viewId = target.getAttribute('data-go-module');
+        if (viewId && onGoToModule) onGoToModule(viewId);
+    });
+}
+
+/** @type {((viewId: string) => void) | null} */
+let onGoToModule = null;
+
+/** @param {(viewId: string) => void} fn */
+export function setOnGoToModule(fn) {
+    onGoToModule = fn;
 }
 
 /** @param {() => void} fn */

@@ -509,7 +509,10 @@ export const validatePreferences = rootValidator({
     dietType: opt(str({ maxLength: 40 })),
     mealsPerDay: opt(num({ min: 1, max: 10, integer: true })),
     householdSize: opt(num({ min: 1, max: 20, integer: true })),
-    controlLevel: opt(str({ maxLength: 20 }))
+    controlLevel: opt(str({ maxLength: 20 })),
+    // Módulos que el usuario ha activado (V2-M10). Opcional: un perfil de la v1
+    // no los tiene, y sus lectores caen a los activos de fábrica.
+    activeModules: arrayOf(str({ maxLength: 40 }), { maxItems: 20 })
 });
 
 /** Lo que ya hay en casa; se descuenta de la lista de la compra (V2-M4). */
@@ -641,7 +644,8 @@ export const COLLECTIONS = Object.freeze({
             dietType: null,
             mealsPerDay: null,
             householdSize: null,
-            controlLevel: null
+            controlLevel: null,
+            activeModules: []
         })
     }),
     pantry: Object.freeze({

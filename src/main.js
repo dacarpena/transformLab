@@ -305,6 +305,9 @@ async function boot() {
     onboarding.setOnComplete(() => route(roots));
     dashboard.setOnGoToCheckin(() => router.navigate('checkin'));
     dashboard.setOnGoToProjection(() => router.navigate('projection'));
+    // El plan integral (V2-M10) navega a la vista de cualquier módulo con un
+    // solo cableado, en vez de siete `setOnGoToX`.
+    dashboard.setOnGoToModule((viewId) => router.navigate(viewId));
 
     // 5 · a rodar
     await route(roots);

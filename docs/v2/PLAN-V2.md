@@ -716,3 +716,65 @@ de su pista mínima (`minmax(min(118px, 100%), 1fr)`) y la insignia «estimació
 heredaba el `nowrap` de `.badge`.
 
 **702 unitarios · 140 E2E · typecheck limpio.**
+
+### V2-M10 · Onboarding graduado + plan integral — cerrada el 2026-08-08
+
+La milestone que convierte siete pantallas en un producto. Tres módulos puros
+—`modules.js`, `integrated-plan.js`, `recalibration.js`— y dos piezas de vista
+—el bloque de módulos en el alta y `plan-summary.js` en «Hoy».
+
+**Las dos decisiones que el prompt dejaba abiertas, tomadas:**
+
+- **Nutrición y Entreno activos de fábrica; Compra, Suplementos, Pasos y
+  Descanso opt-in.** Los dos primeros son lo que usa todo el que se crea un plan
+  y ya existían en la v1; los otros añaden preguntas para una minoría. Aparecen
+  igualmente como casilla marcada: quien no quiere que le planifiquen la comida
+  debe poder decirlo, no encontrarse la sección de todas formas.
+- **«Hoy» compacto + vistas por módulo**, como quedó Proyección en E12. Meter el
+  menú, la compra, el stack y la rejilla de volumen en la pantalla de inicio la
+  devolvería a ser el muro que E12-6 desmontó. Cada módulo aporta UNA línea con
+  su estado y su siguiente acción; la profundidad vive en su vista.
+
+**El bloque de módulos vive en el paso de CONFIRMAR**, no en un quinto paso. Así
+el usuario los activa con la preview del plan delante y el asistente sigue
+teniendo cuatro pasos — un paso más por configurar lo opcional es exactamente
+como un alta de cinco preguntas se convierte en una de veinte. Verificado en
+navegador: 13 preguntas anunciadas con tres módulos activados en nivel
+colaborativo.
+
+**Bajar el nivel de control DESACTIVA los módulos que ese nivel no muestra.**
+Dejarlos activos pero invisibles configuraría el producto a espaldas del
+usuario, que es justo lo que el nivel de control existe para evitar.
+
+**La recalibración coordinada** es nueva de la v2 y resuelve un problema que la
+v1 no tenía: ahora tres fuentes pueden pedir recalibrar. Sueltas producen
+bombardeo —tres avisos el mismo día y el usuario aprende a cerrarlos sin
+leerlos— y contradicción —«baja calorías» frente a «súbelas», sobre los mismos
+datos. La regla de desempate es **de evidencia**: cuando dos fuentes tocan la
+misma palanca gana la que se apoya en más datos, así que el gasto medido
+(ingesta + peso) desplaza a la desviación (solo peso). Y lo desplazado se
+DEVUELVE, no se tira: la interfaz puede decir por qué no salió.
+
+Invariantes: `plan_funcional_con_defaults` (saltarse todo lo opcional da un plan
+válido, y ningún defecto es destructivo — en particular **ninguna bandera de
+seguridad viene marcada**, porque marcar lo que el usuario no ha declarado le
+retiraría suplementos por una suposición nuestra), `recalibracion_unica` (nunca
+dos ofertas vivas sobre la misma palanca) y `preview_no_reconstruye` (E2E: se
+teclea tecla a tecla y el foco y el cursor sobreviven).
+
+Un defecto propio: un comentario de mi E2E afirmaba que Nutrición y Entreno no
+aparecían como casilla. Aparecen, marcadas, y es lo correcto — el test pasaba
+porque no comprobaba lo que el comentario decía.
+
+Y otra vez la trampa recurrente de la sesión: el navegador sirvió el
+`onboarding.js` viejo desde la caché HTTP y el bloque de módulos no salía. La
+lección, ya conocida: **verificar el fuente servido antes de concluir nada**.
+
+**731 unitarios · 150 E2E · typecheck limpio.**
+
+---
+
+## La v2 está terminada
+
+Diez milestones (V2-M0…M10), **731 tests unitarios y 150 E2E**, typecheck
+limpio. Todo verificado en navegador a 320 px y desplegado desde `main`.

@@ -26,6 +26,8 @@ import { SCHEMA_VERSION, MEASURE_KEYS } from '../../data/schema.js';
 import * as storage from '../../data/storage.js';
 import * as plans from '../plan-state.js';
 import * as toast from '../components/toast.js';
+import * as preferencesStore from '../../data/preferences.js';
+import { CONTROL_LEVELS, DEFAULT_CONTROL_LEVEL, DEFAULT_ACTIVE, MODULES, blocksFor, questionCount } from '../../core/modules.js';
 
 const STEPS = ['profile', 'current', 'target', 'confirm'];
 
@@ -53,7 +55,16 @@ function defaultDraft() {
         /** Offset en vigor cuando se tecleó `targetMuscleKg`: es su UNIDAD. */
         targetMuscleOffsetKg: /** @type {number | null} */ (null),
         startDateISO: plans.todayISO(),
-        intensity: 'moderate'
+        intensity: 'moderate',
+        /**
+         * Cuánta profundidad quiere el usuario (V2-M10). NO bifurca la app: es
+         * el mismo motor con más o menos preguntas. Duplicar el producto en
+         * «para principiantes» y «para expertos» garantiza que las dos mitades
+         * diverjan.
+         */
+        controlLevel: DEFAULT_CONTROL_LEVEL,
+        /** Módulos activados. Dos vienen de fábrica; los demás son opt-in. */
+        activeModules: /** @type {string[]} */ ([...DEFAULT_ACTIVE])
     };
 }
 
@@ -484,6 +495,44 @@ function renderStepFields(step) {
             </div>
         </div>
 
+        <!--
+            LOS MODULOS SE ELIGEN AQUI, en el paso de confirmar, y no en un paso
+            propio: asi el usuario los activa con la preview del plan delante, y
+            el asistente sigue teniendo cuatro pasos. Un quinto paso por
+            configurar lo opcional es exactamente como un alta de cinco
+            preguntas se convierte en una de veinte.
+            (Sin acentos graves aqui dentro: CIERRAN la plantilla.)
+        -->
+        <div class="field">
+            <span class="field__label">${t('onboarding.control.label')}</span>
+            <div class="btn-row" role="group" aria-label="${t('onboarding.control.label')}">
+                ${CONTROL_LEVELS.map((level) => html`
+                    <button type="button" class="btn btn--sm" data-control="${level}"
+                            aria-pressed="${draft.controlLevel === level ? 'true' : 'false'}">
+                        ${t(`onboarding.control.${level}`)}
+                    </button>
+                `)}
+            </div>
+            <span class="field__hint">${t(`onboarding.control.hint.${draft.controlLevel}`)}</span>
+        </div>
+
+        <div class="field">
+            <span class="field__label">${t('onboarding.modules.label')}</span>
+            <span class="field__hint">${t('onboarding.modules.hint')}</span>
+            <div class="safety-grid">
+                ${MODULES.filter((m) => !m.core && m.shownFrom.includes(draft.controlLevel)).map((m) => html`
+                    <label class="switch">
+                        <input type="checkbox" data-module="${m.id}"
+                               ${draft.activeModules.includes(m.id) ? 'checked' : ''}>
+                        <span>${t(`module.${m.id}`)}</span>
+                    </label>
+                `)}
+            </div>
+            <span class="field__hint">${t('onboarding.modules.count', {
+                n: questionCount({ controlLevel: draft.controlLevel, activeModules: draft.activeModules })
+            })}</span>
+        </div>
+
         <!-- El aviso va aquí, antes de crear nada, no escondido en ajustes
              (M6-6/C6): el usuario está a punto de escribir su peso y su grasa
              corporal en un dispositivo, y tiene derecho a saber dónde acaban
@@ -590,6 +639,32 @@ function applyField(name, rawValue) {
 export function mount(container) {
     draw(container);
 
+    // Nivel de control y módulos (V2-M10). Estos SÍ repintan, y pueden: son
+    // botones y casillas, no campos de texto — no hay ningún cursor que perder,
+    // y cambiar el nivel cambia qué módulos se ofrecen.
+    on(container, 'click', '[data-control]', (_event, target) => {
+        const level = target.getAttribute('data-control');
+        if (!level || !CONTROL_LEVELS.includes(level)) return;
+        draft.controlLevel = level;
+        // Un módulo que este nivel no muestra se DESACTIVA al bajar de nivel:
+        // dejarlo activo pero invisible configuraría el producto a espaldas del
+        // usuario, que es justo lo que el nivel de control existe para evitar.
+        const visibles = new Set(blocksFor({ controlLevel: level, activeModules: MODULES.map((m) => m.id) })
+            .map((m) => m.id));
+        draft.activeModules = draft.activeModules.filter((id) => visibles.has(id));
+        draw(container);
+    });
+
+    on(container, 'change', '[data-module]', (_event, target) => {
+        const id = target.getAttribute('data-module');
+        if (!id) return;
+        const marcado = /** @type {HTMLInputElement} */ (target).checked;
+        draft.activeModules = marcado
+            ? [...new Set([...draft.activeModules, id])]
+            : draft.activeModules.filter((m) => m !== id);
+        draw(container);
+    });
+
     // Un solo listener delegado por tipo: el formulario nunca se reconstruye
     // al teclear, así que el foco del usuario se conserva siempre.
     on(container, 'input', '[data-field]', (event, target) => {
@@ -659,6 +734,16 @@ function finish() {
         fluctuationVisible: false,
         reminder: null
     });
+    // Las preferencias de módulos, con el resto de defaults rellenados. Si
+    // fallara, el alta NO se cae: el plan ya está guardado y `preferences`
+    // degrada a «sin restricciones» en todos sus lectores. Bloquear aquí sería
+    // perder un alta completa por una preferencia.
+    const prefsSaved = preferencesStore.save({
+        controlLevel: draft.controlLevel,
+        activeModules: draft.activeModules
+    });
+    if (!prefsSaved.ok) console.warn('[onboarding] no se pudieron guardar las preferencias');
+
     plans.clear();
     draft = defaultDraft();
     stepIndex = 0;
