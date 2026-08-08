@@ -720,12 +720,35 @@ los otros.
 - [x] M7-3 · Manifiesto único de vistas (`main.js` y los tres specs beben de él) y test que ate `CACHE_VERSION` al contenido de `PRECACHE`.
 - [x] M7-4 · Helpers compartidos (`redraw` de la gráfica, `dates.js` en todas las vistas) y `src/data/nutrition.js` + `src/data/training.js`, hoy sin un solo test porque su persistencia vive dentro de la vista.
 - [x] M7-5 · El N+1 cuadrático de check-ins.
-- [ ] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
+- [x] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
 - [ ] M7-7 · Los E2E corren bajo la CSP real (`tools/serve-csp.mjs` está huérfano; `playwright.config.js` levanta `python3 -m http.server`, que no manda cabeceras).
 - [ ] M7-8 · Barrido de código muerto: 15 claves i18n, 8 exports, 5 reglas CSS y 6 tokens sin consumidor.
 - [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
 
 ### Bitácora M7
+
+**M7-6 (2026-08-08) · la frontera de seguridad se ejecuta, no se lee.**
+`dom.js` es el único sitio por el que entran datos al DOM, y no tenía un solo
+test que lo ejecutara: `security.test.js` comprueba con regex que nadie
+*escriba* `innerHTML` fuera de ahí, pero no que `escapeHtml` **escape**. Si
+alguien hubiera roto la función, el proyecto entero seguía en verde.
+
+La parte pura va en `test/ui-dom.test.js`; `render`, `applyCssVars` y `on` van
+en `test/e2e/dom-security.spec.js`, contra un navegador real — para esto, lo que
+decide si `<img src=x onerror=…>` ejecuta algo es el analizador del navegador,
+no una biblioteca que lo imita.
+
+Y de paso se cierra uno de los dos huecos anotados en el BACKLOG, verificado
+ejecutándolo: `escapeHtml` no protege el contexto URL, porque
+`javascript:alert(1)` no contiene ninguno de los cinco caracteres que escapa y
+dentro de un `href` se ejecuta tal cual. Hoy la única URL dinámica son los
+`blob:` de las fotos, así que no había agujero — pero «hoy no hay ninguna» es la
+clase de garantía que se rompe sola en cuanto una URL venga de un backup o de la
+v2. `safeUrl()` la filtra, y dos tests vigilan que ninguna plantilla se salte el
+filtro ni interpole en un atributo sin comillas (el otro hueco del BACKLOG, que
+sigue abierto por construcción pero ya no es alcanzable). El E2E lleva **control
+positivo**: primero prueba que el vector SÍ funciona en ese navegador, y luego
+que con el filtro no. Sin eso, un cero no probaría nada.
 
 **M7-4 (2026-08-08) · lo compartido deja de estar copiado.** `redraw` estaba
 duplicado casi línea a línea entre Hoy y Proyección, y ya llevaba DOS

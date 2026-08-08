@@ -9,7 +9,7 @@
  * dispositivo antes de hacer la primera.
  */
 
-import { html, render, on } from '../dom.js';
+import { html, render, on, safeUrl } from '../dom.js';
 import { t } from '../../i18n/i18n.js';
 import { shortDate } from '../dates.js';
 import { SCHEMA_VERSION, validateCollection } from '../../data/schema.js';
@@ -148,11 +148,11 @@ async function draw(container) {
                 </div>
                 <div class="photo-compare">
                     <figure>
-                        <img src="${before?.url ?? ''}" alt="${t('photos.before')}: ${before ? shortDate(before.dateISO) : ''}">
+                        <img src="${safeUrl(before?.url)}" alt="${t('photos.before')}: ${before ? shortDate(before.dateISO) : ''}">
                         <figcaption>${before ? shortDate(before.dateISO) : ''}</figcaption>
                     </figure>
                     <figure>
-                        <img src="${after?.url ?? ''}" alt="${t('photos.after')}: ${after ? shortDate(after.dateISO) : ''}">
+                        <img src="${safeUrl(after?.url)}" alt="${t('photos.after')}: ${after ? shortDate(after.dateISO) : ''}">
                         <figcaption>${after ? shortDate(after.dateISO) : ''}</figcaption>
                     </figure>
                 </div>
@@ -167,7 +167,7 @@ async function draw(container) {
                     <ul class="photo-grid">
                         ${withBlobs.map((p) => html`
                             <li class="photo-item">
-                                <img src="${p.url}" alt="${shortDate(p.dateISO)}" loading="lazy">
+                                <img src="${safeUrl(p.url)}" alt="${shortDate(p.dateISO)}" loading="lazy">
                                 <div class="photo-item__bar">
                                     <span class="muted">${shortDate(p.dateISO)}</span>
                                     <button type="button" class="btn btn--sm btn--danger"
