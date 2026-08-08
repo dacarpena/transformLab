@@ -16,7 +16,7 @@ Estrategia elegida: **reconstrucción dirigida (v5) en este mismo repo**. No es 
 ## 2. Fuentes de verdad, en orden
 
 1. `CLAUDE.md` (este fichero) — convenciones e invariantes.
-2. `PLAN-V5.md` — decisiones cerradas, milestones, estado (checkboxes) y bitácora.
+2. `PLAN-V5.md` — plan y bitácora de la v1 (M0–M7, cerrada). Para la **v2**, el plan activo es `docs/v2/PLAN-V2.md`, y los prompts de construcción de cada milestone están en `docs/v2/prompts/`.
 3. `docs/` — la auditoría de la v4.0/v3.1: `CATALOGO-DE-HALLAZGOS.md` (fichas por ID), `METODOLOGIA-CIENTIFICA.md` (modelo y §8 "qué haría falta"), `MODELO-DE-DATOS.md`, `AUDITORIA.md`, `DEUDA-TECNICA.md`. Describen el legacy, no la v5, pero son el mapa de minas para el port y la especificación de partida del motor.
 4. `legacy/` — el código v4.0. Solo lectura.
 
