@@ -615,10 +615,18 @@ function draw(container) {
  * común con Hoy y vive en `plan-chart.js` desde M7-4, cuando las dos copias
  * llevaban ya dos divergencias que nadie había decidido.
  */
+/**
+ * La gráfica de ESTA vista (V2-M8): con la factoría, la instancia es del lienzo
+ * y hay que guardar el asa para la ventana, el cursor y el PNG.
+ * @type {import('../chart.js').ChartInstance | null}
+ */
+let chartInstance = null;
+
 async function redraw(/** @type {*} */ container) {
     const data = plans.get();
     if (!data) return;
-    const { ok, checkinCount } = await drawPlanChart(container, { metric, grain, range: windowBounds });
+    const { ok, checkinCount, chart: instance } = await drawPlanChart(container, { metric, grain, range: windowBounds });
+    if (instance) chartInstance = instance;
     if (!ok) return;
 
     const legendHost = container.querySelector('[data-legend]');
@@ -679,7 +687,7 @@ export function mount(container) {
             grain = wanted;
             refreshPressed(container, 'data-grain', grain);
             void redraw(container);
-        } else if (!chart.setWindow(bounds.from, bounds.to)) {
+        } else if (!chartInstance?.setWindow(bounds.from, bounds.to)) {
             void redraw(container);
         }
         // la ventana también gobierna qué momentos muestra la historia
@@ -706,9 +714,9 @@ export function mount(container) {
             preset = 'all';
             refreshPressed(container, 'data-window', preset);
             bounds = windowBounds(current, today.dayIndex);
-            chart.setWindow(bounds.from, bounds.to);
+            chartInstance?.setWindow(bounds.from, bounds.to);
         }
-        chart.focusDay(readout, current.projection, day, bounds);
+        chartInstance?.focusDay(readout, current.projection, day, bounds);
         markTimelineRow(container, day);
         host?.scrollIntoView({
             block: 'nearest',
@@ -722,7 +730,7 @@ export function mount(container) {
     });
 
     on(container, 'click', '[data-png]', () => {
-        const url = chart.toPng();
+        const url = (chartInstance?.toPng() ?? null);
         if (!url) {
             toast.error('chart.unavailableTitle');
             return;
@@ -753,7 +761,7 @@ export function mount(container) {
         const current = plans.get();
         if (!current || !readout) return;
         const today = plans.todayIndex(current, plans.todayISO());
-        const handled = chart.handleKey({
+        const handled = chartInstance?.handleKey({
             readout,
             projection: current.projection,
             key: /** @type {KeyboardEvent} */ (event).key,
@@ -764,12 +772,13 @@ export function mount(container) {
             // La fila más cercana se marca, pero SIN scroll automático: con
             // las flechas sería un salto por pulsación, y bajo movimiento
             // reducido, directamente hostil.
-            markTimelineRow(container, chart.cursorIndex());
+            markTimelineRow(container, (chartInstance?.cursorIndex() ?? 0));
         }
     });
 }
 
 /** Sin esto, cambiar de vista deja la gráfica colgada consumiendo memoria. */
 export function unmount() {
-    chart.destroy();
+    chartInstance?.destroy();
+    chartInstance = null;
 }

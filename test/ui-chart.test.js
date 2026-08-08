@@ -20,17 +20,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import {
-    milestoneLabel,
-    handleKey,
-    announce,
-    cursorIndex,
-    destroy,
-    unavailable,
-    toPng,
-    seriesAnchors,
-    setWindow
-} from '../src/ui/chart.js';
+import { createChart, milestoneLabel, unavailable, seriesAnchors } from '../src/ui/chart.js';
+
+/**
+ * Desde V2-M8 `chart.js` es una FACTORÍA: el cursor, la instancia y la unidad de
+ * músculo son estado de CADA gráfica, no del módulo. Estos tests se re-apuntan a
+ * una instancia fresca por test (la red de seguridad E12-0 sigue cubriendo lo
+ * mismo, ahora por instancia) y se añade abajo el que faltaba: que dos gráficas
+ * puedan convivir, que es lo que el singleton impedía en silencio.
+ */
+/** @type {import('../src/ui/chart.js').ChartInstance} */
+let grafica;
+const handleKey = (/** @type {*} */ o) => grafica.handleKey(o);
+const announce = (/** @type {*} */ r, /** @type {*} */ p, /** @type {*} */ i) => grafica.announce(r, p, i);
+const cursorIndex = () => grafica.cursorIndex();
+const destroy = () => grafica.destroy();
+const toPng = () => grafica.toPng();
+const setWindow = (/** @type {*} */ a, /** @type {*} */ b) => grafica.setWindow(a, b);
 import { shortDate, monthYear, axisLabel, longDate } from '../src/ui/dates.js';
 import { muscleUnitsFor } from '../src/ui/muscle-units.js';
 import { makeComposition, planPhases } from '../src/core/engine.js';
@@ -63,7 +69,9 @@ function readout() {
 
 test.beforeEach(() => {
     setLocale('es');
-    destroy(); // deja el cursor en 0 y no arrastra estado entre tests
+    // Una gráfica NUEVA por test: con la factoría el aislamiento es real, no
+    // depende de acordarse de llamar a `destroy()`.
+    grafica = createChart();
 });
 
 /* ---------------------------------------------------------------------- *

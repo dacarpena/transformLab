@@ -234,10 +234,21 @@ function renderChartSection(/** @type {*} */ data) {
  * día del plan, y los tests de release cuentan píxeles de ESTE lienzo — el
  * primero del documento.
  */
+/**
+ * La gráfica de ESTA vista (V2-M8).
+ *
+ * Desde que `chart.js` es una factoría, el cursor y la instancia son de cada
+ * lienzo, no del módulo: hay que guardar el asa para el recorrido con teclado y
+ * para soltarla al desmontar.
+ * @type {import('../chart.js').ChartInstance | null}
+ */
+let chartInstance = null;
+
 async function redraw(/** @type {*} */ container) {
     // Métrica y rango los fija esta vista; el resto es común con Proyección y
     // vive en `plan-chart.js` desde M7-4, cuando las dos copias divergieron.
-    await drawPlanChart(container, { metric: 'weight' });
+    const { chart: instance } = await drawPlanChart(container, { metric: 'weight' });
+    if (instance) chartInstance = instance;
 }
 
 /**
@@ -267,7 +278,7 @@ export function mount(container) {
     canvas?.addEventListener('keydown', (event) => {
         const current = plans.get();
         if (!current || !readout) return;
-        const handled = chart.handleKey({
+        const handled = chartInstance?.handleKey({
             readout,
             projection: current.projection,
             key: /** @type {KeyboardEvent} */ (event).key,
@@ -297,6 +308,7 @@ export function setOnGoToProjection(fn) {
 
 /** Limpia la gráfica al salir de la vista: sin esto, fuga de memoria. */
 export function unmount() {
-    chart.destroy();
+    chartInstance?.destroy();
+    chartInstance = null;
 }
 

@@ -171,7 +171,7 @@ siempre en las costuras que los invariantes no ven).
 | **V2-M5** | Suplementación | `supplements.js` (catálogo con evidencia + selector + cribado) | M0 |
 | **V2-M6** | Entreno por músculo + recuperación | `training-plan.js` (landmarks por grupo, volumen, deload, techo por recuperación) | M0 |
 | **V2-M7** | Pasos / NEAT | `steps.js` (pasos→kcal sin doble conteo) | M1 |
-| **V2-M8** | `chart.js`: singleton → factoría | `createChart(canvas)` con estado por instancia; dos gráficas conviven | — (tras M0) |
+| **V2-M8** ✅ | `chart.js`: singleton → factoría | `createChart(canvas)` con estado por instancia; dos gráficas conviven | — (tras M0) |
 | **V2-M9** | Proyección músculo a músculo | `muscle-groups.js` (invariante suma=global) + rejilla de small multiples con banda | M6 + M8 |
 | **V2-M10** | Onboarding profundo + plan integral | asistente graduado por bloques con preview; vista integral por capas y por «hoy» | M1…M9 |
 
@@ -257,6 +257,28 @@ Ya arreglado de la lista: el duplicado de iCloud que ponía `npm test` en rojo
 (`test/helpers/tree.js`, filtro en los seis recorridos del árbol).
 
 ## Bitácora de la v2
+
+**V2-M8 cerrada (2026-08-08).** `chart.js` deja de ser un singleton:
+`createChart()` devuelve una gráfica con SU estado (instancia, cursor, unidad de
+músculo, métrica de anuncio). Sigue compartido lo que debe serlo — el cargador
+del vendor, que pide Chart.js una vez aunque haya doce gráficas, el caché de
+tokens y las funciones puras. `plan-chart.js` guarda una instancia por lienzo en
+un `WeakMap` (no un `Map`: al descartar el router el elemento de la vista, la
+instancia se recolecta sola) y la devuelve para que la vista mueva el cursor,
+la ventana o pida el PNG.
+
+**La evidencia, reproducida antes de tocar nada:** tras dibujar la segunda
+gráfica, el primer lienzo quedaba en **0 píxeles pintados y ancho 300** —
+Chart.js lo había reseteado— mientras el segundo tenía 57 508. Y las DOS
+llamadas a `draw()` devolvieron `true`, sin un error de consola. La región
+`aria-live` del primero seguía describiendo una gráfica que ya no existía.
+
+La red de seguridad E12-0 (`test/ui-chart.test.js`, 16 tests) se re-apuntó a la
+factoría con una instancia fresca por test, y `test/e2e/chart-factory.spec.js`
+añade lo que el singleton hacía imposible: dos gráficas conviviendo con sus
+píxeles, cursores independientes, y las vistas de la v1 dibujando igual.
+
+**497 unitarios · 85 E2E · typecheck limpio.**
 
 **V2-M1 cerrada (2026-08-08).** `src/core/expenditure.js` reconstruye el gasto
 real del balance energético invertido, sobre la TENDENCIA del peso (media móvil

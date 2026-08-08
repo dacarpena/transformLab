@@ -13,6 +13,11 @@
  *
  * Lo que cambia entre vistas —métrica, granularidad, ventana— son parámetros.
  * Lo que no cambia vive aquí una sola vez.
+ *
+ * DESDE V2-M8 gestiona además una INSTANCIA DE GRÁFICA POR LIENZO. Antes
+ * `chart.js` era un singleton y dibujar una segunda gráfica mataba la primera
+ * sin error; ahora cada lienzo tiene la suya y `drawPlanChart` la devuelve para
+ * que la vista pueda moverle el cursor, la ventana o pedirle el PNG.
  */
 
 import { html } from './dom.js';
@@ -24,6 +29,31 @@ import * as checkins from '../data/checkins.js';
 import { muscleUnitsOf } from './muscle-units.js';
 import { longDate } from './dates.js';
 import { evaluateSeries } from '../core/tracking.js';
+
+/**
+ * Una instancia de gráfica por LIENZO.
+ *
+ * `WeakMap` y no `Map`: cuando el router descarta el elemento de la vista, el
+ * lienzo deja de estar referenciado y su instancia se puede recolectar sola. Un
+ * `Map` las iría acumulando para siempre — una fuga silenciosa por cada
+ * navegación.
+ * @type {WeakMap<HTMLCanvasElement, import('./chart.js').ChartInstance>}
+ */
+const instances = new WeakMap();
+
+/**
+ * La instancia de un lienzo, creándola la primera vez.
+ * @param {HTMLCanvasElement} canvas
+ * @returns {import('./chart.js').ChartInstance}
+ */
+export function chartFor(canvas) {
+    let instance = instances.get(canvas);
+    if (!instance) {
+        instance = chart.createChart();
+        instances.set(canvas, instance);
+    }
+    return instance;
+}
 
 /**
  * @typedef {Object} PlanChartOptions
@@ -43,10 +73,11 @@ import { evaluateSeries } from '../core/tracking.js';
  * serie real, y calcularlo por su cuenta sería reevaluar la serie entera.
  * @param {HTMLElement} container
  * @param {PlanChartOptions} [options]
- * @returns {Promise<{ ok: boolean, checkinCount: number }>}
+ * @returns {Promise<{ ok: boolean, checkinCount: number, chart: import('./chart.js').ChartInstance | null }>}
  */
 export async function drawPlanChart(container, options = {}) {
-    const fallo = { ok: false, checkinCount: 0 };
+    /** @type {{ ok: boolean, checkinCount: number, chart: import('./chart.js').ChartInstance | null }} */
+    const fallo = { ok: false, checkinCount: 0, chart: null };
     const data = plans.get();
     if (!data) return fallo;
 
@@ -67,7 +98,8 @@ export async function drawPlanChart(container, options = {}) {
     const today = plans.todayIndex(data, plans.todayISO());
     const evaluations = evaluateSeries(data.projection, checkins.list(), data.startDateISO);
 
-    const ok = chart.draw({
+    const instance = chartFor(canvas);
+    const ok = instance.draw({
         canvas,
         readout,
         projection: data.projection,
@@ -92,7 +124,7 @@ export async function drawPlanChart(container, options = {}) {
                 signal: evaluation.signal
             };
         }),
-        onMilestone: (m) => {
+        onMilestone: (/** @type {*} */ m) => {
             modal.open({
                 titleKey: 'chart.milestoneModalTitle',
                 size: 'sm',
@@ -105,5 +137,5 @@ export async function drawPlanChart(container, options = {}) {
     });
 
     if (!ok) chart.renderFallback(host);
-    return { ok, checkinCount: evaluations.length };
+    return { ok, checkinCount: evaluations.length, chart: instance };
 }
