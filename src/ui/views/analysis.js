@@ -38,6 +38,8 @@ import { num } from '../format.js';
 import { toCsv, toBlob, formatNumber } from '../csv.js';
 import { empty, error as errorState } from '../components/state.js';
 import { SERIES, UNITS, seriesById, resolveSeries } from '../../core/series-catalog.js';
+import * as trainingStore from '../../data/training.js';
+import { exercisesOf } from '../../data/training.js';
 import { MAX_SERIES, PROVENANCE_STYLE } from '../series-style.js';
 import { attachGestures, clampWindow } from '../chart-gestures.js';
 
@@ -91,6 +93,67 @@ let grain = 'day';
 /** @type {ResolvedSeries[]} */ let resolved = [];
 /** Texto del buscador del selector. Vive fuera del modal para sobrevivir a su re-render. */
 let query = '';
+
+/**
+ * Separador de los ids de serie parametrizada: `est_e1rm__<exerciseId>`.
+ * Doble guion bajo y no punto: el punto rompería `SAFE_ID` y con él la
+ * persistencia de la selección.
+ */
+const PARAM_SEP = '__';
+
+/**
+ * @typedef {Object} SeriesEntry
+ * @property {string} id el que se persiste y viaja por el manifiesto
+ * @property {import('../../core/series-catalog.js').SeriesSpec} spec
+ * @property {string} [param] argumento de la serie parametrizada (exerciseId)
+ * @property {string} label YA compuesta; para las normales, la traducción de su clave
+ */
+
+/**
+ * Las series ELEGIBLES: el catálogo expandido para este perfil.
+ *
+ * Existe por una promesa incumplible que se coló en E13-1: `est_e1rm` («1RM
+ * estimado») necesita un ejercicio como parámetro, y el selector la ofrecía
+ * como una fila abstracta que ninguna interfaz podía rellenar — «sin datos
+ * todavía» PARA SIEMPRE. Aquí la plantilla se expande a una fila por ejercicio
+ * de la rutina, con su nombre, y la fila abstracta desaparece. Sin rutina no
+ * hay filas de 1RM, que es la verdad.
+ *
+ * El catálogo del motor no se toca: la expansión depende de la rutina del
+ * perfil, y eso es de la interfaz.
+ * @type {Map<string, SeriesEntry>}
+ */
+let entries = new Map();
+
+/** Reconstruye las entradas elegibles. Se llama al montar: la rutina no cambia
+ *  mientras la vista está abierta. */
+function rebuildEntries() {
+    entries = new Map();
+    for (const spec of SERIES) {
+        if (spec.needs.includes('param')) continue;   // las plantillas no se ofrecen crudas
+        entries.set(spec.id, { id: spec.id, spec, label: t(spec.labelKey) });
+    }
+    const e1rm = seriesById('est_e1rm');
+    if (!e1rm) return;
+    try {
+        for (const ex of exercisesOf(trainingStore.read().routine)) {
+            if (!ex?.id || typeof ex.name !== 'string') continue;
+            entries.set(`est_e1rm${PARAM_SEP}${ex.id}`, {
+                id: `est_e1rm${PARAM_SEP}${ex.id}`,
+                spec: e1rm,
+                param: ex.id,
+                // El nombre lo escribió el usuario: `html\`\`` lo escapa al
+                // pintarlo y `escapeField` lo neutraliza en el CSV.
+                label: `${t('series.est_e1rm')} · ${ex.name}`
+            });
+        }
+    } catch { /* sin rutina legible no hay filas de 1RM, y es la verdad */ }
+}
+
+/** @param {string} id @returns {SeriesEntry | null} */
+function entryById(id) {
+    return entries.get(id) ?? null;
+}
 
 /**
  * Ancho por debajo del cual la gráfica se simplifica sola.
@@ -182,8 +245,6 @@ function glyph(/** @type {number} */ slot, /** @type {string} */ provenance) {
 
 /** Una fila de leyenda, construida desde el MANIFIESTO. */
 function legendRow(/** @type {*} */ item) {
-    const spec = seriesById(item.id);
-    if (!spec) return html``;
     const unidad = /** @type {*} */ (UNITS)[item.unit];
     const vacia = item.pointCount === 0;
     const meta = vacia
@@ -195,7 +256,7 @@ function legendRow(/** @type {*} */ item) {
             data-legend-row="${item.id}" data-slot="${item.slot + 1}"
             data-provenance="${item.provenance}" data-state="${vacia ? 'emptyWindow' : 'ok'}">
             ${glyph(item.slot, item.provenance)}
-            <span class="series-legend__name">${t(spec.labelKey)}</span>
+            <span class="series-legend__name">${item.label}</span>
             <span class="badge badge--outline badge--prov-${item.provenance}">${t(`series.provenance.${item.provenance}`)}</span>
             <span class="series-legend__meta muted">${meta}</span>
             <span class="series-legend__value numeric" data-legend-value="${item.id}"></span>
@@ -203,7 +264,7 @@ function legendRow(/** @type {*} */ item) {
                 ? html`<button type="button" class="btn btn--sm" data-widen-window>${t('analysis.legend.widen')}</button>`
                 : ''}
             <button type="button" class="btn btn--icon" data-remove-series="${item.id}"
-                    aria-label="${t('analysis.series.remove', { name: t(spec.labelKey) })}">
+                    aria-label="${t('analysis.series.remove', { name: item.label })}">
                 <span aria-hidden="true">✕</span>
             </button>
         </li>
@@ -330,7 +391,7 @@ function tableData(/** @type {*} */ data) {
     const dias = [...anchors].sort((a, b) => a - b);
 
     const headers = [t('analysis.table.colDate'), ...resolved.map((serie) => t('analysis.table.header', {
-        name: t(serie.spec.labelKey),
+        name: serie.label ?? t(serie.spec.labelKey),
         unit: t(/** @type {*} */ (UNITS)[serie.unit]?.key ?? 'unit.kg'),
         provenance: t(`series.provenance.${serie.spec.provenance}`)
     }))];
@@ -384,14 +445,14 @@ function emptySelection() {
  */
 function pickerBody() {
     const q = query.trim().toLowerCase();
-    const disponibles = SERIES.filter((spec) => {
+    const disponibles = [...entries.values()].filter((entry) => {
         if (!q) return true;
-        const texto = `${t(spec.labelKey)} ${t(UNITS[spec.unit]?.key ?? '')} ${t(`series.provenance.${spec.provenance}`)}`;
+        const texto = `${entry.label} ${t(/** @type {*} */ (UNITS)[entry.spec.unit]?.key ?? '')} ${t(`series.provenance.${entry.spec.provenance}`)}`;
         return texto.toLowerCase().includes(q);
     });
 
     const porGrupo = GROUP_ORDER
-        .map((g) => ({ group: g, items: disponibles.filter((s) => s.group === g) }))
+        .map((g) => ({ group: g, items: disponibles.filter((e) => e.spec.group === g) }))
         .filter((g) => g.items.length > 0);
 
     return html`
@@ -418,18 +479,18 @@ function pickerBody() {
                             <span class="muted">${t('analysis.group.count', { count: g.items.length })}</span>
                         </summary>
                         <ul class="picker__list">
-                            ${g.items.map((spec) => {
-                                const marcada = selected.includes(spec.id);
-                                const sinDatos = !hasData(spec.id);
+                            ${g.items.map((entry) => {
+                                const marcada = selected.includes(entry.id);
+                                const sinDatos = !hasData(entry.id);
                                 return html`
                                     <li class="picker__row">
                                         <label class="picker__label">
-                                            <input type="checkbox" data-series="${spec.id}"
+                                            <input type="checkbox" data-series="${entry.id}"
                                                    ${marcada ? 'checked' : ''}>
-                                            <span class="picker__name">${t(spec.labelKey)}</span>
-                                            <span class="badge badge--outline badge--prov-${spec.provenance}">${t(`series.provenance.${spec.provenance}`)}</span>
+                                            <span class="picker__name">${entry.label}</span>
+                                            <span class="badge badge--outline badge--prov-${entry.spec.provenance}">${t(`series.provenance.${entry.spec.provenance}`)}</span>
                                             <span class="picker__meta muted">
-                                                ${t(UNITS[spec.unit]?.key ?? 'unit.kg')}${sinDatos ? ` · ${t('analysis.series.noData')}` : ''}
+                                                ${t(/** @type {*} */ (UNITS)[entry.spec.unit]?.key ?? 'unit.kg')}${sinDatos ? ` · ${t('analysis.series.noData')}` : ''}
                                             </span>
                                         </label>
                                     </li>
@@ -452,12 +513,12 @@ function trayBody() {
         ${selected.length === 0
             ? html`<span class="muted">${t('analysis.series.trayEmpty')}</span>`
             : selected.map((id, i) => {
-                const spec = seriesById(id);
-                return spec ? html`
+                const entry = entryById(id);
+                return entry ? html`
                     <span class="picker__chip is-series-${i + 1}">
-                        ${t(spec.labelKey)}
+                        ${entry.label}
                         <button type="button" class="btn btn--icon" data-remove-series="${id}"
-                                aria-label="${t('analysis.series.remove', { name: t(spec.labelKey) })}">
+                                aria-label="${t('analysis.series.remove', { name: entry.label })}">
                             <span aria-hidden="true">✕</span>
                         </button>
                     </span>
@@ -468,9 +529,15 @@ function trayBody() {
 
 /** Si una serie tiene algo que dibujar con el contexto actual. */
 function hasData(/** @type {string} */ id) {
-    const spec = seriesById(id);
-    if (!spec || !context) return false;
-    return spec.needs.every((need) => {
+    const entry = entryById(id);
+    if (!entry || !context) return false;
+    // El parámetro de una serie parametrizada se comprueba contra los datos de
+    // verdad: un ejercicio de la rutina SIN sesiones registradas no tiene 1RM.
+    if (entry.param) {
+        const sessions = context.sessions ?? [];
+        return sessions.some((s) => s?.entries?.some?.((e) => e?.exerciseId === entry.param));
+    }
+    return entry.spec.needs.every((need) => {
         const value = context?.[need];
         if (value === undefined || value === null) return false;
         if (Array.isArray(value)) return value.length > 0;
@@ -700,9 +767,16 @@ function resolveSelection(/** @type {*} */ data) {
     }
     const anchors = chart.seriesAnchors(data.projection, effectiveGrain());
     const crudas = selected
-        .map((id) => seriesById(id))
-        .filter(Boolean)
-        .map((spec) => resolveSeries(/** @type {*} */ (spec), /** @type {*} */ (context), anchors));
+        .map((id) => entryById(id))
+        .filter((e) => e !== null)
+        .map((entry) => {
+            const ctx = entry.param ? { ...context, param: entry.param } : context;
+            const r = resolveSeries(entry.spec, /** @type {*} */ (ctx), anchors);
+            // El id del manifiesto es el COMPUESTO: es el que la leyenda usa
+            // para quitar la serie y el que se persiste. Y la etiqueta viaja ya
+            // montada, porque la clave i18n sola no sabe qué ejercicio es.
+            return { ...r, spec: { ...entry.spec, id: entry.id }, label: entry.label };
+        });
     resolved = translateSeries(crudas, muscleUnitsOf(data));
 }
 
@@ -757,13 +831,14 @@ export async function mount(/** @type {HTMLElement} */ container) {
 
     context = await buildSeriesContext(data);
     if (!container.isConnected) return;
+    rebuildEntries();
 
     // Selección guardada, filtrando los ids que ya no existen. Se DICE cuántos
     // se han caído: un backup de otro perfil o una serie retirada no pueden
     // tumbar la vista, ni desaparecer en silencio.
     const guardado = settingsStore.read().analysis;
     if (guardado) {
-        const validos = guardado.seriesIds.filter((id) => seriesById(id) !== null);
+        const validos = guardado.seriesIds.filter((id) => entryById(id) !== null);
         const perdidos = guardado.seriesIds.length - validos.length;
         selected = validos.slice(0, MAX_SERIES);
         windowPreset = /** @type {*} */ (guardado.window);
@@ -791,7 +866,7 @@ function wire(/** @type {HTMLElement} */ container) {
         selected = [...preset.ids];
         persist();
         await refresh(container);
-        const nombres = selected.map((id) => t(seriesById(id)?.labelKey ?? id)).join(', ');
+        const nombres = selected.map((id) => entryById(id)?.label ?? id).join(', ');
         toast.success('analysis.preset.applied', { count: selected.length, names: nombres });
     });
 
@@ -961,7 +1036,7 @@ function openPicker(/** @type {HTMLElement} */ container) {
                 // NUNCA se quita nada solo. La casilla se desmarca y se dice
                 // cuál se ha rechazado y qué hacer.
                 input.checked = false;
-                const nombre = t(seriesById(id)?.labelKey ?? id);
+                const nombre = entryById(id)?.label ?? id;
                 toast.error('analysis.series.limitRefused', { name: nombre, max: MAX_SERIES });
                 return;
             }

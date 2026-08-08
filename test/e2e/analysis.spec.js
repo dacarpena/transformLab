@@ -651,3 +651,87 @@ test('ocho series a la vez se dibujan con ocho colores y ocho marcadores distint
         await expect(page.locator('[data-effective-hint]')).toBeVisible();
     }
 });
+
+/* ---------------------------------------------------------------------- *
+ * Series parametrizadas: 1RM por ejercicio (E13-10)
+ * ---------------------------------------------------------------------- */
+
+test.describe('1RM por ejercicio', () => {
+    test.beforeEach(async ({ page }) => {
+        // Rutina con dos ejercicios y sesiones SOLO del primero: la fila del
+        // segundo debe existir pero declarar que aún no hay datos.
+        await page.evaluate(async () => {
+            const cat = await (await fetch('vendor/data/exercises.json')).json();
+            const squat = cat.exercises.find((/** @type {*} */ e) => /barbell squat/i.test(e.name));
+            const key = Object.keys(localStorage).find((k) => k.endsWith('.training')) ?? 'tl.6.p1.training';
+            const version = Number(key.split('.')[1]) || 6;
+            const pk = Object.keys(localStorage).find((k) => k.endsWith('.profile'));
+            const perfil = JSON.parse(localStorage.getItem(pk ?? '') ?? '{}');
+            const inicio = new Date(`${perfil.startDateISO}T00:00:00Z`);
+            const dia = (/** @type {number} */ n) => {
+                const d = new Date(inicio);
+                d.setUTCDate(d.getUTCDate() + n);
+                return d.toISOString().slice(0, 10);
+            };
+            localStorage.setItem(key, JSON.stringify({
+                schemaVersion: version,
+                routine: { days: [{ name: 'Rutina', exercises: [
+                    { id: 'ex_1_sentadilla', name: 'Sentadilla trasera', sets: 4, reps: 8, loadKg: 100, catalogId: squat?.id ?? null },
+                    { id: 'ex_2_press', name: 'Press banca', sets: 4, reps: 8, loadKg: 80, catalogId: null }
+                ] }] },
+                sessions: [7, 14, 21].map((n, i) => ({
+                    id: `ses_${i}`, dateISO: dia(n),
+                    entries: [{ exerciseId: 'ex_1_sentadilla', sets: [{ reps: 8, loadKg: 100 + i * 2.5 }] }]
+                }))
+            }));
+        });
+        await page.reload();
+    });
+
+    test('cada ejercicio de la rutina es una serie elegible, con su nombre', async ({ page }) => {
+        await goToAnalysis(page);
+        await page.click('[data-open-picker]');
+        const dialog = page.locator('[role="dialog"]');
+
+        // El grupo Entreno va plegado, como todos menos el primero.
+        await dialog.locator('details[data-group="training"] summary').click();
+
+        // Una fila por ejercicio, nombrada. La fila ABSTRACTA («1RM estimado» a
+        // secas) ya no existe: era una promesa que ninguna interfaz podía
+        // cumplir — necesitaba un ejercicio y no había forma de dárselo.
+        await expect(dialog.locator('[data-series="est_e1rm__ex_1_sentadilla"]')).toBeVisible();
+        await expect(dialog.locator('[data-series="est_e1rm__ex_2_press"]')).toBeVisible();
+        await expect(dialog.locator('[data-series="est_e1rm"]')).toHaveCount(0);
+        await expect(dialog).toContainText('Sentadilla trasera');
+
+        // El press no tiene sesiones: su fila lo dice, no finge.
+        const press = dialog.locator('.picker__row', { hasText: 'Press banca' });
+        await expect(press).toContainText('sin datos todavía');
+    });
+
+    test('el 1RM elegido se dibuja con su nombre y sobrevive a recargar', async ({ page }) => {
+        await goToAnalysis(page);
+        await page.click('[data-open-picker]');
+        const dialog = page.locator('[role="dialog"]');
+        await dialog.locator('details[data-group="training"] summary').click();
+        await dialog.locator('[data-series="est_e1rm__ex_1_sentadilla"]').click();
+        await page.locator('[data-modal-close]').click();
+
+        const fila = page.locator('[data-legend-row="est_e1rm__ex_1_sentadilla"]');
+        await expect(fila).toContainText('Sentadilla trasera');
+        await expect(fila).toContainText('Estimada');
+        await expect(fila).toContainText('3 puntos');
+
+        // Y el dataset del lienzo lleva la MISMA etiqueta compuesta: leyenda y
+        // gráfica no pueden divergir tampoco aquí.
+        const etiquetas = await page.evaluate(() => {
+            const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+            return /** @type {*} */ (globalThis).Chart.getChart(cv).data.datasets.map((/** @type {*} */ d) => d.label);
+        });
+        expect(etiquetas.some((l) => l.includes('Sentadilla trasera'))).toBe(true);
+
+        await page.reload();
+        await goToAnalysis(page);
+        await expect(page.locator('[data-legend-row="est_e1rm__ex_1_sentadilla"]')).toBeVisible();
+    });
+});

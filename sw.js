@@ -16,10 +16,12 @@
  *    descarta el caché anterior completo: nada de mezclar versiones de
  *    módulos, que es como se producen los estados imposibles.
  *
- * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
+ * Al tocar cualquier fichero de PRECACHE, `npm run sw:bump`. La versión se
+ * DERIVA del hash del contenido (E13-11): mismo árbol → misma versión, sin
+ * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-v5-0088';
+const CACHE_VERSION = 'tl-0b3bc9c5f4f4';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo

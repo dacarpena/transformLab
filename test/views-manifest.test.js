@@ -17,7 +17,7 @@ import { isICloudDuplicate } from './helpers/tree.js';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { VIEWS, VIEW_IDS, EAGER_VIEW_ID } from '../src/ui/views/_manifest.js';
-import { precacheList, precacheHash, cacheVersionOf, readLock } from '../tools/sw-version.mjs';
+import { precacheList, precacheHash, cacheVersionOf, readLock, versionFor } from '../tools/sw-version.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const read = (/** @type {string} */ p) => readFileSync(join(ROOT, p), 'utf8');
@@ -149,4 +149,18 @@ test('CACHE_VERSION sube cuando cambia lo precacheado', () => {
         'los usuarios instalados se quedarán con módulos viejos');
     assert.equal(lock.cacheVersion, cacheVersionOf(),
         'sw.lock.json y sw.js discrepan en la versión; ejecuta `npm run sw:bump`');
+
+    // Desde E13-11 la versión se DERIVA del hash (BACKLOG §9.bis): mismo árbol
+    // → misma versión, sin contador que colisione entre ramas al fusionar.
+    // Esta aserción impide que alguien vuelva a escribirla a mano.
+    assert.equal(cacheVersionOf(), versionFor(precacheHash()),
+        'CACHE_VERSION no es la derivada del contenido; ejecuta `npm run sw:bump`');
+
+    // Y la derivación solo es estable si `sw.js` NO se precachea a sí mismo:
+    // si lo hiciera, reescribir la versión cambiaría el hash y `sw:bump`
+    // entraría en bucle. El navegador ya trata `sw.js` como especial — el
+    // registro lo revalida por su cuenta — así que precachearlo sería un error
+    // también sin la derivación.
+    assert.ok(!precacheList().includes('sw.js'),
+        'sw.js no puede estar en su propio PRECACHE: la versión derivada dejaría de ser estable');
 });

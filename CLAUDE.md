@@ -109,12 +109,12 @@ seguirá ejecutando el módulo viejo junto a los nuevos que sí pidió de red. E
 lo impone `test/views-manifest.test.js` contra `sw.lock.json`; cuando falle,
 `npm run sw:bump` es la respuesta.
 
-**Trabajo en paralelo (worktrees):** `CACHE_VERSION` es un contador, así que dos ramas que
-lo suban obtienen el MISMO número y colisionan en `sw.js` y `sw.lock.json` al fusionar — y
-el conflicto no se resuelve eligiendo un lado (`precacheHash` depende del contenido
-combinado). Regla: **tras cualquier merge que toque `PRECACHE`, reejecuta `npm run sw:bump`
-antes de nada.** (Pendiente de v2, opción mejor: derivar `CACHE_VERSION` del `precacheHash`
-para que deje de depender del orden — ver `docs/v2/PLAN-V2.md` §9.bis.)
+**Trabajo en paralelo (worktrees):** desde E13-11, `CACHE_VERSION` se **deriva del
+`precacheHash`** (`tl-<12 hex>`): mismo árbol → misma versión, y dos ramas ya no pueden
+colisionar en un número compartido. La regla sigue siendo la misma y ahora es inocua:
+**tras cualquier merge que toque `PRECACHE`, reejecuta `npm run sw:bump`** — es
+idempotente, y el test del candado exige además que la versión sea exactamente la derivada
+del contenido, así que escribirla a mano no compila en verde.
 
 CI (GitHub Actions): typecheck + test en cada push/PR. Despliegue continuo: Cloudflare Pages sobre `main` (staging desde M0; dominio propio y lanzamiento público en M6).
 

@@ -465,6 +465,8 @@ export function catalogFor(ctx) {
  * @property {UnitId} unit el del spec; la aduana de E11 puede reescribirlo
  * @property {{ min: number, max: number } | null} extent
  * @property {string | null} reason clave i18n de por qué está vacía, o null
+ * @property {string} [label] etiqueta YA compuesta; solo las series
+ *   parametrizadas la llevan (la clave i18n sola no sabe qué ejercicio es)
  */
 
 /**

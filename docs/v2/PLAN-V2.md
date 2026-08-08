@@ -408,9 +408,10 @@ toque (CLAUDE.md §7).
 
 - ~~**`num()` formatea con punto decimal en español.**~~ **HECHO** el
   2026-08-08, ver §13.
-- **`CACHE_VERSION` debería derivarse de `precacheHash`** en vez de ser un
-  contador: dos ramas que lo suban obtienen el mismo número y colisionan al
-  fusionar (ver §9.bis).
+- ~~**`CACHE_VERSION` debería derivarse de `precacheHash`**~~ **HECHO** el
+  2026-08-09 (E13-11): la versión es `tl-<12 hex del hash>`, `sw:bump` es
+  idempotente, y el test del candado exige que la versión sea exactamente la
+  derivada — escribirla a mano no compila en verde.
 - **Nombres basura en el catálogo de OFF.** Quedan fichas con nombres truncados
   o sin sentido («esa Plátano»). La criba actual no los detecta y no hay una
   regla obvia que los separe de un nombre corto legítimo. La insignia «marca
@@ -1279,3 +1280,34 @@ dejaba el mínimo en 22,8. Ganó la medición sobre la continuidad. Ocho marcado
 `maxItems: 8`, y E2E de ocho series con ocho colores y ocho marcadores.
 
 **802 unitarios · 195 E2E · typecheck limpio.**
+
+### E13-10/11 — la promesa incumplible y el contador que colisionaba
+
+**E13-10 · El 1RM por ejercicio se vuelve elegible.** `est_e1rm` necesitaba un
+ejercicio como parámetro y ninguna interfaz podía dárselo: aparecía en el
+selector como «sin datos todavía» PARA SIEMPRE — una promesa incumplible colada
+en E13-1. Ahora la plantilla se expande en la interfaz a **una fila por
+ejercicio de la rutina**, con su nombre («1RM estimado · Sentadilla trasera»),
+id compuesto persistible (`est_e1rm__<exerciseId>`, doble guion bajo porque el
+punto rompería `SAFE_ID`), y la fila abstracta desaparece. El catálogo del motor
+no se toca: la expansión depende de la rutina del perfil, y eso es de la
+interfaz. Un ejercicio sin sesiones dice «sin datos todavía»; sin rutina no hay
+filas de 1RM, que es la verdad. La etiqueta viaja COMPUESTA por el manifiesto
+hasta la leyenda, el lienzo, la tabla y el CSV — y como es texto del usuario, la
+guarda anti-fórmulas del CSV pasa de preventiva a activa.
+
+De paso, una lección de método: dos parches de esta etapa **no se aplicaron y el
+`replace` sin `assert` se lo tragó en silencio** — el selector siguió ejecutando
+el código viejo y solo lo delató el E2E. Todos los parches por sustitución
+llevan ahora `assert` de que la cadena existe.
+
+**E13-11 · `CACHE_VERSION` derivada del hash (BACKLOG §9.bis).** La versión pasa
+de contador (`tl-v5-0089`) a derivada del contenido (`tl-<12 hex>`): mismo árbol
+→ misma versión, dos ramas ya no pueden colisionar en un número compartido al
+fusionar, y `sw:bump` es idempotente. El test del candado gana dos aserciones:
+la versión debe ser EXACTAMENTE la derivada (escribirla a mano → rojo,
+verificado con mutación) y `sw.js` no puede entrar en su propio PRECACHE (la
+derivación dejaría de ser estable). La limpieza de `activate()` borra por
+prefijo `tl-`, así que las cachés contadas viejas caen solas.
+
+**802 unitarios · 197 E2E · typecheck limpio.**

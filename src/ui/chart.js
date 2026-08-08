@@ -54,6 +54,7 @@ import { planAxes, axisIdFor, styleFor, rebase, MAX_SERIES } from './series-styl
  *
  * @typedef {Object} RenderedSeries
  * @property {string} id
+ * @property {string} label ya traducida (o compuesta, si la serie es parametrizada)
  * @property {number} slot 0..3, y por tanto qué color le tocó
  * @property {number} pointCount cuántos puntos ENTRARON en el lienzo
  * @property {string} axis 'y' o 'y2'
@@ -757,7 +758,10 @@ export function createChart() {
             const axisId = axisIdFor(plan, slot);
 
             datasets.push({
-                label: t(serie.spec.labelKey),
+                // Las series parametrizadas (1RM de UN ejercicio) traen su
+                // etiqueta ya compuesta: la clave i18n sola no sabe qué
+                // ejercicio es.
+                label: serie.label ?? t(serie.spec.labelKey),
                 data: points.map((p) => ({ x: p.x, y: p.y })),
                 ...styleFor(serie.spec.provenance, slot, palette, points.length),
                 ...(axisId ? { yAxisID: axisId } : {}),
@@ -765,6 +769,7 @@ export function createChart() {
             });
             rendered.push({
                 id: serie.spec.id,
+                label: serie.label ?? t(serie.spec.labelKey),
                 slot,
                 pointCount: points.length,
                 axis: axisId ?? 'y',
