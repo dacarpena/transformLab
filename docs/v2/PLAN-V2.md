@@ -511,3 +511,54 @@ que cierra el bucle menú → compra → despensa sin depender de cómo se escri
 nombre.
 
 **603 unitarios · 108 E2E · typecheck limpio.**
+
+### V2-M5 · Suplementación basada en evidencia — cerrada el 2026-08-08
+
+Catálogo editorial de 12 suplementos (`src/core/data/supplements-catalog.json`,
+molde de `aesthetic-catalog.json`) y selector puro en `src/core/supplements.js`.
+
+**La honestidad es la función, no un adorno.** Esta app no vende nada, así que
+puede escribir «los BCAA no te hacen falta» y «los quemagrasas son cafeína cara»
+— algo que ninguna web que rankee suplementos Y regente la tienda puede
+permitirse. Por eso hay tres bloques a la vista y ninguno escondido: lo que
+sirve, lo retirado por seguridad, y **lo que se vende mucho y no funciona**.
+Ocultar el tercero deja al usuario comprándolo en otro sitio sin saber por qué
+no estaba.
+
+**El cribado de seguridad es una restricción DURA**, del mismo rango que la
+alergia en el menú: un estimulante contraindicado no se propone atenuado ni «con
+precaución», se retira y se dice por qué. La app no sabe nada de la historia
+clínica de nadie, así que el único comportamiento defendible es el conservador.
+La yohimbina lleva `neverRecommend` y aparece solo para explicar por qué no se
+recomienda. `disclaimerKey` viaja **con el resultado del selector**, no en la
+plantilla, para que ninguna vista pueda olvidarse de decir que esto no es consejo
+médico.
+
+Las dos decisiones que el prompt dejaba abiertas, resueltas: **cribado máximo**
+en estimulantes, y **coste en rangos marca-neutrales** con aviso antidopaje
+(Informed Sport / NSF) en los dos productos con casos documentados de
+contaminación.
+
+Timing de cafeína: 3–6 mg/kg, 60 min antes de entrenar, con corte 8 h antes de
+dormir. La aritmética es **modular sobre el reloj**: quien se acuesta a las 02:00
+corta a las 18:00 del día anterior, y una resta a secas daba una hora imposible.
+Se AVISA del choque; no se cambia nada por el usuario (B9).
+
+Tres defectos propios, los tres encontrados por un test:
+
+1. **El filtro de pertinencia estaba en OR**, así que un criterio no
+   especificado daba pase libre y anulaba el otro: pedir la fase de volumen sin
+   declarar objetivos colaba el HMB, que es de definición.
+2. **El stack salía VACÍO en la fase de adaptación** —la primera de todo plan, y
+   la que más gente ve— porque ningún ítem la listaba. La creatina, la proteína o
+   la vitamina D no dependen de la fase: limitarlas a tres era un error de
+   catálogo, no una decisión.
+3. Un bloque JSDoc con `@param`/`@returns` colgaba de una constante en vez de la
+   función; y un `import` de `empty` que ya no se usaba (lo pilló el test de
+   código muerto de M7-8).
+
+Invariantes: `cribado_duro` (probado bandera a bandera, las diez), 
+`evidencia_visible` (todo ítem lleva nivel, fuente, dosis, coste y salvedades en
+los dos idiomas) y `selector_determinista`.
+
+**631 unitarios · 117 E2E · typecheck limpio.**

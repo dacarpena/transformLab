@@ -1358,3 +1358,18 @@ button.timeline__event:hover {
 .shopping-line--covered {
     opacity: 0.62;
 }
+
+/* Suplementos (V2-M5). Los cuatro niveles de evidencia usan los colores
+   semánticos que ya existen: verde lo que mueve la aguja, ámbar lo dudoso,
+   rojo lo que no funciona. El nivel se lee también en el texto de la insignia,
+   así que el color no es la única señal (WCAG 1.4.1). */
+.badge--ev-strong      { background: var(--color-success); }
+.badge--ev-moderate    { background: var(--color-phase-recomposition); }
+.badge--ev-preliminary { background: var(--color-warning); }
+.badge--ev-none        { background: var(--color-danger); }
+
+.safety-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-2);
+}

@@ -1,0 +1,484 @@
+{
+  "_comment": "Catálogo editorial de suplementos (V2-M5). TransformLab no vende nada, así que puede decir «esto no funciona» sin perder margen — algo que ninguna web que rankea suplementos Y vende la tienda puede hacer. Por eso el nivel de evidencia va SIEMPRE al lado, incluso cuando es 'ninguna'. Las dosis son las del consenso de las revisiones citadas; el coste es un rango orientativo en euros/mes, marca-neutral y con IVA, medido sobre presentaciones genéricas en España a mediados de 2026. Ninguna cifra es una recomendación médica. Las fases de cada ítem se revisaron tras ver que el stack salía VACÍO en la fase de adaptación —la primera de todo plan, y la que más gente ve—: la creatina, la proteína o la vitamina D no dependen de la fase, y limitarlas a tres era un error de catálogo, no una decisión.",
+  "sources": [
+    {
+      "id": "issn",
+      "name": "International Society of Sports Nutrition, position stands (JISSN)",
+      "url": "https://jissn.biomedcentral.com/"
+    },
+    {
+      "id": "examine",
+      "name": "Examine.com, resúmenes de evidencia por suplemento",
+      "url": "https://examine.com/"
+    },
+    {
+      "id": "efsa",
+      "name": "EFSA, declaraciones de propiedades saludables autorizadas",
+      "url": "https://www.efsa.europa.eu/"
+    }
+  ],
+  "evidenceLevels": [
+    "strong",
+    "moderate",
+    "preliminary",
+    "none"
+  ],
+  "items": [
+    {
+      "id": "creatine",
+      "name": {
+        "es": "Creatina monohidrato",
+        "en": "Creatine monohydrate"
+      },
+      "evidence": "strong",
+      "goals": [
+        "muscle",
+        "strength",
+        "recomposition"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "cut",
+        "bulk",
+        "transition",
+        "maintenance"
+      ],
+      "doseText": {
+        "es": "3–5 g al día, todos los días. No hace falta fase de carga: llegas al mismo sitio en 3–4 semanas en vez de en 1.",
+        "en": "3–5 g daily, every day. No loading phase needed: you reach the same place in 3–4 weeks instead of 1."
+      },
+      "timing": "anytime",
+      "costEurMonth": [
+        3,
+        8
+      ],
+      "why": {
+        "es": "Es el suplemento con más literatura a favor en fuerza e hipertrofia, y de largo. Aumenta el fosfato de creatina muscular, que es el sustrato de los esfuerzos cortos e intensos: se traduce en un par de repeticiones más por serie, y esas repeticiones acumuladas son la ganancia.",
+        "en": "It has by far the most literature behind it for strength and hypertrophy. It raises muscle phosphocreatine, the substrate for short intense efforts: that means a couple more reps per set, and those reps add up to the gain."
+      },
+      "caveats": {
+        "es": "Retiene agua INTRAmuscular: la báscula puede subir 1–2 kg las primeras semanas sin que sea grasa. Conviene saberlo antes de asustarse en el primer check-in.",
+        "en": "It retains INTRAmuscular water: the scale can go up 1–2 kg in the first weeks without it being fat. Worth knowing before the first check-in scares you."
+      },
+      "contraindications": [
+        "kidney"
+      ],
+      "source": "issn"
+    },
+    {
+      "id": "protein_powder",
+      "name": {
+        "es": "Proteína en polvo (suero o vegetal)",
+        "en": "Protein powder (whey or plant)"
+      },
+      "evidence": "strong",
+      "goals": [
+        "muscle",
+        "recomposition",
+        "fatloss"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "cut",
+        "bulk",
+        "transition",
+        "maintenance"
+      ],
+      "doseText": {
+        "es": "Lo que te falte para llegar a tu objetivo diario de proteína. No es mágica: es comida cómoda.",
+        "en": "Whatever you are short of your daily protein target. It is not magic: it is convenient food."
+      },
+      "timing": "anytime",
+      "costEurMonth": [
+        15,
+        30
+      ],
+      "why": {
+        "es": "La evidencia fuerte es la de la PROTEÍNA TOTAL del día, no la del polvo. Si ya llegas comiendo, el bote no añade nada; si no llegas, es la forma más barata y rápida de llegar.",
+        "en": "The strong evidence is for TOTAL daily protein, not for the powder. If you already hit your target with food, the tub adds nothing; if you do not, it is the cheapest and quickest way to get there."
+      },
+      "caveats": {
+        "es": "Cuenta dentro de tus calorías, no encima. Un batido de 200 kcal es 200 kcal.",
+        "en": "It counts inside your calories, not on top. A 200 kcal shake is 200 kcal."
+      },
+      "contraindications": [
+        "milk_allergy"
+      ],
+      "source": "issn"
+    },
+    {
+      "id": "caffeine",
+      "name": {
+        "es": "Cafeína",
+        "en": "Caffeine"
+      },
+      "evidence": "strong",
+      "goals": [
+        "performance",
+        "fatloss"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "cut",
+        "bulk",
+        "transition",
+        "maintenance"
+      ],
+      "doseText": {
+        "es": "3–6 mg por kg de peso, unos 60 minutos antes de entrenar.",
+        "en": "3–6 mg per kg of body weight, about 60 minutes before training."
+      },
+      "timing": "preworkout",
+      "costEurMonth": [
+        2,
+        6
+      ],
+      "why": {
+        "es": "Mejora el rendimiento en fuerza y en resistencia, y baja la percepción de esfuerzo. El efecto es real y está medido muchas veces.",
+        "en": "It improves both strength and endurance performance and lowers perceived effort. The effect is real and has been measured many times."
+      },
+      "caveats": {
+        "es": "Su vida media ronda las 5 horas, así que la de la tarde sigue en sangre a la hora de dormir. Y dormir mal cuesta más de lo que la cafeína aporta.",
+        "en": "Its half-life is around 5 hours, so an afternoon dose is still in your blood at bedtime. And sleeping badly costs more than the caffeine gives."
+      },
+      "contraindications": [
+        "anxiety",
+        "hypertension",
+        "pregnancy",
+        "arrhythmia",
+        "insomnia"
+      ],
+      "source": "issn"
+    },
+    {
+      "id": "vitamin_d",
+      "name": {
+        "es": "Vitamina D3",
+        "en": "Vitamin D3"
+      },
+      "evidence": "strong",
+      "goals": [
+        "health"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "cut",
+        "bulk",
+        "transition",
+        "maintenance"
+      ],
+      "doseText": {
+        "es": "1 000–2 000 UI al día en invierno, si no te da el sol. Idealmente, después de medir tu nivel en sangre.",
+        "en": "1,000–2,000 IU daily in winter if you get little sun. Ideally after measuring your blood level."
+      },
+      "timing": "with_meal",
+      "costEurMonth": [
+        2,
+        5
+      ],
+      "why": {
+        "es": "Corregir un déficit tiene efectos claros en salud ósea y muscular. Lo que NO está demostrado es que suplementar por encima de lo normal haga nada.",
+        "en": "Correcting a deficiency has clear effects on bone and muscle health. What is NOT shown is that supplementing above normal does anything."
+      },
+      "caveats": {
+        "es": "Esto no es un consejo médico. El déficit se mide con una analítica, y quien la interpreta es tu médico.",
+        "en": "This is not medical advice. Deficiency is measured with a blood test, and your doctor is who reads it."
+      },
+      "contraindications": [
+        "hypercalcemia"
+      ],
+      "source": "efsa"
+    },
+    {
+      "id": "omega3",
+      "name": {
+        "es": "Omega-3 (EPA/DHA)",
+        "en": "Omega-3 (EPA/DHA)"
+      },
+      "evidence": "moderate",
+      "goals": [
+        "health",
+        "recovery"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "cut",
+        "bulk",
+        "transition",
+        "maintenance"
+      ],
+      "doseText": {
+        "es": "1–2 g al día de EPA+DHA sumados, si comes pescado azul menos de dos veces por semana.",
+        "en": "1–2 g daily of EPA+DHA combined, if you eat oily fish less than twice a week."
+      },
+      "timing": "with_meal",
+      "costEurMonth": [
+        8,
+        20
+      ],
+      "why": {
+        "es": "Efecto sólido en salud cardiovascular; el efecto sobre hipertrofia y recuperación es real pero pequeño, y menor de lo que suele venderse.",
+        "en": "Solid effect on cardiovascular health; the effect on hypertrophy and recovery is real but small, and smaller than usually sold."
+      },
+      "caveats": {
+        "es": "Mira los miligramos de EPA+DHA, no los del aceite: una cápsula de «1 000 mg» suele traer 300.",
+        "en": "Look at the milligrams of EPA+DHA, not of the oil: a \"1,000 mg\" capsule usually carries 300."
+      },
+      "contraindications": [
+        "anticoagulants",
+        "fish_allergy"
+      ],
+      "source": "examine"
+    },
+    {
+      "id": "beta_alanine",
+      "name": {
+        "es": "Beta-alanina",
+        "en": "Beta-alanine"
+      },
+      "evidence": "moderate",
+      "goals": [
+        "performance"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "cut",
+        "bulk",
+        "transition",
+        "maintenance"
+      ],
+      "doseText": {
+        "es": "3–6 g al día, repartidos. Tarda 4 semanas en hacer efecto: no sirve tomarla el día de antes.",
+        "en": "3–6 g daily, split up. It takes 4 weeks to work: taking it the day before is pointless."
+      },
+      "timing": "anytime",
+      "costEurMonth": [
+        5,
+        12
+      ],
+      "why": {
+        "es": "Ayuda en esfuerzos de 1 a 4 minutos, que es la ventana de las series largas. Fuera de esa ventana, poco o nada.",
+        "en": "It helps in efforts of 1 to 4 minutes, the window of long sets. Outside that window, little or nothing."
+      },
+      "caveats": {
+        "es": "Produce hormigueo en la cara y los brazos. Es inofensivo, pero conviene saberlo antes de tomarla.",
+        "en": "It causes tingling in the face and arms. Harmless, but worth knowing beforehand."
+      },
+      "contraindications": [],
+      "source": "issn"
+    },
+    {
+      "id": "citrulline",
+      "name": {
+        "es": "Citrulina malato",
+        "en": "Citrulline malate"
+      },
+      "evidence": "preliminary",
+      "goals": [
+        "performance"
+      ],
+      "phases": [
+        "adaptation",
+        "recomposition",
+        "bulk",
+        "maintenance",
+        "transition"
+      ],
+      "doseText": {
+        "es": "6–8 g, 60 minutos antes de entrenar.",
+        "en": "6–8 g, 60 minutes before training."
+      },
+      "timing": "preworkout",
+      "costEurMonth": [
+        8,
+        18
+      ],
+      "why": {
+        "es": "Algunos estudios ven más repeticiones y menos agujetas; otros no ven nada. La literatura no está cerrada.",
+        "en": "Some studies see more reps and less soreness; others see nothing. The literature is not settled."
+      },
+      "caveats": {
+        "es": "Si el presupuesto es limitado, este es de los primeros que se caen de la lista.",
+        "en": "If the budget is tight, this is one of the first to drop off the list."
+      },
+      "contraindications": [],
+      "source": "examine"
+    },
+    {
+      "id": "hmb",
+      "name": {
+        "es": "HMB",
+        "en": "HMB"
+      },
+      "evidence": "preliminary",
+      "goals": [
+        "muscle"
+      ],
+      "phases": [
+        "cut"
+      ],
+      "doseText": {
+        "es": "3 g al día, repartidos.",
+        "en": "3 g daily, split up."
+      },
+      "timing": "anytime",
+      "costEurMonth": [
+        15,
+        30
+      ],
+      "why": {
+        "es": "En principiantes o en déficit agresivo hay algún dato de protección del tejido magro. En entrenados, los efectos espectaculares que se publicaron no se han replicado.",
+        "en": "In beginners or aggressive deficits there is some data on protecting lean tissue. In trained people, the spectacular published effects have not replicated."
+      },
+      "caveats": {
+        "es": "Comer suficiente proteína hace lo mismo y sale más barato.",
+        "en": "Eating enough protein does the same thing and costs less."
+      },
+      "contraindications": [],
+      "source": "examine"
+    },
+    {
+      "id": "bcaa",
+      "name": {
+        "es": "BCAA",
+        "en": "BCAAs"
+      },
+      "evidence": "none",
+      "goals": [],
+      "phases": [],
+      "doseText": {
+        "es": "No hace falta ninguna dosis.",
+        "en": "No dose needed."
+      },
+      "timing": "anytime",
+      "costEurMonth": [
+        10,
+        25
+      ],
+      "why": {
+        "es": "No aportan nada sobre una dieta que ya llega a su proteína: son tres de los veinte aminoácidos, y sin los otros diecisiete no se construye músculo. Están aquí porque se venden muchísimo, y saber que NO hacen falta te ahorra el dinero.",
+        "en": "They add nothing on top of a diet that already hits its protein: they are three of twenty amino acids, and you cannot build muscle without the other seventeen. They are listed here because they sell enormously, and knowing they are NOT needed saves you the money."
+      },
+      "caveats": {
+        "es": "Si tu proteína diaria está cubierta, este bote es dinero tirado.",
+        "en": "If your daily protein is covered, this tub is money thrown away."
+      },
+      "contraindications": [],
+      "source": "issn"
+    },
+    {
+      "id": "fat_burner",
+      "name": {
+        "es": "«Quemagrasas» termogénicos",
+        "en": "Thermogenic \"fat burners\""
+      },
+      "evidence": "none",
+      "goals": [],
+      "phases": [],
+      "doseText": {
+        "es": "No hace falta ninguna dosis.",
+        "en": "No dose needed."
+      },
+      "timing": "anytime",
+      "costEurMonth": [
+        25,
+        60
+      ],
+      "why": {
+        "es": "Lo que funciona de esas mezclas es la cafeína que llevan, y la cafeína cuesta dos euros al mes. El resto es relleno con estudios de laboratorio y ninguno en personas que pierdan grasa por ello.",
+        "en": "What works in those blends is the caffeine they contain, and caffeine costs two euros a month. The rest is filler with lab studies and none in people actually losing fat from it."
+      },
+      "caveats": {
+        "es": "Son los productos con más casos documentados de contaminación con estimulantes no declarados. Si compites, es un riesgo real de positivo.",
+        "en": "These are the products with the most documented cases of contamination with undeclared stimulants. If you compete, that is a real risk of a positive test."
+      },
+      "contraindications": [
+        "anxiety",
+        "hypertension",
+        "pregnancy",
+        "arrhythmia",
+        "insomnia"
+      ],
+      "dopingRisk": true,
+      "source": "examine"
+    },
+    {
+      "id": "yohimbine",
+      "name": {
+        "es": "Yohimbina",
+        "en": "Yohimbine"
+      },
+      "evidence": "preliminary",
+      "goals": [
+        "fatloss"
+      ],
+      "phases": [],
+      "doseText": {
+        "es": "No se propone dosis: este catálogo no la recomienda.",
+        "en": "No dose is given: this catalogue does not recommend it."
+      },
+      "timing": "preworkout",
+      "costEurMonth": [
+        10,
+        20
+      ],
+      "why": {
+        "es": "Hay algún dato en grasa localizada muy rebelde, en atletas ya muy definidos y en ayunas. Fuera de ese caso extremo no hay nada.",
+        "en": "There is some data on very stubborn localised fat, in already very lean athletes, fasted. Outside that extreme case there is nothing."
+      },
+      "caveats": {
+        "es": "Sube la tensión y la ansiedad, y su margen entre dosis útil y dosis desagradable es estrecho. Aparece en la lista para explicar POR QUÉ no se recomienda, no como opción.",
+        "en": "It raises blood pressure and anxiety, and the margin between a useful dose and an unpleasant one is narrow. It is listed to explain WHY it is not recommended, not as an option."
+      },
+      "contraindications": [
+        "anxiety",
+        "hypertension",
+        "pregnancy",
+        "arrhythmia",
+        "insomnia"
+      ],
+      "neverRecommend": true,
+      "dopingRisk": true,
+      "source": "examine"
+    },
+    {
+      "id": "multivitamin",
+      "name": {
+        "es": "Multivitamínico",
+        "en": "Multivitamin"
+      },
+      "evidence": "preliminary",
+      "goals": [
+        "health"
+      ],
+      "phases": [
+        "cut"
+      ],
+      "doseText": {
+        "es": "Uno al día, si tu dieta es restrictiva o muy baja en calorías.",
+        "en": "One a day, if your diet is restrictive or very low in calories."
+      },
+      "timing": "with_meal",
+      "costEurMonth": [
+        4,
+        12
+      ],
+      "why": {
+        "es": "En una dieta variada no aporta nada demostrado. En un déficit agresivo o una dieta con exclusiones, sirve de red de seguridad barata.",
+        "en": "On a varied diet it adds nothing demonstrated. On an aggressive deficit or a diet with exclusions, it works as a cheap safety net."
+      },
+      "caveats": {
+        "es": "No compensa una dieta pobre: los micronutrientes de la comida vienen acompañados de fibra y de todo lo demás.",
+        "en": "It does not make up for a poor diet: micronutrients from food come with fibre and everything else."
+      },
+      "contraindications": [],
+      "source": "examine"
+    }
+  ]
+}
