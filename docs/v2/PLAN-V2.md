@@ -466,3 +466,48 @@ grupo de fuentes proteicas y el solver la ofrecía de plato principal. La verdur
 se define ahora por densidad y solo por densidad.
 
 **580 unitarios · 101 E2E · typecheck limpio.**
+
+### V2-M4 · Lista de la compra + despensa — cerrada el 2026-08-08
+
+`src/core/shopping.js`, puro: consolida los ingredientes de siete días de menú,
+resta la despensa y agrupa por el pasillo por el que se camina en el súper —no
+alfabéticamente, que obliga a ir y volver.
+
+**El invariante `conservacion_de_la_compra` es hermano del `conservacion` del
+motor**: para cada alimento, `neededG = pantryUsedG + toBuyG` exactamente, y la
+lista contiene los alimentos del menú, ni uno más ni uno menos. Se prueba sobre
+un menú generado por el solver real contra los 2 058 alimentos: una lista que
+cuadra con dos ingredientes de juguete y se descuadra con cuarenta no vale.
+
+Decisiones que costaron trabajo y valen la pena:
+
+- **El redondeo al alza vive aparte** (`buyRoundedG`). Comprar «237 g de arroz»
+  es absurdo y «240» es lo natural, pero redondear sobre el número bueno rompe
+  la conservación. Se enseña lo redondeado y se cuadra con lo exacto.
+- **El consumo de despensa se lleva por CANTIDAD, no por «bote usado»**. Un bote
+  de 500 g del que se gastan 150 conserva 350 para la siguiente línea. La
+  primera versión consumía la entrada entera y hacía comprar de más; se
+  descubrió con una mutación deliberada del código.
+- **Lo que no se puede restar se DICE.** Un artículo apuntado en «unidades» no
+  se resta de 250 g sin saber lo que pesa una unidad, y ese dato no lo tenemos:
+  va a `unmatchedPantry` y la vista lo explica. A ojo saldría una compra corta.
+- **`sortLines` es una función aparte** y no un parámetro de
+  `buildShoppingList`: separarlas hace imposible que un criterio de ordenación
+  toque las cantidades.
+
+Dos defectos reales encontrados al verificar en navegador:
+
+1. **La lista podía no corresponder al menú que el usuario ve.** Nutrición tenía
+   su deslizador de comidas en una variable de módulo y Compra leía
+   `preferences`. Ahora el número de comidas se persiste, y ambas construyen el
+   mismo menú con la misma semilla.
+2. **«Comprar 1 160 g de patata cocida»**, que no se puede hacer. Los genéricos
+   cocidos sirven para el diario —uno pesa el arroz hecho— pero no para un menú
+   del que sale una compra. Llevan `prep: 'cooked'` y el solver los excluye;
+   verificado: cero cocidos en la lista.
+
+Marcar como comprado mete la línea en la despensa **con su `foodId`**, que es lo
+que cierra el bucle menú → compra → despensa sin depender de cómo se escriba el
+nombre.
+
+**603 unitarios · 108 E2E · typecheck limpio.**

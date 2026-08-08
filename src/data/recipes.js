@@ -145,7 +145,7 @@ export function listPantry() {
  *
  * Sin fusionar, comprar arroz dos semanas seguidas deja dos entradas «Arroz
  * 1000 g» y la lista de la compra de V2-M4 descontaría solo una.
- * @param {{ name: string, quantity: number, unit?: string, expiresISO?: string }} input
+ * @param {{ name: string, quantity: number, unit?: string, foodId?: string, expiresISO?: string }} input
  * @returns {RecipesResult<any[]>}
  */
 export function addPantryItem(input) {
@@ -156,7 +156,12 @@ export function addPantryItem(input) {
     if (!Number.isFinite(quantity) || quantity < 0) return { ok: false, error: 'pantry.quantityInvalid' };
     const unit = sanitizeText(input?.unit ?? 'g').slice(0, 20) || 'g';
 
-    const same = items.find((it) => it.name.toLowerCase() === name.toLowerCase() && it.unit === unit);
+    const foodId = sanitizeText(input?.foodId ?? '').slice(0, 80);
+    // Se fusiona por alimento cuando se conoce, y por nombre cuando no. Fusionar
+    // solo por nombre dejaría dos entradas del mismo arroz si una vino de la
+    // lista de la compra y la otra la tecleó el usuario.
+    const same = items.find((it) => (foodId !== '' && it.foodId === foodId)
+        || (it.name.toLowerCase() === name.toLowerCase() && it.unit === unit));
     if (same) {
         const next = items.map((it) => (it === same
             ? { ...it, quantity: Math.round((it.quantity + quantity) * 10) / 10 }
@@ -170,6 +175,7 @@ export function addPantryItem(input) {
         quantity: Math.round(quantity * 10) / 10,
         unit
     };
+    if (foodId !== '') item.foodId = foodId;
     if (typeof input?.expiresISO === 'string' && input.expiresISO !== '') item.expiresISO = input.expiresISO;
     return writeItems(PANTRY_KEY, [...items, item]);
 }

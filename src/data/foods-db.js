@@ -55,7 +55,7 @@ export const SEED_URL = 'vendor/data/foods.json';
  * Sello de la siembra. **Súbelo cada vez que se regenere `foods.json`**, o los
  * navegadores que ya sembraron se quedarán con la base antigua para siempre.
  */
-export const SEED_STAMP = 'foods-2026-08-v2';
+export const SEED_STAMP = 'foods-2026-08-v3';
 
 /** @type {IDBDatabase | null} */
 let cachedDb = null;

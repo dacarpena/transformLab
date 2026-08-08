@@ -25,6 +25,11 @@ import * as toast from '../components/toast.js';
 import { empty, error as errorState } from '../components/state.js';
 import { int as num } from '../format.js';
 
+/**
+ * Comidas al día. Vive en `preferences` y NO solo aquí dentro: la lista de la
+ * compra construye el menú por su cuenta, y si cada vista tuviera su propio
+ * número la lista no correspondería al menú que el usuario está viendo.
+ */
 let mealCount = 4;
 let refeedToday = false;
 
@@ -297,6 +302,7 @@ function draw(container) {
 
 /** @param {HTMLElement} container */
 export async function mount(container) {
+    mealCount = preferencesStore.get().mealsPerDay ?? 4;
     draw(container);
 
     // El catálogo se carga DESPUÉS del primer pintado: las macros del día no
@@ -329,6 +335,10 @@ export async function mount(container) {
 
     on(container, 'input', '[data-meal-count]', (_event, target) => {
         mealCount = Number(/** @type {HTMLInputElement} */ (target).value);
+        // Se persiste para que Compra construya el mismo menú. Si falla, la
+        // vista sigue funcionando con el número en memoria: no vale la pena
+        // molestar al usuario por una preferencia.
+        preferencesStore.save({ mealsPerDay: mealCount });
         // Cambiar el número de comidas cambia los objetivos por comida, así que
         // el menú anterior deja de corresponder a nada.
         rebuildMenu();

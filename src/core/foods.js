@@ -49,6 +49,7 @@ export const REFERENCE_GRAMS = 100;
  * @property {[number, 'g'|'ml']} [q] formato del envase
  * @property {string} [cat] pasillo de la tienda («dónde está»)
  * @property {string} [diet] origen alimentario («de qué viene»): meat|fish|dairy|egg|plant
+ * @property {string} [prep] 'cooked' si la ficha es del alimento YA cocinado
  * @property {string} [e] EAN
  * @property {string[]} [a] alérgenos
  * @property {'usda'|'off'|'user'} src

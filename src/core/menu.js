@@ -207,6 +207,13 @@ export function candidatePool(foods, preferences) {
             excluded[allowed.reason] = (excluded[allowed.reason] ?? 0) + 1;
             continue;
         }
+        // Un alimento YA COCINADO sirve para el diario —uno pesa el arroz
+        // hecho— pero no para un menú del que sale una lista de la compra:
+        // «comprar 1 160 g de patata cocida» no se puede hacer.
+        if (food.prep === 'cooked') {
+            excluded['menu.cooked'] = (excluded['menu.cooked'] ?? 0) + 1;
+            continue;
+        }
         const role = roleOf(food);
         // El pasillo decide si el alimento puede hacer ESE papel. Sin ello
         // entraban la miel de hidrato y el caldo de verdura.

@@ -513,6 +513,10 @@ export const validatePantry = rootValidator({
         name: str({ maxLength: 120 }),
         quantity: num({ min: 0, max: 100000 }),
         unit: str({ maxLength: 20 }),
+        // Enlace al alimento, opcional. Lo pone la lista de la compra al marcar
+        // algo como comprado (V2-M4), y es lo que hace que la siguiente lista lo
+        // descuente sin depender de cómo esté escrito el nombre.
+        foodId: opt(str({ maxLength: 80 })),
         expiresISO: opt(isoDate)
     }), { maxItems: 500 })
 });

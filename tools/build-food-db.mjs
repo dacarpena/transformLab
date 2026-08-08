@@ -289,7 +289,7 @@ const ORIGEN_DE_PASILLO = {
  * Los nombres están en español a mano: USDA está en inglés y traducir 8 000
  * fichas automáticamente produciría nombres que nadie busca. Se prefiere una
  * lista corta y bien nombrada a una larga e inutilizable.
- * @type {Array<[string, number, number, number, number, string]>}
+ * @type {Array<[string, number, number, number, number, string, string?]>}
  */
 const GENERICOS = [
     // nombre, kcal, proteína, hidratos, grasa, categoría
@@ -344,20 +344,26 @@ const GENERICOS = [
     ['Queso fresco batido 0 %', 47, 8.0, 4.0, 0.2, 'lacteos'],
     ['Queso curado', 393, 24.9, 1.3, 32.1, 'lacteos'],
     ['Tofu firme', 144, 15.8, 4.3, 8.7, 'despensa'],
-    ['Lentejas cocidas', 116, 9.0, 20.1, 0.4, 'despensa'],
-    ['Garbanzos cocidos', 164, 8.9, 27.4, 2.6, 'despensa'],
-    ['Arroz blanco cocido', 130, 2.7, 28.2, 0.3, 'despensa'],
-    ['Pasta cocida', 131, 5.0, 25.0, 1.1, 'despensa'],
-    ['Patata cocida', 87, 1.9, 20.1, 0.1, 'verdura']
+    // Cocidos. Llevan `prep: 'cooked'` y ESO IMPORTA: sirven para el diario
+    // —uno pesa el arroz ya hecho— pero no para un menú del que sale una lista
+    // de la compra, porque «comprar 1 160 g de patata cocida» no se puede hacer.
+    // El campo lo lee `core/menu.js` para dejarlos fuera de sus grupos.
+    ['Lentejas cocidas', 116, 9.0, 20.1, 0.4, 'despensa', 'cooked'],
+    ['Garbanzos cocidos', 164, 8.9, 27.4, 2.6, 'despensa', 'cooked'],
+    ['Arroz blanco cocido', 130, 2.7, 28.2, 0.3, 'despensa', 'cooked'],
+    ['Pasta cocida', 131, 5.0, 25.0, 1.1, 'despensa', 'cooked'],
+    ['Patata cocida', 87, 1.9, 20.1, 0.1, 'verdura', 'cooked']
 ];
 
 /** @returns {Array<Record<string, *>>} */
 function genericos() {
     /** @type {Array<Record<string, *>>} */ const out = [];
-    for (const [nombre, k, p, c, f, cat] of GENERICOS) {
+    for (const [nombre, k, p, c, f, cat, prep] of GENERICOS) {
         const id = `usda:${nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
             .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`;
+        /** @type {Record<string, *>} */
         const food = { id, n: nombre, k, p, c, f, cat, diet: ORIGEN_DE_PASILLO[cat], src: 'usda' };
+        if (prep) food.prep = prep;
         const sane = sanityCheck(food);
         if (!sane.ok) {
             console.warn(`  genérico descartado (${sane.reason}): ${nombre}`);
