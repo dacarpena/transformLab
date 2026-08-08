@@ -65,16 +65,18 @@ test('todas las vistas montan sin error de consola', async ({ page }) => {
 test('a 320 px la barra inferior pliega las secciones sobrantes tras «más»', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
 
-    // Con diez pestañas visibles los objetivos táctiles caerían a 32 px.
+    // Con TODAS las pestañas visibles los objetivos táctiles caerían muy por
+    // debajo de 44 px: se pliegan las que no son primarias tras «más».
     const visibleTabs = page.locator('.nav-list__item:visible');
-    await expect(visibleTabs).toHaveCount(5);
+    await expect(visibleTabs).toHaveCount(5);   // 4 primarias + «más»
 
     const more = page.locator('[data-nav-more]');
     await expect(more).toHaveAttribute('aria-expanded', 'false');
 
     await more.click();
     await expect(more).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('.nav-list__item:visible')).toHaveCount(12);
+    // Desplegada: todas las vistas del manifiesto más el botón «más».
+    await expect(page.locator('.nav-list__item:visible')).toHaveCount(VIEW_IDS.length + 1);
 
     // Escape repliega y devuelve el foco al botón que la abrió
     await page.keyboard.press('Escape');

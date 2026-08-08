@@ -164,7 +164,7 @@ siempre en las costuras que los invariantes no ven).
 | # | Título | Entrega | Depende de |
 |---|---|---|---|
 | **V2-M0** ✅ | Datos y versionado | Fuente única de `SCHEMA_VERSION`, migrador por-colección v5→v6, compat. en backup, andamiaje de IndexedDB. **Cero pérdida de datos al subir a v6.** | — |
-| **V2-M1** | Gasto adaptativo + registro de ingesta | `expenditure.js`, colección `intakeLog`, oferta de recalibrar calorías desde el gasto medido | M0 |
+| **V2-M1** ✅ | Gasto adaptativo + registro de ingesta | `expenditure.js`, colección `intakeLog`, oferta de recalibrar calorías desde el gasto medido | M0 |
 | **V2-M2** | Alimentos y recetas (BD local) | `foods-db.js` (IndexedDB), `foods.js` (buscador puro), CRUD de recetas y despensa | M0 |
 | **V2-M3** | Menú que cuadra macros | `menu.js` (solver determinista contra bandas, duras/blandas) | M2 (+M1) |
 | **V2-M4** | Lista de la compra + despensa | `shopping.js` (consolidación pura por pasillo, descuenta despensa) | M3 |
@@ -257,6 +257,28 @@ Ya arreglado de la lista: el duplicado de iCloud que ponía `npm test` en rojo
 (`test/helpers/tree.js`, filtro en los seis recorridos del árbol).
 
 ## Bitácora de la v2
+
+**V2-M1 cerrada (2026-08-08).** `src/core/expenditure.js` reconstruye el gasto
+real del balance energético invertido, sobre la TENDENCIA del peso (media móvil
+de 7 días) y no sobre pesadas sueltas. La vista «Gasto» enseña **la cuenta
+entera**, no un número: ingesta media, cambio de tendencia, días y equivalencia
+energética, de modo que el usuario pueda rehacerla con una calculadora. Cuando
+el gasto medido diverge más de 150 kcal/día del de fórmula, se OFRECE recalibrar
+(B9). Colección `intakeLog` con su repositorio, hermano de `checkins.js`.
+
+**Un sesgo real que cazaron los tests**: los primeros puntos de la media móvil
+tienen la ventana incompleta, así que su valor representa un centro distinto y
+el Δ de tendencia abarcaba menos días que el divisor — 2 523 kcal donde la
+aritmética a mano da 2 550. Se descartan los puntos de ventana parcial.
+
+**Y un defecto en `storage.js` que salió por la puerta de al lado**: sustituir el
+almacén entero no subía la revisión, así que una caché de colección seguía
+sirviendo los datos del almacén anterior. Es la fuga entre perfiles de M7 por
+otro camino. La comprobación va ahora en `revision()`, no solo en `backend()`,
+porque los llamantes leen la revisión ANTES de pedir el dato.
+
+Verificado en navegador con 35 días de datos: 2 200 kcal/día de ingesta y −2 kg
+de tendencia en 28 días dan 2 750 kcal/día, la cuenta exacta.
 
 **V2-M0 cerrada (2026-08-08).** El esquema sube a 6 con cero pérdida de datos.
 `SCHEMA_VERSION` vive ahora en `src/data/version.js`, en un solo sitio, con test

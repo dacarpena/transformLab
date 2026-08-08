@@ -65,8 +65,31 @@ export function getActiveProfile() {
  */
 let revisionCounter = 0;
 
+/** Último backend visto, para detectar que lo han sustituido. */
+/** @type {Storage | null} */
+let lastBackend = null;
+
+/**
+ * Detecta que han sustituido el almacén entero y lo cuenta como mutación.
+ *
+ * Sustituir el backend es el cambio más grande posible, así que tiene que subir
+ * la revisión igual que una escritura. Y hay que comprobarlo AQUÍ, no solo
+ * dentro de `backend()`: los llamantes leen `revision()` ANTES de pedir el dato
+ * (`if (cache.revision === revision()) return cache`), así que un bump que
+ * ocurriera después llegaría tarde y se serviría la caché del almacén anterior.
+ */
+function syncBackend() {
+    const ls = globalThis.localStorage ?? null;
+    if (lastBackend !== ls) {
+        lastBackend = ls;
+        revisionCounter++;
+    }
+    return ls;
+}
+
 /** @returns {number} revisión actual; cambia => lo cacheado ha caducado */
 export function revision() {
+    syncBackend();
     return revisionCounter;
 }
 
@@ -83,7 +106,7 @@ if (typeof globalThis.addEventListener === 'function') {
  * @returns {Storage}
  */
 function backend() {
-    const ls = globalThis.localStorage;
+    const ls = syncBackend();
     if (!ls) throw new Error('localStorage no disponible en este entorno');
     return ls;
 }

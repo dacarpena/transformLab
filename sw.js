@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0036';
+const CACHE_VERSION = 'tl-v5-0039';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -52,6 +52,7 @@ const PRECACHE = [
     'src/core/constants.js',
     'src/core/data/aesthetic-catalog.json',
     'src/core/engine.js',
+    'src/core/expenditure.js',
     'src/core/generator.js',
     'src/core/milestones.js',
     'src/core/nutrition.js',
@@ -65,6 +66,7 @@ const PRECACHE = [
     'src/data/backup.js',
     'src/data/checkins.js',
     'src/data/foods-db.js',
+    'src/data/intake-log.js',
     'src/data/migrate.js',
     'src/data/migrations.js',
     'src/data/nutrition.js',
@@ -95,6 +97,7 @@ const PRECACHE = [
     'src/ui/views/achievements.js',
     'src/ui/views/body.js',
     'src/ui/views/checkin.js',
+    'src/ui/views/expenditure.js',
     'src/ui/views/dashboard.js',
     'src/ui/views/milestones.js',
     'src/ui/views/nutrition.js',

@@ -573,5 +573,33 @@ export const es = {
 
     // PWA
     'pwa.updateReady': 'Hay una versión nueva de TransformLab.',
-    'pwa.reload': 'Recargar'
+    'pwa.reload': 'Recargar',
+
+    // V2-M1 · gasto adaptativo e ingesta
+    "nav.expenditure": "Gasto",
+    "expenditure.title": "Tu gasto energético",
+    "expenditure.measured": "Medido (kcal/día)",
+    "expenditure.formula": "De fórmula",
+    "expenditure.gap": "Diferencia",
+    "expenditure.formulaExplained": "La cuenta: comiste {intake} kcal/día de media y tu tendencia de peso cambió {delta} kg en {days} días. A 7 700 kcal por kilo de grasa, eso sale a {result} kcal/día de gasto.",
+    "expenditure.basedOn": "Calculado sobre {intakeDays} días con ingesta registrada, en un periodo de {days} días.",
+    "expenditure.trendRange": "Tu tendencia de peso fue de {start} kg a {end} kg.",
+    "expenditure.agrees": "Tu gasto medido coincide con el de fórmula. No hace falta tocar nada.",
+    "expenditure.offerHigher": "Gastas {gap} kcal/día MÁS de lo que suponía el plan. Puedes comer algo más y seguir avanzando igual.",
+    "expenditure.offerLower": "Gastas {gap} kcal/día MENOS de lo que suponía el plan. Con las calorías actuales irás más lento de lo previsto.",
+    "expenditure.recalibrate": "Recalibrar mis calorías",
+    "expenditure.recalibrateComingSoon": "Aplicar la recalibración llega con el plan integral. De momento ya sabes la cifra.",
+    "expenditure.disclaimer": "Esto sale de lo que TÚ registras. Si apuntas de menos —le pasa a casi todo el mundo—, el gasto medido saldrá bajo.",
+    "expenditure.emptyTitle": "Aún no puedo medir tu gasto",
+    "expenditure.emptyBody": "Necesito al menos {days} días con tu ingesta apuntada y tu peso registrado. Con menos, el agua y el glucógeno mandan más que la realidad.",
+    "expenditure.goToIntake": "Apuntar lo que como",
+    "expenditure.noPlanTitle": "Primero, tu plan",
+    "expenditure.noPlanBody": "El gasto medido se compara contra el plan. Crea uno y vuelve.",
+    "intake.title": "Lo que comes",
+    "intake.date": "Día",
+    "intake.kcal": "Calorías del día",
+    "intake.kcalRequired": "Escribe las calorías del día.",
+    "intake.saved": "Ingesta guardada.",
+    "intake.entry": "{date} · {kcal} kcal",
 };
+

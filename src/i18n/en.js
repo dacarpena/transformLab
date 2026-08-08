@@ -573,5 +573,32 @@ export const en = {
 
     // PWA
     'pwa.updateReady': 'A new version of TransformLab is available.',
-    'pwa.reload': 'Reload'
+    'pwa.reload': 'Reload',
+
+    // V2-M1 · adaptive expenditure and intake
+    "nav.expenditure": "Energy",
+    "expenditure.title": "Your energy expenditure",
+    "expenditure.measured": "Measured (kcal/day)",
+    "expenditure.formula": "From formula",
+    "expenditure.gap": "Difference",
+    "expenditure.formulaExplained": "The maths: you ate {intake} kcal/day on average and your weight trend moved {delta} kg over {days} days. At 7,700 kcal per kilo of fat, that works out to {result} kcal/day of expenditure.",
+    "expenditure.basedOn": "Based on {intakeDays} days with logged intake, across a {days}-day period.",
+    "expenditure.trendRange": "Your weight trend went from {start} kg to {end} kg.",
+    "expenditure.agrees": "Your measured expenditure matches the formula. Nothing to change.",
+    "expenditure.offerHigher": "You burn {gap} kcal/day MORE than the plan assumed. You could eat a bit more and still progress the same.",
+    "expenditure.offerLower": "You burn {gap} kcal/day LESS than the plan assumed. At your current calories you will go slower than projected.",
+    "expenditure.recalibrate": "Recalibrate my calories",
+    "expenditure.recalibrateComingSoon": "Applying the recalibration arrives with the integrated plan. For now, at least you know the number.",
+    "expenditure.disclaimer": "This comes from what YOU log. If you under-report — almost everyone does — the measured expenditure will come out low.",
+    "expenditure.emptyTitle": "I cannot measure your expenditure yet",
+    "expenditure.emptyBody": "I need at least {days} days with your intake logged and your weight recorded. With less, water and glycogen matter more than reality.",
+    "expenditure.goToIntake": "Log what I eat",
+    "expenditure.noPlanTitle": "Your plan first",
+    "expenditure.noPlanBody": "Measured expenditure is compared against the plan. Create one and come back.",
+    "intake.title": "What you eat",
+    "intake.date": "Day",
+    "intake.kcal": "Calories for the day",
+    "intake.kcalRequired": "Enter the calories for the day.",
+    "intake.saved": "Intake saved.",
+    "intake.entry": "{date} · {kcal} kcal",
 };
