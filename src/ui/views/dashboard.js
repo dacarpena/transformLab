@@ -12,7 +12,7 @@
  */
 
 import { html, render, on } from '../dom.js';
-import { t } from '../../i18n/i18n.js';
+import { t, hasKey } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
@@ -108,6 +108,25 @@ function renderToday(data, today, /** @type {*} */ evaluations) {
 }
 
 /**
+ * Texto de un aviso del plan en Hoy.
+ *
+ * Dos avisos (`plan.flooredBySafety`, `plan.alreadyAtTarget`) tienen aquí una
+ * redacción más amable y larga que la genérica de `ranges.*`; el resto usan la
+ * traducción común de `issueText`. La clave amable es `today.` + el código,
+ * SIN el `.replace('plan.', '')` de antes: aquel replace no tocaba códigos como
+ * `target.muscleLoss`, así que pedía `today.plan.target.muscleLoss` —clave
+ * inexistente— y `t()` lo cantaba por consola en cada arranque, aunque la vista
+ * cayera al fallback. `hasKey` decide sin sondear con `t()`, así que la consola
+ * queda limpia.
+ * @param {{ code: string, params?: Record<string, string | number> }} w
+ * @returns {string}
+ */
+function warningText(w) {
+    const friendly = `today.${w.code}`;
+    return hasKey(friendly) ? t(friendly) : plans.issueText(w);
+}
+
+/**
  * Tarjeta del plan: de dónde a dónde, y en qué fases.
  * @param {import('../plan-state.js').PlanBundle} data
  */
@@ -170,9 +189,7 @@ function renderPlan(data) {
             ${warnings.map((w) => html`
                 <p class="notice notice--warning">
                     <span class="notice__icon" aria-hidden="true">⚠</span>
-                    <span>${t(`today.plan.${w.code.replace('plan.', '')}`) !== `today.plan.${w.code.replace('plan.', '')}`
-                        ? t(`today.plan.${w.code.replace('plan.', '')}`)
-                        : plans.issueText(w)}</span>
+                    <span>${warningText(w)}</span>
                 </p>
             `)}
             <p class="muted">${t('today.plan.phaseDays', { name: t('onboarding.preview.duration'), days: total })}</p>

@@ -15,7 +15,7 @@ import { validateCollection } from '../data/schema.js';
 import { makeComposition, planPhases } from '../core/engine.js';
 import { generateProjection } from '../core/generator.js';
 import { seedFrom } from '../core/rng.js';
-import { t } from '../i18n/i18n.js';
+import { t, hasKey } from '../i18n/i18n.js';
 
 /**
  * @typedef {import('../core/engine.js').Composition} Composition
@@ -55,8 +55,9 @@ export function clear() {
  */
 export function issueText(issue) {
     const key = `ranges.${issue.code}`;
-    const text = t(key, issue.params);
-    return text === key ? t('error.generic') : text;
+    // `hasKey` y no «traducir y comparar»: si el código no tiene clave, `t()`
+    // avisaría por consola antes de que pudiéramos caer a `error.generic`.
+    return hasKey(key) ? t(key, issue.params) : t('error.generic');
 }
 
 /**

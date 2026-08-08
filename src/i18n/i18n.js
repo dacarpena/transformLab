@@ -45,6 +45,21 @@ export function setLocale(next) {
 }
 
 /**
+ * ¿Existe la clave (en el idioma activo o en el fallback)? SIN avisar.
+ *
+ * Es lo que hay que usar para DECIDIR entre dos claves, en vez de llamar a
+ * `t()` y comparar el resultado con la clave: `t()` avisa por consola en cuanto
+ * la clave no existe, así que sondear con él ensucia la consola aunque la vista
+ * tenga su fallback (el defecto de `dashboard.js` con `today.plan.target.muscleLoss`).
+ * @param {string} key
+ * @returns {boolean}
+ */
+export function hasKey(key) {
+    return DICTIONARIES[locale][key] !== undefined
+        || DICTIONARIES[FALLBACK_LOCALE][key] !== undefined;
+}
+
+/**
  * Traduce una clave con interpolación segura de parámetros `{nombre}`.
  * Clave ausente en el idioma activo => fallback a 'es' con aviso;
  * ausente también en 'es' => devuelve la propia clave con aviso.

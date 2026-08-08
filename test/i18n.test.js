@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { es } from '../src/i18n/es.js';
 import { en } from '../src/i18n/en.js';
-import { t, setLocale, getLocale, availableLocales } from '../src/i18n/i18n.js';
+import { t, hasKey, setLocale, getLocale, availableLocales } from '../src/i18n/i18n.js';
 
 test('paridad de claves entre es y en (CLAUDE.md §5: misma clave en ambos, mismo commit)', () => {
     const esKeys = Object.keys(es).sort();
@@ -53,4 +53,83 @@ test('setLocale rechaza idiomas no soportados manteniendo el activo', () => {
 
 test('availableLocales expone es y en', () => {
     assert.deepEqual(availableLocales().sort(), ['en', 'es']);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Cobertura de los codes de aviso/error del motor (defecto preexistente
+ * hallado al ejecutar los E2E de la v2: `today.plan.target.muscleLoss`).
+ * ---------------------------------------------------------------------- */
+
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import * as plans from '../src/ui/plan-state.js';
+
+const CORE_DIR = fileURLToPath(new URL('../src/core', import.meta.url));
+
+/** Todos los `code: '...'` que emite el motor (avisos Y errores). */
+function coreIssueCodes() {
+    /** @type {Set<string>} */ const codes = new Set();
+    const walk = (/** @type {string} */ dir) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) walk(full);
+            else if (entry.name.endsWith('.js')) {
+                for (const m of readFileSync(full, 'utf8').matchAll(/code:\s*'([^']+)'/g)) codes.add(m[1]);
+            }
+        }
+    };
+    walk(CORE_DIR);
+    return [...codes].sort();
+}
+
+test('hasKey distingue presente de ausente sin avisar', () => {
+    setLocale('es');
+    const original = console.warn;
+    /** @type {string[]} */ const avisos = [];
+    console.warn = (/** @type {string} */ m) => { avisos.push(String(m)); };
+    try {
+        assert.equal(hasKey('nav.today'), true);
+        assert.equal(hasKey('esta.clave.no.existe.jamas'), false);
+    } finally {
+        console.warn = original;
+    }
+    assert.deepEqual(avisos, [], 'hasKey no debe avisar por consola');
+});
+
+test('todo code del motor tiene su clave ranges.* en es Y en en', () => {
+    // Sin esto, `issueText` (que traduce vía `ranges.<code>`) cae a
+    // `error.generic` y —antes del arreglo— avisaba por consola en cada
+    // aparición. La cobertura completa es lo que mantiene la consola limpia.
+    const codes = coreIssueCodes();
+    assert.ok(codes.length > 0, 'no se encontró ningún code en src/core');
+    const faltan = [];
+    for (const code of codes) {
+        const key = `ranges.${code}`;
+        if (typeof es[key] !== 'string') faltan.push(`es → ${key}`);
+        if (typeof en[key] !== 'string') faltan.push(`en → ${key}`);
+    }
+    assert.deepEqual(faltan, [], `codes del motor sin clave ranges.*:\n  ${faltan.join('\n  ')}`);
+});
+
+test('ningún code del motor produce una clave ausente al traducirse', () => {
+    // Reproduce el defecto original: se traduce cada code por las dos vías que
+    // usa la UI —la genérica de `issueText` y la amable `today.<code>` del
+    // dashboard— capturando `console.warn`. Cero avisos.
+    setLocale('es');
+    const original = console.warn;
+    /** @type {string[]} */ const avisos = [];
+    console.warn = (/** @type {string} */ msg) => { avisos.push(String(msg)); };
+    try {
+        for (const code of coreIssueCodes()) {
+            plans.issueText({ code });
+            // la vía del dashboard: today.<code>, que debe resolverse por hasKey
+            // sin llamar a t() cuando no existe (no debe avisar).
+            hasKey(`today.${code}`) && t(`today.${code}`);
+        }
+    } finally {
+        console.warn = original;
+    }
+    const ausentes = avisos.filter((m) => m.includes('clave ausente'));
+    assert.deepEqual(ausentes, [], `traducir los codes del motor avisó de claves ausentes:\n  ${ausentes.join('\n  ')}`);
 });
