@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0040';
+const CACHE_VERSION = 'tl-v5-0041';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -42,6 +42,7 @@ const PRECACHE = [
     // Chart.js ya no lo enlaza el HTML (lo pide chart.js bajo demanda), pero
     // se precachea igual: sin él no habría gráfica sin red.
     'vendor/chart.umd.min.js',
+    'vendor/data/exercises.json',
     'icons/icon-192.png',
     'icons/icon-512.png',
     'icons/icon-maskable-192.png',
@@ -52,6 +53,7 @@ const PRECACHE = [
     'src/core/constants.js',
     'src/core/data/aesthetic-catalog.json',
     'src/core/engine.js',
+    'src/core/muscle-volume.js',
     'src/core/expenditure.js',
     'src/core/generator.js',
     'src/core/milestones.js',
