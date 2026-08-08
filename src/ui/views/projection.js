@@ -113,7 +113,7 @@ export function windowBounds(data, todayIndex) {
 }
 
 /** Cabecera: dónde acabas y cuándo. Es TEXTO, y por eso va primero. */
-function renderSummary(data, today) {
+function renderSummary(/** @type {*} */ data, /** @type {*} */ today) {
     const muscle = muscleUnitsOf(data);
     const total = data.plan.totalDays;
     const daily = data.projection.daily;
@@ -123,7 +123,7 @@ function renderSummary(data, today) {
     const goal = daily[total];
 
     /** Un lado del recorrido: inicio, hoy y objetivo. */
-    const side = (point, labelKey) => html`
+    const side = (/** @type {*} */ point, /** @type {*} */ labelKey) => html`
         <div class="plan-summary__side">
             <span class="plan-summary__weight">${num(point.weightKg)} ${t('today.unit.kg')}</span>
             <span class="muted">${num(point.fatPct)} ${t('today.unit.pct')} · ${t('today.plan.muscleLabel', {
@@ -171,7 +171,7 @@ function renderSummary(data, today) {
  * cuando los dos extremos caen demasiado cerca se imprime una sola fecha —
  * fingir precisión es lo que este producto no hace.
  */
-function renderNext(data, today) {
+function renderNext(/** @type {*} */ data, /** @type {*} */ today) {
     const muscle = muscleUnitsOf(data);
     const events = buildTimeline({
         projection: data.projection,
@@ -208,10 +208,10 @@ function renderNext(data, today) {
 }
 
 /** Un grupo de botones excluyentes. El estado vive en `aria-pressed`. */
-function segmented(labelKey, attr, options, active) {
+function segmented(/** @type {*} */ labelKey, /** @type {*} */ attr, /** @type {*} */ options, /** @type {*} */ active) {
     return html`
         <div class="segmented" role="group" aria-label="${t(labelKey)}">
-            ${options.map((o) => html`
+            ${options.map((/** @type {*} */ o) => html`
                 <button type="button" class="btn btn--sm" ${attr}="${o.value}"
                         aria-pressed="${o.value === active ? 'true' : 'false'}">${t(o.labelKey)}</button>
             `)}
@@ -220,7 +220,7 @@ function segmented(labelKey, attr, options, active) {
 }
 
 /** La curva, con sus tres controles excluyentes. */
-function renderChart(data) {
+function renderChart(/** @type {*} */ data) {
     const muscle = muscleUnitsOf(data);
     return html`
         <section class="card" aria-labelledby="proj-chart">
@@ -518,13 +518,13 @@ function renderTimeline(data, today) {
                         : `${shortDate(g.startISO)} – ${shortDate(g.endISO)}`}</span>
                 </summary>
                 <ol class="timeline__events">
-                    ${g.events.map((e) => {
+                    ${g.events.map((/** @type {*} */ e) => {
                         const inner = html`
                             <span class="timeline__dot ${e.kind === 'aesthetic' ? 'timeline__dot--hollow' : (e.phaseType ? `is-phase-${e.phaseType}` : '')}" aria-hidden="true"></span>
                             <span class="timeline__when numeric">${e.beforePlan ? shortDate(e.dateISO) : shortDate(e.dateISO)}</span>
                             <span class="timeline__what">${eventContent(e, muscle)}</span>
                         `;
-                        const marker = g.current && e.dayIndex > today.dayIndex && !g.events.slice(0, g.events.indexOf(e)).some((p) => p.dayIndex > today.dayIndex)
+                        const marker = g.current && e.dayIndex > today.dayIndex && !g.events.slice(0, g.events.indexOf(e)).some((/** @type {*} */ p) => p.dayIndex > today.dayIndex)
                             ? html`<li class="timeline__now" aria-hidden="true">${t('chart.today')}</li>` : '';
                         return html`${marker}<li>
                             ${e.beforePlan
@@ -560,7 +560,7 @@ function renderTimeline(data, today) {
 }
 
 /** Marca la fila más cercana al cursor de la gráfica, sin mover el foco. */
-function markTimelineRow(container, day) {
+function markTimelineRow(/** @type {*} */ container, /** @type {*} */ day) {
     /** @type {Element | null} */ let best = null;
     let bestDist = Infinity;
     for (const btn of container.querySelectorAll('[data-focus-day]')) {
@@ -572,7 +572,7 @@ function markTimelineRow(container, day) {
 }
 
 /** Repinta SOLO la línea de tiempo (cambio de ventana, «mostrar más»). */
-function redrawTimeline(container) {
+function redrawTimeline(/** @type {*} */ container) {
     const data = plans.get();
     const host = container.querySelector('[data-timeline-host]');
     if (!data || !host) return;
@@ -610,7 +610,7 @@ function draw(container) {
 }
 
 /** Redibuja el lienzo. Asíncrona porque Chart.js se carga bajo demanda. */
-async function redraw(container) {
+async function redraw(/** @type {*} */ container) {
     const data = plans.get();
     if (!data) return;
     const host = container.querySelector('[data-chart-host]');
@@ -675,7 +675,7 @@ async function redraw(container) {
  * Refresca solo el estado de un grupo de botones, sin volver a pintar la vista.
  * Reconstruir el HTML entero perdería el foco del usuario a cada pulsación.
  */
-function refreshPressed(container, attr, active) {
+function refreshPressed(/** @type {*} */ container, /** @type {*} */ attr, /** @type {*} */ active) {
     for (const btn of container.querySelectorAll(`[${attr}]`)) {
         btn.setAttribute('aria-pressed', btn.getAttribute(attr) === active ? 'true' : 'false');
     }

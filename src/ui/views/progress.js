@@ -23,7 +23,7 @@ import { num, signed } from '../format.js';
 let onGoToCheckin = null;
 
 /** Historial de check-ins con su señal de desviación. */
-function renderHistory(evaluations) {
+function renderHistory(/** @type {*} */ evaluations) {
     return html`
         <section class="card">
             <h2 class="card__title">${t('checkin.history')}</h2>
@@ -46,9 +46,9 @@ function renderHistory(evaluations) {
 }
 
 /** Desviación acumulada y último estado. */
-function renderDeviation(evaluations) {
+function renderDeviation(/** @type {*} */ evaluations) {
     const last = evaluations[evaluations.length - 1];
-    const accumulated = evaluations.reduce((sum, e) => sum + e.deltaKg, 0) / evaluations.length;
+    const accumulated = evaluations.reduce((/** @type {*} */ sum, /** @type {*} */ e) => sum + e.deltaKg, 0) / evaluations.length;
     return html`
         <section class="card" aria-labelledby="dev-title">
             <div class="card__header">
@@ -129,24 +129,24 @@ function renderMuscle(data, evaluations) {
 }
 
 /** Series de las cuatro métricas subjetivas, como barras por check-in. */
-function renderSubjective(items) {
+function renderSubjective(/** @type {*} */ items) {
     const withData = SUBJECTIVE_KEYS.filter((key) =>
-        items.some((item) => item.subjective && item.subjective[key] !== undefined));
+        items.some((/** @type {*} */ item) => item.subjective && item.subjective[key] !== undefined));
     if (withData.length === 0) return '';
 
     return html`
         <section class="card" aria-labelledby="subj-title">
             <h2 id="subj-title" class="card__title">${t('checkin.section.subjective')}</h2>
             ${withData.map((key) => {
-                const values = items.map((item) => item.subjective?.[key] ?? null);
-                const known = values.filter((v) => v !== null);
-                const avg = known.length > 0 ? known.reduce((a, b) => a + b, 0) / known.length : NaN;
+                const values = items.map((/** @type {*} */ item) => item.subjective?.[key] ?? null);
+                const known = values.filter((/** @type {*} */ v) => v !== null);
+                const avg = known.length > 0 ? known.reduce((/** @type {*} */ a, /** @type {*} */ b) => a + b, 0) / known.length : NaN;
                 return html`
                     <div class="subj-row">
                         <span class="field__label">${t(`checkin.subjective.${key}`)}</span>
                         <div class="subj-bars" role="img"
                              aria-label="${t('checkin.subjective.scale', { value: num(avg, 1) })}">
-                            ${values.map((v) => html`
+                            ${values.map((/** @type {*} */ v) => html`
                                 <span class="subj-bar" data-css-level="${v === null ? 0 : v / 10}"></span>
                             `)}
                         </div>
@@ -159,7 +159,7 @@ function renderSubjective(items) {
 }
 
 /** Racha y calendario de adherencia (E9 a-b). */
-function renderStreak(items, startDateISO) {
+function renderStreak(/** @type {*} */ items, /** @type {*} */ startDateISO) {
     const streak = streakOf(items, plans.todayISO(), startDateISO);
     const calendar = adherenceCalendar(items);
     return html`

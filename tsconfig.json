@@ -14,5 +14,15 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true
   },
-  "include": ["src/core/**/*.js", "src/data/**/*.js", "src/i18n/**/*.js"]
+  // TODO `src/`, no solo el núcleo (M7-2).
+  //
+  // Hasta aquí solo se comprobaban core, data e i18n, pero los 24 ficheros de
+  // `src/ui/` llevan `// @ts-check` en su primera línea: DECLARABAN estar
+  // comprobados sin estarlo, que es peor que no declararlo. Eran 7 053 líneas,
+  // la mitad del código, escribiendo JSDoc sin cobrar el beneficio.
+  //
+  // Al activarlo aparecieron 10 errores reales, y los peores estaban justo en
+  // la frontera core↔UI: el patrón `Result<T>` (`{ok:true,value}` |
+  // `{ok:false}`) se usa con disciplina a ambos lados, y solo se vigilaba uno.
+  "include": ["src/**/*.js"]
 }

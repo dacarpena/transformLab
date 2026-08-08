@@ -96,7 +96,7 @@ export function ensureLoaded() {
  * también los que consume el canvas). Si el token no resuelve, se cae al de
  * texto secundario en vez de a un hex inventado.
  */
-function cssVar(name) {
+function cssVar(/** @type {*} */ name) {
     const hit = tokenCache.get(name);
     if (hit !== undefined) return hit;
     if (typeof getComputedStyle !== 'function') return '';
@@ -126,7 +126,7 @@ const tokenCache = new Map();
 function phaseBandsPlugin(projection) {
     return {
         id: 'phaseBands',
-        beforeDatasetsDraw(chart) {
+        beforeDatasetsDraw(/** @type {*} */ chart) {
             const { ctx, chartArea, scales } = chart;
             if (!chartArea || !scales.x) return;
             const daily = projection.daily;
@@ -163,7 +163,7 @@ function phaseBandsPlugin(projection) {
 function todayLinePlugin(getTodayIndex) {
     return {
         id: 'todayLine',
-        afterDatasetsDraw(chart) {
+        afterDatasetsDraw(/** @type {*} */ chart) {
             const { ctx, chartArea, scales } = chart;
             const index = getTodayIndex();
             if (!chartArea || !scales.x || index < 0) return;
@@ -507,10 +507,15 @@ export function draw(options) {
                         // dibujado, mover la ventana con `setWindow()` dejaba los
                         // rótulos congelados en el formato anterior: una ventana
                         // de 30 días seguía rotulando «sept 2026» en vez del día.
-                        callback: /** @type {*} */ (function (/** @type {*} */ value) {
+                        // `@this` no es decorativo: Chart.js invoca el callback
+                        // con la ESCALA como `this`, y de ahí sale la ventana
+                        // ACTUAL. Por eso es `function` y no una flecha.
+                        callback: /** @type {*} */ (
+                            /** @this {{ min: number, max: number }} @param {*} value */
+                            function (value) {
                             const point = projection.daily[Math.round(Number(value))];
                             if (!point) return '';
-                            const scale = /** @type {*} */ (this);
+                            const scale = this;
                             const span = Number.isFinite(scale?.max) && Number.isFinite(scale?.min)
                                 ? scale.max - scale.min
                                 : spanDays;
@@ -528,14 +533,14 @@ export function draw(options) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        title: (items) => {
+                        title: (/** @type {*} */ items) => {
                             const point = projection.daily[Number(items[0]?.parsed?.x ?? 0)];
                             return point ? `${point.dateISO} · ${t('phase.' + point.phaseType)}` : '';
                         }
                     }
                 }
             },
-            onClick: (event, _elements, chart) => {
+            onClick: (/** @type {*} */ event, /** @type {*} */ _elements, /** @type {*} */ chart) => {
                 // `interaction.intersect: false` está bien para el tooltip —que
                 // debe seguir al dedo— pero NO para abrir una ficha: con él,
                 // `elements` trae el hito más CERCANO aunque el clic haya caído
@@ -683,6 +688,6 @@ export function toPng() {
 }
 
 /** Render auxiliar para pruebas del módulo sin Chart.js. */
-export function renderFallback(container) {
+export function renderFallback(/** @type {*} */ container) {
     render(container, unavailable());
 }

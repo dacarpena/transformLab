@@ -38,7 +38,7 @@ function activeMeasures() {
 }
 
 /** Formulario de alta o edición. */
-function renderForm(existing, dateISO) {
+function renderForm(/** @type {*} */ existing, /** @type {*} */ dateISO) {
     const measures = activeMeasures();
     const data = plans.get();
     const muscle = muscleUnitsOf(data);
@@ -134,7 +134,7 @@ function renderForm(existing, dateISO) {
 }
 
 /** Historial con la señal de desviación de cada registro. */
-function renderHistory(items) {
+function renderHistory(/** @type {*} */ items) {
     const data = plans.get();
     if (items.length === 0) {
         return html`
@@ -151,7 +151,7 @@ function renderHistory(items) {
                 ${[...items].reverse().map((item) => {
                     const evaluation = data
                         ? evaluateCheckin(data.projection, item, data.startDateISO)
-                        : { ok: false };
+                        : /** @type {const} */ ({ ok: false });
                     const signal = evaluation.ok ? evaluation.value.signal : null;
                     return html`
                         <li class="profile-item">
@@ -169,7 +169,7 @@ function renderHistory(items) {
 }
 
 /** Lee el formulario al objeto de entrada. */
-function readForm(root) {
+function readForm(/** @type {*} */ root) {
     /** @type {Record<string, number>} */ const measuresCm = {};
     for (const input of root.querySelectorAll('[data-measure]')) {
         const key = input.getAttribute('data-measure');
@@ -184,7 +184,7 @@ function readForm(root) {
         const value = Number(/** @type {HTMLInputElement} */ (input).value);
         if (key && Number.isFinite(value)) subjective[key] = value;
     }
-    const field = (name) => /** @type {HTMLInputElement | null} */ (root.querySelector(`[data-field="${name}"]`))?.value ?? '';
+    const field = (/** @type {*} */ name) => /** @type {HTMLInputElement | null} */ (root.querySelector(`[data-field="${name}"]`))?.value ?? '';
     /**
      * Campo numérico opcional. Distingue tres cosas, y la distinción importa:
      * `undefined` = el campo NO está en pantalla (no se pregunta por él, así
@@ -193,7 +193,7 @@ function readForm(root) {
      * check-in antiguo en un perfil que ya no es de báscula BORRABA sus cifras
      * de músculo y hueso, que ni siquiera se le habían mostrado.
      */
-    const optionalNumber = (name) => {
+    const optionalNumber = (/** @type {*} */ name) => {
         const el = /** @type {HTMLInputElement | null} */ (root.querySelector(`[data-field="${name}"]`));
         if (el === null) return undefined;
         const raw = el.value.trim();
@@ -213,7 +213,7 @@ function readForm(root) {
 }
 
 /** Refresca las etiquetas «N de 10» de los deslizadores. */
-function refreshScales(root) {
+function refreshScales(/** @type {*} */ root) {
     for (const input of root.querySelectorAll('[data-subjective]')) {
         const key = input.getAttribute('data-subjective');
         const label = root.querySelector(`[data-scale-for="${key}"]`);
@@ -222,7 +222,7 @@ function refreshScales(root) {
 }
 
 /** @param {HTMLElement} container */
-function draw(container, editDate) {
+function draw(container, /** @type {*} */ editDate) {
     const data = plans.get();
     const today = plans.todayISO();
     const dateISO = editDate ?? today;

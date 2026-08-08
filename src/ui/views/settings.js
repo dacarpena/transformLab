@@ -274,7 +274,7 @@ function draw(container) {
 }
 
 /** Descarga un texto como fichero, sin dependencias. */
-function download(filename, text) {
+function download(/** @type {*} */ filename, /** @type {*} */ text) {
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

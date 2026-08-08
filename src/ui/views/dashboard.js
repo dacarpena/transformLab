@@ -32,7 +32,7 @@ let onGoToProjection = null;
  * @param {import('../plan-state.js').PlanBundle} data
  * @param {{ dayIndex: number, state: 'before'|'during'|'after' }} today
  */
-function renderToday(data, today, evaluations) {
+function renderToday(data, today, /** @type {*} */ evaluations) {
     const muscle = muscleUnitsOf(data);
     const hasCheckins = evaluations.length > 0;
     const latest = hasCheckins ? evaluations[evaluations.length - 1] : null;
@@ -181,7 +181,7 @@ function renderPlan(data) {
 }
 
 /** Sección de la gráfica. */
-function renderChartSection(data) {
+function renderChartSection(/** @type {*} */ data) {
     void data;
     // Compacta a propósito (E12): la gráfica de Hoy responde «¿qué pinta tiene
     // mi plan?» de un vistazo. Los controles —métrica, detalle, ventana,
@@ -217,7 +217,7 @@ function renderChartSection(data) {
  * día del plan, y los tests de release cuentan píxeles de ESTE lienzo — el
  * primero del documento.
  */
-async function redraw(container) {
+async function redraw(/** @type {*} */ container) {
     const data = plans.get();
     if (!data) return;
     const host = container.querySelector('[data-chart-host]');

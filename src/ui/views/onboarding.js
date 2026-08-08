@@ -163,7 +163,7 @@ function targetMuscleSkeletal() {
 }
 
 /** Registro de perfil v5 a partir del borrador. */
-function toProfileRecord(nowISO) {
+function toProfileRecord(/** @type {*} */ nowISO) {
     // El músculo que se persiste es el ESQUELÉTICO, venga de donde venga: es
     // la magnitud con la que trabaja el motor. Las cifras de la báscula se
     // guardan aparte, sin mezclarse con ella.
@@ -233,7 +233,7 @@ function validateStep() {
     }
     if (step === 'target') {
         const { composition } = currentComposition();
-        if (!composition) return { errors: [{ code: 'target.initialInvalid', path: '' }], warnings: [] };
+        if (!composition) return { errors: [{ code: 'target.initialInvalid' }], warnings: [] };
         // Traducido: `checkTarget` compara contra `composition.muscleKg`, que
         // es esquelético. Pasarle la cifra de báscula del usuario daba un
         // delta absurdo y bloqueaba objetivos perfectamente alcanzables (E11).
@@ -245,7 +245,7 @@ function validateStep() {
         );
         // la fecha de inicio también se valida (el legacy no lo hacía)
         if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.startDateISO) || Number.isNaN(Date.parse(draft.startDateISO))) {
-            base.errors.push({ code: 'plan.initialInvalid', path: 'startDateISO' });
+            base.errors.push({ code: 'plan.initialInvalid' });
         }
         return base;
     }
@@ -253,6 +253,13 @@ function validateStep() {
 }
 
 /** Construye la preview del plan con el borrador actual. */
+/**
+ * El tipo se declara a mano porque un literal `{ ok: false }` ensancha `ok` a
+ * `boolean` y rompe la unión discriminada: quien consumiera `built.value` tras
+ * comprobar `built.ok` se quedaba sin estrechamiento.
+ * @returns {{ ok: true, value: Omit<import('../plan-state.js').PlanBundle, 'profile'> }
+ *   | { ok: false, issues: import('../../core/ranges.js').Issue[] }}
+ */
 function buildPreview() {
     const record = toProfileRecord('1970-01-01T00:00:00.000Z');
     if (!record.target.muscleKg) return { ok: false, issues: [] };
@@ -260,7 +267,7 @@ function buildPreview() {
 }
 
 /** Refresca SOLO la preview y los mensajes: el formulario no se toca. */
-function refreshSideEffects(root) {
+function refreshSideEffects(/** @type {*} */ root) {
     const previewHost = root.querySelector('[data-preview]');
     if (previewHost) render(previewHost, renderPreview());
 
@@ -320,7 +327,7 @@ function renderPreview() {
             })}</span>
         </div>
         <ul class="phase-legend">
-            ${plan.phases.map((p) => html`
+            ${plan.phases.map((/** @type {*} */ p) => html`
                 <li class="phase-legend__item">
                     <span class="phase-legend__dot is-phase-${p.type}"></span>
                     ${t('today.plan.phaseDays', { name: t(`phase.${p.type}`), days: p.days })}
@@ -548,16 +555,24 @@ function draw(container) {
     refreshSideEffects(container);
 }
 
-/** Lee un campo del formulario al borrador. */
+/**
+ * Lee un campo del formulario al borrador.
+ *
+ * El borrador se indexa con una clave que llega del atributo `data-field`, así
+ * que aquí se trata como un mapa: quién valida ese nombre es el DOM, no el tipo.
+ * @param {string} name
+ * @param {string} rawValue
+ */
 function applyField(name, rawValue) {
+    const target = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (draft));
     if (name === 'name' || name === 'startDateISO' || name === 'sex'
         || name === 'activityLevel' || name === 'trainingStatus' || name === 'intensity') {
-        draft[name] = rawValue;
+        target[name] = rawValue;
         return;
     }
     if (name === 'muscleKg' || name === 'boneKg' || name === 'targetMuscleKg') {
         const trimmed = rawValue.trim();
-        draft[name] = trimmed === '' ? null : Number(trimmed);
+        target[name] = trimmed === '' ? null : Number(trimmed);
         // El objetivo se anota CON su unidad: sin eso, cambiar después el
         // músculo o el hueso reinterpretaría el número en silencio (E11).
         if (name === 'targetMuscleKg') {
@@ -565,7 +580,7 @@ function applyField(name, rawValue) {
         }
         return;
     }
-    draft[name] = rawValue.trim() === '' ? NaN : Number(rawValue);
+    target[name] = rawValue.trim() === '' ? NaN : Number(rawValue);
 }
 
 /**
@@ -656,7 +671,7 @@ export function setOnComplete(fn) {
 }
 
 /** Reinicia el borrador (editar perfil desde ajustes). */
-export function resetDraft(seed) {
+export function resetDraft(/** @type {*} */ seed) {
     draft = { ...defaultDraft(), ...(seed ?? {}) };
     stepIndex = 0;
 }

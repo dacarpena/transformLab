@@ -75,7 +75,7 @@ function hasCompletedProfile() {
 }
 
 /** Registra las vistas del producto y arranca el router. */
-async function startApp(roots) {
+async function startApp(/** @type {*} */ roots) {
     router.reset();
     // `primary` = pestaña siempre visible en la barra inferior de móvil. El
     // resto se pliega tras «más» (ver `renderNav`): diez pestañas a 320 px no
@@ -133,7 +133,7 @@ async function startApp(roots) {
 }
 
 /** Muestra el asistente como única vista, sin navegación. */
-async function startOnboarding(roots, seed) {
+async function startOnboarding(/** @type {*} */ roots, /** @type {*} */ seed = undefined) {
     router.reset();
     onboarding.resetDraft(seed);
     router.register({ id: 'onboarding', labelKey: 'onboarding.title', icon: '', hidden: true, mount: onboarding.mount });
@@ -267,7 +267,11 @@ async function boot() {
 
     // 3 · perfil activo (o el primero, si el índice quedó sin activo)
     profiles.activateStored();
-    if (profiles.getActive().ok && profiles.getActive().value === '') {
+    // Una sola lectura: llamar dos veces a `getActive()` no solo impedía a
+    // TypeScript estrechar el tipo, sino que releía el índice de perfiles del
+    // almacén en cada arranque.
+    const active = profiles.getActive();
+    if (active.ok && active.value === '') {
         const list = profiles.list();
         if (list.ok && list.value.length === 0) {
             const created = profiles.create(t('app.title'), { createdAtISO: new Date().toISOString() });

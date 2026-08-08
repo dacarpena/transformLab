@@ -36,7 +36,15 @@ const MAX_HISTORY_ENTRIES = 20;
  * @returns {import('../core/tracking.js').RecalibrationVerdict & { evaluations: any[] }}
  */
 export function check() {
-    const empty = { offer: false, reason: null, side: null, lowAdherence: false, streakOutside: 0, evaluations: [] };
+    // `fingerprint: ''` no es relleno: el tipo lo declara obligatorio y `offer()`
+    // lo escribe en el almacén al rechazar. Hoy no se llega ahí porque
+    // `offer:false` corta antes, pero el día que alguien lea ese campo en el
+    // camino sin plan escribiría `undefined`. Lo destapó el comprobador.
+    const empty = {
+        offer: false, reason: null, side: null,
+        lowAdherence: false, streakOutside: 0, fingerprint: '',
+        evaluations: []
+    };
     const data = plans.get();
     if (!data) return empty;
 
@@ -257,8 +265,8 @@ export function history() {
     const record = /** @type {*} */ (stored.value);
     if (!Array.isArray(record.history)) return [];
     return record.history
-        .filter((entry) => entry && entry.plan)
-        .map((entry) => ({
+        .filter((/** @type {*} */ entry) => entry && entry.plan)
+        .map((/** @type {*} */ entry) => ({
             archivedAtISO: entry.archivedAtISO,
             reason: entry.reason,
             days: entry.plan.totalDays,

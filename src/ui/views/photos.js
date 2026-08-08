@@ -204,7 +204,7 @@ export function mount(container) {
 
         // Dos fotos el mismo día no se pisan: el id se desambigua. Sobrescribir
         // en silencio sería perder una foto que el usuario ya no tiene.
-        const taken = new Set(readMeta().map((m) => m.id));
+        const taken = new Set(readMeta().map((/** @type {*} */ m) => m.id));
         let id = `ph_${dateISO}`;
         for (let n = 2; taken.has(id); n += 1) id = `ph_${dateISO}_${n}`;
 
@@ -214,7 +214,7 @@ export function mount(container) {
                 toast.error(added.error === 'photos.indexedDbUnavailable' ? 'photos.unavailable' : 'error.generic');
                 return;
             }
-            const meta = readMeta().filter((m) => m.id !== id);
+            const meta = readMeta().filter((/** @type {*} */ m) => m.id !== id);
             if (!writeMeta([...meta, { id, dateISO, note: null }])) {
                 toast.error('error.generic');
                 return;
@@ -240,7 +240,7 @@ export function mount(container) {
                         toast.error('error.generic');
                         return;
                     }
-                    writeMeta(readMeta().filter((m) => m.id !== id));
+                    writeMeta(readMeta().filter((/** @type {*} */ m) => m.id !== id));
                     toast.success('photos.deleted');
                     draw(container);
                 });

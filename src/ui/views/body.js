@@ -46,7 +46,7 @@ const r1 = (n) => Math.round(n * 10) / 10;
  */
 function pathFor(shape) {
     /** Fracción de altura → media anchura en píxeles. */
-    const half = (v) => (v * FIGURE_PX) / 2;
+    const half = (/** @type {*} */ v) => (v * FIGURE_PX) / 2;
 
     const sh = half(shape.shoulders);
     const ch = half(shape.chest);
@@ -148,7 +148,7 @@ export function mount(container) {
     const measures = lastCheckin?.measuresCm;
     const sex = data.profile.user.sex;
 
-    const toComposition = (point) => ({
+    const toComposition = (/** @type {*} */ point) => ({
         weightKg: point.weightKg, fatPct: point.fatPct, muscleKg: point.muscleKg, sex
     });
 

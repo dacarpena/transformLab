@@ -38,9 +38,9 @@ function writeTraining(data) {
 }
 
 /** Ejercicios de la rutina, aplanados. */
-function exercisesOf(routine) {
+function exercisesOf(/** @type {*} */ routine) {
     if (!routine || !Array.isArray(routine.days)) return [];
-    return routine.days.flatMap((day) => (Array.isArray(day.exercises) ? day.exercises : []));
+    return routine.days.flatMap((/** @type {*} */ day) => (Array.isArray(day.exercises) ? day.exercises : []));
 }
 
 /**
@@ -70,7 +70,7 @@ function freshExerciseId(existing, name) {
     return id;
 }
 
-function renderRoutine(data) {
+function renderRoutine(/** @type {*} */ data) {
     const exercises = exercisesOf(data.routine);
     return html`
         <section class="card" aria-labelledby="routine-title">
@@ -82,7 +82,7 @@ function renderRoutine(data) {
                 ? empty({ icon: '🏋', titleKey: 'training.routineEmpty', bodyKey: 'training.routineEmptyBody' })
                 : html`
                     <ul class="profile-list">
-                        ${exercises.map((ex) => {
+                        ${exercises.map((/** @type {*} */ ex) => {
                             const pr = personalRecord(data.sessions, ex.id);
                             const suggestion = suggestProgression(data.sessions, { id: ex.id, sets: ex.sets, reps: ex.reps });
                             return html`
@@ -116,7 +116,7 @@ function renderRoutine(data) {
     `;
 }
 
-function renderSessions(data) {
+function renderSessions(/** @type {*} */ data) {
     if (data.sessions.length === 0) return '';
     return html`
         <section class="card">
@@ -200,8 +200,8 @@ export function mount(container) {
         if (!id) return;
         const data = readTraining();
         if (!data.routine) return;
-        data.routine.days = data.routine.days.map((day) => ({
-            ...day, exercises: (day.exercises ?? []).filter((ex) => ex.id !== id)
+        data.routine.days = data.routine.days.map((/** @type {*} */ day) => ({
+            ...day, exercises: (day.exercises ?? []).filter((/** @type {*} */ ex) => ex.id !== id)
         }));
         if (!writeTraining(data)) {
             toast.error('error.generic');
@@ -219,7 +219,7 @@ export function mount(container) {
             titleKey: 'training.logSession',
             size: 'lg',
             body: html`
-                ${exercises.map((ex) => html`
+                ${exercises.map((/** @type {*} */ ex) => html`
                     <div class="field-grid">
                         <label class="field">
                             <span class="field__label">${ex.name} · ${t('training.reps')}</span>
@@ -277,7 +277,7 @@ export function mount(container) {
             // todo el histórico anterior
             const records = newRecordsIn(sessions, id);
             for (const exerciseId of records) {
-                const ex = exercises.find((e) => e.id === exerciseId);
+                const ex = exercises.find((/** @type {*} */ e) => e.id === exerciseId);
                 if (ex) toast.success('training.newRecord', { exercise: ex.name });
             }
             if (records.length === 0) toast.success('training.sessionSaved');

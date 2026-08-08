@@ -43,7 +43,7 @@ function writeTemplates(templates) {
 }
 
 /** Tarjeta de macros del día. */
-function renderMacros(macros, point) {
+function renderMacros(/** @type {*} */ macros, /** @type {*} */ point) {
     return html`
         <section class="card" aria-labelledby="macros-title">
             <div class="card__header">
@@ -73,7 +73,7 @@ function renderMacros(macros, point) {
             <p class="muted">${t('nutrition.fromPlan')}</p>
             <p class="muted">${t('nutrition.proteinNote', { lean: point.leanKg.toFixed(1) })}</p>
 
-            ${macros.warnings.map((code) => html`
+            ${macros.warnings.map((/** @type {*} */ code) => html`
                 <p class="notice notice--warning">
                     <span class="notice__icon" aria-hidden="true">⚠</span>
                     <span>${t(code)}</span>
@@ -99,7 +99,7 @@ function renderMacros(macros, point) {
 }
 
 /** Reparto en comidas. */
-function renderMeals(macros) {
+function renderMeals(/** @type {*} */ macros) {
     const split = splitIntoMeals(macros, mealCount);
     if (!split.ok) return '';
     return html`
@@ -125,7 +125,7 @@ function renderMeals(macros) {
 }
 
 /** Plantillas de comida del usuario (CRUD). */
-function renderTemplates(templates) {
+function renderTemplates(/** @type {*} */ templates) {
     return html`
         <section class="card" aria-labelledby="templates-title">
             <div class="card__header">
@@ -136,7 +136,7 @@ function renderTemplates(templates) {
                 ? empty({ icon: '🍽', titleKey: 'nutrition.templatesEmpty', bodyKey: 'nutrition.templatesEmptyBody' })
                 : html`
                     <ul class="profile-list">
-                        ${templates.map((tpl) => html`
+                        ${templates.map((/** @type {*} */ tpl) => html`
                             <li class="profile-item">
                                 <span>
                                     <strong>${tpl.name}</strong>
@@ -261,7 +261,7 @@ export function mount(container) {
     on(container, 'click', '[data-delete-template]', (_event, target) => {
         const id = target.getAttribute('data-delete-template');
         if (!id) return;
-        const next = readTemplates().filter((tpl) => tpl.id !== id);
+        const next = readTemplates().filter((/** @type {*} */ tpl) => tpl.id !== id);
         if (!writeTemplates(next)) {
             toast.error('error.generic');
             return;
