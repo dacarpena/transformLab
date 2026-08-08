@@ -341,15 +341,21 @@ tengo que hacer yo.» Así que las tres se marcan como **renunciadas**, no como
 pendientes: dejarlas sin marcar sugeriría que alguien las hará, y no va a pasar.
 
 ```
-[x] CI verde en main (typecheck + 453 unit + 82 e2e)
+[x] CI verde en main (typecheck + 453 unit + 82 e2e)   ← run 31255569186
 [x] Test de identidad: 4 perfiles, desviación 0,000000 kg
-[x] Lighthouse sobre https://motifyer.com, medido HOY sobre el build con M7:
+[x] Lighthouse sobre https://motifyer.com, medido tras desplegar M7 Y los
+    arreglos del ataque adversarial (`tl-v5-0031`):
       escritorio  100 / 100 / 100 / 100   (LCP 0,4 s · TBT 0 ms · CLS 0)
-      móvil        99–100 / 100 / 100 / 100  en 4 pasadas
-                   (LCP 1,69–1,79 s · TBT 0 ms · CLS 0)
-    M7 metió dos módulos nuevos en el camino crítico (`_manifest.js` y
-    `plan-chart.js`), así que se midió cuatro veces en vez de una: la banda es
-    la misma que tras E12 (LCP 1,7 s). Ruido, no regresión.
+      móvil        99 / 99 / 100 / 93 / 99  de rendimiento en 5 pasadas
+                   (accesibilidad, buenas prácticas y SEO: 100 en todas)
+                   LCP 1,74–2,89 s · TBT 0–36 ms · CLS 0
+    Se midió cinco veces y no una porque había dos motivos para sospechar: M7
+    metió dos módulos en el camino crítico (`_manifest.js`, `plan-chart.js`) y
+    el arreglo del XSS hace que `escapeHtml` produzca un 57 % más de bytes de
+    texto. La sospecha NO se confirma: los bytes de más son de DOM, no de red
+    (el escapado ocurre al pintar, no se transfiere nada distinto — 186 KB en
+    39 peticiones), y la pasada de 93 tenía TBT de 5 ms y CLS 0, o sea que su
+    LCP de 2,9 s fue entrega, no ejecución. La mediana sigue en 99.
 [x] PWA: precache de 64 entradas, modo avión REAL — abre, las once vistas
     cargan, la gráfica dibuja
 [x] Migración v4→v5 con fixture de formas reales: no hereda el objetivo roto,
@@ -863,9 +869,9 @@ que dice qué es, para qué SIGUE sirviendo —es el mapa de minas del port, y
 
 ```
 453 tests unitarios · 82 E2E · typecheck limpio sobre TODO src/
-53 módulos · 14 517 líneas · 64 entradas de precache · 11 vistas
-CI verde en main · desplegado en https://motifyer.com (tl-v5-0029)
-Lighthouse escritorio 100/100/100/100 · móvil 99–100/100/100/100
+55 módulos · 64 entradas de precache · 11 vistas
+CI verde en main · desplegado en https://motifyer.com (tl-v5-0031)
+Lighthouse escritorio 100/100/100/100 · móvil 99 de mediana en 5 pasadas
 ```
 
 **Lo que M7 cambia de verdad, más allá de las cifras.** Al empezar, la v1 estaba
@@ -881,6 +887,22 @@ estaban: añadir una vista cuesta **un** sitio en vez de siete, la capa de datos
 tiene repositorios probados en vez de persistencia dentro de las vistas, y
 `CACHE_VERSION` es una regla que se impone sola en vez de un comentario que se
 olvidaba.
+
+**Y una lección de método, porque es la tercera vez que pasa.** Las tres cosas
+que M7 abrió (la CSP sin respaldo, el `@ts-check` sin comprobar, `dom.js`
+cubierto solo por regex) eran afirmaciones ciertas en la documentación y falsas
+en el código. El ataque adversarial encontró tres más **del mismo tipo, y en lo
+que acababa de escribir yo**: un vigilante de XSS cuyo comentario decía «esto es
+lo que impide que lo haya mañana» y se saltaba con un prefijo; un candado de
+`CACHE_VERSION` «comprobado que tiene dientes» que los tenía una sola vez; y un
+test llamado «la caché NO cruza perfiles» que solo probaba el camino feliz.
+
+El patrón no es escribir mal los tests: es que **un test que pasa no dice qué
+NO cubre**. Lo único que lo dice es intentar romperlo a propósito. Por eso el
+ataque adversarial con refutador es parte del cierre de cada milestone y no un
+extra, y por eso ahora hay controles positivos donde importa (el E2E de
+seguridad comprueba PRIMERO que el vector funciona en ese navegador; sin eso, un
+cero no probaría nada).
 
 **Lo que M7 decidió NO hacer, con el diagnóstico escrito en BACKLOG:** el
 singleton de `chart.js` (dos gráficas a la vez fallan en silencio), el escapado
