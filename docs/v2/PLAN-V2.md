@@ -1233,3 +1233,23 @@ a «la banda CONTIENE el esperado del día equivalente», que es lo que `windowF
 significa de verdad.
 
 **802 unitarios · 191 E2E · typecheck limpio.**
+
+### E13-9 — el puente que faltaba, encontrado por la primera prueba real
+
+La primera prueba real de E13 terminó con «no siento que se haya aplicado ningún
+cambio; ni siquiera se pueden seleccionar varias variables en la gráfica». Dos
+causas, una por lado:
+
+1. **La versión instalada sigue mandando hasta pulsar «Recargar».** Verificado de
+   punta a punta reproduciendo la situación exacta (SW viejo controlando, nuevo
+   esperando): el aviso aparece, el botón funciona, y tras pulsarlo la caché
+   vieja desaparece y Analizar está en el menú. El mecanismo es correcto; lo que
+   no es razonable es esperar que el usuario lo conozca.
+2. **La multi-selección vivía a una vista de distancia sin ningún camino desde la
+   gráfica.** Quien mira la gráfica de Proyección es exactamente quien va a
+   querer superponer series, y desde ahí no había forma de descubrir que la
+   función existía. Ahora la tarjeta de la curva lleva «Comparar varias
+   series…», que navega a Analizar — el mismo patrón del «Ver la proyección
+   completa» de Hoy. Con E2E que lo fija.
+
+**802 unitarios · 192 E2E · typecheck limpio.**

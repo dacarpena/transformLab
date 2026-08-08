@@ -305,3 +305,14 @@ async function puntosDeCheckin(page) {
         return real ? real.data.length : 0;
     });
 }
+
+test('la gráfica de Proyección lleva a Analizar: la multi-selección se encuentra', async ({ page }) => {
+    // Descubribilidad, y no es teórica: en la primera prueba real el usuario
+    // buscó la multi-selección EN esta gráfica y concluyó que no existía. La
+    // función vivía a una vista de distancia sin ningún camino desde aquí.
+    const boton = page.locator('[data-go-analysis]');
+    await expect(boton).toBeVisible();
+    await boton.click();
+    await expect(page.locator('.view[data-view-id="analysis"]')).toBeVisible();
+    await expect(page.locator('.view[data-view-id="analysis"] [data-open-picker]')).toBeVisible();
+});

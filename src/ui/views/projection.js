@@ -32,6 +32,7 @@ import * as toast from '../components/toast.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
 import * as settingsStore from '../../data/settings.js';
+import * as router from '../router.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import { shortDate, longDate } from '../dates.js';
 import { buildTimeline, groupByPhase } from '../../core/timeline.js';
@@ -231,7 +232,15 @@ function renderChart(/** @type {*} */ data) {
     const muscle = muscleUnitsOf(data);
     return html`
         <section class="card" aria-labelledby="proj-chart">
-            <h2 id="proj-chart" class="card__title">${t('projection.chart.title')}</h2>
+            <div class="card__header">
+                <h2 id="proj-chart" class="card__title">${t('projection.chart.title')}</h2>
+                <!-- Quien mira ESTA gráfica es exactamente quien va a querer
+                     superponer series, y la multi-selección vive en Analizar
+                     (decisión E13: cada pantalla, un trabajo). Sin este puente,
+                     la función existe y no se encuentra: pasó en la primera
+                     prueba real. -->
+                <button type="button" class="btn btn--sm" data-go-analysis>${t('projection.goAnalysis')}</button>
+            </div>
 
             <div class="chart-toolbar">
                 ${segmented('projection.metric.label', 'data-metric', [
@@ -788,6 +797,10 @@ export function mount(container) {
             block: 'nearest',
             behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
         });
+    });
+
+    on(container, 'click', '[data-go-analysis]', () => {
+        void router.navigate('analysis');
     });
 
     on(container, 'change', '[data-fluctuation]', (_event, target) => {
