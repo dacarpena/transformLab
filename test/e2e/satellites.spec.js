@@ -2,12 +2,13 @@
 
 /**
  * E2E de los módulos satélite (M5-8). Comprueba lo que solo se puede
- * comprobar en un navegador real: que las diez vistas montan, que la barra
+ * comprobar en un navegador real: que todas las vistas montan, que la barra
  * inferior sigue siendo usable a 320 px con diez secciones, y que la tarjeta
  * compartible no filtra peso ni %grasa mientras nadie lo pida.
  */
 
 import { test, expect } from '@playwright/test';
+import { VIEW_IDS } from '../../src/ui/views/_manifest.js';
 
 const CANONICAL = {
     name: 'Dani',
@@ -39,9 +40,11 @@ test.beforeEach(async ({ page }) => {
     await completeOnboarding(page);
 });
 
-const VIEWS = ['today', 'checkin', 'progress', 'projection', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings'];
+// Del manifiesto, no de una lista a mano: era una de las tres copias que
+// había que acordarse de actualizar al añadir una vista (M7-3).
+const VIEWS = VIEW_IDS;
 
-test('las diez vistas montan sin error de consola', async ({ page }) => {
+test('todas las vistas montan sin error de consola', async ({ page }) => {
     /** @type {string[]} */ const errors = [];
     page.on('pageerror', (err) => errors.push(String(err)));
     page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });

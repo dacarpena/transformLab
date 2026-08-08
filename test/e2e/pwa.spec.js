@@ -12,6 +12,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { VIEW_IDS } from '../../src/ui/views/_manifest.js';
 
 async function completeOnboarding(page) {
     await page.fill('[data-field="name"]', 'Dani');
@@ -84,9 +85,10 @@ test('sin red, la aplicación abre y se puede recorrer entera', async ({ page, c
         await page.reload();
         await expect(page.locator('#today-title')).toBeVisible();
 
-        // Las diez vistas, incluidas las que se cargan con import() diferido y
-        // que en esta sesión no se habían visitado nunca
-        for (const v of ['checkin', 'progress', 'projection', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings']) {
+        // Todas las vistas, incluidas las que se cargan con import() diferido
+        // y que en esta sesión no se habían visitado nunca. La lista sale del
+        // manifiesto: una vista nueva entra aquí sola (M7-3).
+        for (const v of VIEW_IDS.filter((id) => id !== 'today')) {
             await page.locator(`[data-view="${v}"]`).click();
             await expect(
                 page.locator(`.view[data-view-id="${v}"] .card, .view[data-view-id="${v}"] .state`).first()

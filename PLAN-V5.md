@@ -717,7 +717,7 @@ los otros.
 
 - [x] M7-1 · Defectos reales y promesas incumplidas: `formatBytes` unificado (una foto de 500 B se leía «0 KB» en Fotos y «500 B» en Ajustes), el historial de planes que `recal.explain` prometía y no se podía abrir, los `role="alert"` sin salida de `nutrition` y `body`, y la fuga de URLs de objeto de `photos.js`.
 - [x] M7-2 · `src/ui/` entra en el comprobador de tipos. Los 24 ficheros declaraban `// @ts-check` sin estar incluidos en `tsconfig.json`: 7 053 líneas, la mitad del código, escribiendo JSDoc sin cobrar el beneficio. Aparecieron 10 errores reales, casi todos en la frontera core↔UI con el patrón `Result<T>`.
-- [ ] M7-3 · Manifiesto único de vistas (`main.js` y los tres specs beben de él) y test que ate `CACHE_VERSION` al contenido de `PRECACHE`.
+- [x] M7-3 · Manifiesto único de vistas (`main.js` y los tres specs beben de él) y test que ate `CACHE_VERSION` al contenido de `PRECACHE`.
 - [ ] M7-4 · Helpers compartidos (`redraw` de la gráfica, `dates.js` en todas las vistas) y `src/data/nutrition.js` + `src/data/training.js`, hoy sin un solo test porque su persistencia vive dentro de la vista.
 - [x] M7-5 · El N+1 cuadrático de check-ins.
 - [ ] M7-6 · `dom.js` con test de comportamiento: es la única frontera de seguridad y solo estaba cubierta por análisis estático con regex.
@@ -726,6 +726,25 @@ los otros.
 - [ ] M7-9 · Documentación honesta: marcar la auditoría de la v3.1/v4.0 como histórica (describe 165 rutas `js/…` que no existen), contabilidad al día y cierre de M6-8 con las evidencias de hoy y las renuncias del usuario anotadas como tales.
 
 ### Bitácora M7
+
+**M7-3 (2026-08-08) · añadir una vista cuesta un sitio.** `src/ui/views/_manifest.js`
+declara qué vistas hay, cómo se llaman, en qué orden salen y cuáles caben en la
+barra inferior; de él beben `main.js` y los tres specs que llevaban su propia
+copia de la lista. El cableado que necesita el contexto del arranque (los
+`setOnX`) se queda en `main.js`, que es donde tiene sentido. Los `load` viven en
+el manifiesto y no en `main.js` porque un `import('./checkin.js')` se resuelve
+relativo al fichero donde está escrito: puestos ahí, los especificadores siguen
+siendo literales y apuntan a su propia carpeta.
+
+Y `CACHE_VERSION` deja de ser un comentario. `sw.js` sirve lo precacheado
+primero y sin revalidar, así que cambiar un fichero sin subir la versión deja a
+quien tenga la app instalada con módulos viejos mezclados con los nuevos que sí
+pidió de red — el estado imposible que el todo-o-nada del service worker existe
+para prevenir, colándose por la puerta de atrás. La regla estaba escrita en
+`sw.js:19` y nada la imponía: la versión iba por la 0019 tras muchas más
+ediciones. Ahora `sw.lock.json` guarda versión y hash del contenido precacheado,
+`npm run sw:bump` los actualiza y el test falla si se despliega sin hacerlo.
+Comprobado con dientes: añadir una línea a `chart.js` sin bumpear rompe el test.
 
 **M7-5 (2026-08-08) · el hallazgo que más iba a doler, y la trampa que escondía.**
 `findByDate()` llamaba a `list()` en cada invocación, y `list()` reparsea y

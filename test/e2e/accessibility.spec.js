@@ -9,12 +9,15 @@
  * significa algo.
  *
  * El contraste de los tokens ya se mide en `test/tokens-contrast.test.js`;
- * aquí se comprueba la estructura sobre el DOM real de las diez vistas.
+ * aquí se comprueba la estructura sobre el DOM real de todas las vistas.
  */
 
 import { test, expect } from '@playwright/test';
+import { VIEW_IDS } from '../../src/ui/views/_manifest.js';
 
-const VIEWS = ['today', 'checkin', 'progress', 'projection', 'nutrition', 'training', 'body', 'milestones', 'photos', 'achievements', 'settings'];
+// Del manifiesto, no de una lista a mano: era una de las tres copias que
+// había que acordarse de actualizar al añadir una vista (M7-3).
+const VIEWS = VIEW_IDS;
 
 async function completeOnboarding(page) {
     await page.fill('[data-field="name"]', 'Dani');
@@ -37,7 +40,7 @@ test.beforeEach(async ({ page }) => {
     await completeOnboarding(page);
 });
 
-test('todo control interactivo tiene nombre accesible en las diez vistas', async ({ page }) => {
+test('todo control interactivo tiene nombre accesible en todas las vistas', async ({ page }) => {
     /** @type {string[]} */ const anonymous = [];
     for (const view of VIEWS) {
         await page.locator(`[data-view="${view}"]`).click();

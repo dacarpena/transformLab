@@ -20,6 +20,7 @@ import * as plans from './ui/plan-state.js';
 import { isScaleProfile } from './ui/muscle-units.js';
 import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
+import { VIEWS } from './ui/views/_manifest.js';
 import * as recalibrate from './ui/recalibrate.js';
 import * as pwa from './ui/pwa.js';
 import * as reminder from './ui/reminder.js';
@@ -74,56 +75,43 @@ function hasCompletedProfile() {
     return validateCollection('profile', stored.value).ok;
 }
 
-/** Registra las vistas del producto y arranca el router. */
-async function startApp(/** @type {*} */ roots) {
-    router.reset();
-    // `primary` = pestaña siempre visible en la barra inferior de móvil. El
-    // resto se pliega tras «más» (ver `renderNav`): diez pestañas a 320 px no
-    // caben con objetivos táctiles decentes.
-    router.register({
-        id: 'today', labelKey: 'nav.today', icon: '◉', primary: true,
-        mount: dashboard.mount, unmount: dashboard.unmount
-    });
-    // Las demás vistas se cargan al visitarlas. Sin bundler cada una es una
-    // petición, y tenerlas todas en el arranque metía en el camino crítico
-    // del primer pintado seis vistas, media docena de módulos del motor y el
-    // catálogo de hitos entero (34 KB) — para pintar una pantalla que no usa
-    // nada de eso. Su cableado va en `afterLoad`, que corre cuando el módulo
-    // llega de verdad.
-    router.register({
-        id: 'checkin', labelKey: 'checkin.nav', icon: '＋', primary: true,
-        load: () => import('./ui/views/checkin.js'),
-        afterLoad: (m) => m.setOnSaved(() => route(roots))
-    });
-    router.register({
-        id: 'progress', labelKey: 'nav.progress', icon: '◔', primary: true,
-        load: () => import('./ui/views/progress.js'),
-        afterLoad: (m) => m.setOnGoToCheckin(() => router.navigate('checkin'))
-    });
-    router.register({
-        id: 'nutrition', labelKey: 'nav.nutrition', icon: '◈', primary: true,
-        load: () => import('./ui/views/nutrition.js')
-    });
-    // `primary: false` a propósito: promoverla obligaría a degradar una de las
-    // cuatro pestañas actuales, porque a 320 px solo caben cuatro más «más»
-    // sin que los objetivos táctiles bajen de 44 px. Se llega desde Hoy.
-    router.register({
-        id: 'projection', labelKey: 'nav.projection', icon: '↗',
-        load: () => import('./ui/views/projection.js')
-    });
-    router.register({ id: 'training', labelKey: 'nav.training', icon: '⬛', load: () => import('./ui/views/training.js') });
-    router.register({ id: 'body', labelKey: 'nav.body', icon: '◐', load: () => import('./ui/views/body.js') });
-    router.register({ id: 'milestones', labelKey: 'nav.milestones', icon: '✦', load: () => import('./ui/views/milestones.js') });
-    router.register({ id: 'photos', labelKey: 'nav.photos', icon: '▣', load: () => import('./ui/views/photos.js') });
-    router.register({ id: 'achievements', labelKey: 'nav.achievements', icon: '★', load: () => import('./ui/views/achievements.js') });
-    router.register({
-        id: 'settings', labelKey: 'nav.settings', icon: '⚙',
-        load: () => import('./ui/views/settings.js'),
-        afterLoad: (m) => {
+/**
+ * Cableado por vista: lo único que NO puede vivir en el manifiesto, porque
+ * necesita el contexto del arranque (`roots`, y las funciones de este módulo).
+ *
+ * Corre en `afterLoad`, o sea cuando el módulo llega de verdad: con carga
+ * diferida, cablear antes sería cablear la nada.
+ * @param {*} roots
+ * @returns {Record<string, (module: *) => void>}
+ */
+function wiringFor(roots) {
+    return {
+        checkin: (m) => m.setOnSaved(() => route(roots)),
+        progress: (m) => m.setOnGoToCheckin(() => router.navigate('checkin')),
+        settings: (m) => {
             m.setOnProfilesChanged(() => route(roots));
             m.setOnEditProfile(() => editProfile(roots));
         }
-    });
+    };
+}
+
+/** Registra las vistas del producto y arranca el router. */
+async function startApp(/** @type {*} */ roots) {
+    router.reset();
+    const wiring = wiringFor(roots);
+    // Qué vistas hay y en qué orden lo dice `_manifest.js`, no este fichero:
+    // antes había que acordarse de siete sitios para añadir una (M7-3).
+    for (const view of VIEWS) {
+        // Hoy es la única sin `load`: va en el arranque y se importa arriba,
+        // así que su montaje es directo en vez de diferido.
+        const entry = view.load
+            ? { load: view.load, afterLoad: wiring[view.id] }
+            : { mount: dashboard.mount, unmount: dashboard.unmount };
+        router.register({
+            id: view.id, labelKey: view.labelKey, icon: view.icon, primary: view.primary,
+            ...entry
+        });
+    }
     await router.start({ viewRoot: roots.viewRoot, navRoot: roots.navRoot, fallbackView: 'today' });
 
     // Tras montar, se comprueba si procede OFRECER una recalibración (E1a).

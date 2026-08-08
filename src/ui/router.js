@@ -92,10 +92,11 @@ export function onChange(fn) {
  * `aria-current="page"` marca la activa para los lectores de pantalla; el
  * resaltado visual NO es la única señal.
  *
- * A partir de M5 hay diez vistas y una barra inferior de diez pestañas a
- * 320 px daría objetivos de 32 px, por debajo del mínimo táctil. Las que no
- * son `primary` se pliegan tras un botón «más» que despliega una hoja; en
- * escritorio la barra lateral las muestra todas y el botón desaparece.
+ * Las vistas son once (`src/ui/views/_manifest.js`), y una barra inferior con
+ * once pestañas a 320 px daría objetivos de 29 px, muy por debajo del mínimo
+ * táctil. Las que no son `primary` se pliegan tras un botón «más» que
+ * despliega una hoja; en escritorio la barra lateral las muestra todas y el
+ * botón desaparece.
  */
 function renderNav() {
     if (!navContainer) return;

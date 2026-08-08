@@ -1,7 +1,7 @@
 {
   "name": "transformlab",
   "version": "5.0.0-dev",
-  "description": "Seguimiento de transformación corporal con proyección recalibrable. Todo en el navegador.",
+  "description": "Seguimiento de transformaci\u00f3n corporal con proyecci\u00f3n recalibrable. Todo en el navegador.",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -14,7 +14,8 @@
     "serve": "python3 -m http.server 8080",
     "test": "node --test \"test/**/*.test.js\"",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "sw:bump": "node tools/sw-version.mjs --bump"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

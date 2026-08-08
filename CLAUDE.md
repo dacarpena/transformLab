@@ -52,6 +52,7 @@ src/
     dates.js                fechas legibles con Intl; SIEMPRE timeZone:'UTC' (las del motor son UTC)
     muscle-units.js         aduana de unidad de músculo (E11): traduce en la frontera, no en el core
     router.js               vistas + navegación; tabs inferiores en móvil, sidebar en escritorio
+    views/_manifest.js      FUENTE ÚNICA de qué vistas hay: main.js y los specs beben de aquí
     components/             tarjetas, modal accesible, estados vacíos/error, toasts
     views/                  dashboard, onboarding, checkin, progress, projection, nutrition,
                             training, body, milestones, settings
@@ -99,7 +100,14 @@ npm run serve       # servidor local (python3 -m http.server 8080)
 npm test            # node --test test/  (motor y datos)
 npm run typecheck   # tsc --noEmit (checkJs sobre src/core y src/data)
 npm run e2e         # Playwright smoke (requiere serve en marcha o webServer configurado)
+npm run sw:bump     # sube CACHE_VERSION y sella sw.lock.json (tras tocar algo precacheado)
 ```
+
+`sw.js` sirve lo precacheado primero y **sin revalidar**: si cambias un fichero
+de `PRECACHE` y no subes `CACHE_VERSION`, quien ya tenga la app instalada
+seguirá ejecutando el módulo viejo junto a los nuevos que sí pidió de red. Eso
+lo impone `test/views-manifest.test.js` contra `sw.lock.json`; cuando falle,
+`npm run sw:bump` es la respuesta.
 
 CI (GitHub Actions): typecheck + test en cada push/PR. Despliegue continuo: Cloudflare Pages sobre `main` (staging desde M0; dominio propio y lanzamiento público en M6).
 
@@ -118,4 +126,5 @@ CI (GitHub Actions): typecheck + test en cada push/PR. Despliegue continuo: Clou
 1. Tests e invariantes en verde; typecheck limpio.
 2. Sin literales visibles fuera de i18n; sin hex fuera de tokens; sin `innerHTML` con datos sin escapar; sin `localStorage` directo.
 3. Funciona con teclado y a 320 px si toca UI.
-4. Checkbox marcado en `PLAN-V5.md` y commit hecho.
+4. Si se tocó algo de `PRECACHE`, `npm run sw:bump` ejecutado.
+5. Checkbox marcado en `PLAN-V5.md` y commit hecho.
