@@ -642,4 +642,15 @@ export const en = {
     "pantry.add": "Add to pantry",
     "pantry.entry": "{name} · {quantity} {unit}",
     "pantry.invalid": "Enter what you have and how many grams.",
+
+    // V2-M3 · the daily menu
+    "menu.title": "What to eat today",
+    "menu.explain": "A menu that matches your macros. The grams are worked out; adjust by eye if you have more or less.",
+    "menu.regenerate": "Another menu",
+    "menu.another": "Another option",
+    "menu.mealTotal": "{kcal} kcal · {p} g P · {c} g C · {f} g F",
+    "menu.dayTotal": "Day total: {kcal} kcal · {p} g P · {c} g C · {f} g F",
+    "menu.deviation": "Deviation from target: {kcal} % on calories, {protein} % on protein.",
+    "menu.unavailable": "I could not find a menu that fits your macros and your restrictions. Try relaxing one, or build it yourself from your recipes.",
+    "menu.noAlternative": "There is no other option for that meal that keeps the day within your macros.",
 };

@@ -15,6 +15,11 @@ import { sanitizeText } from '../../data/schema.js';
 import * as nutritionStore from '../../data/nutrition.js';
 import * as plans from '../plan-state.js';
 import { macrosFor, refeedMacros, splitIntoMeals } from '../../core/nutrition.js';
+import { buildMenu, regenerateMeal } from '../../core/menu.js';
+import * as foodsDb from '../../data/foods-db.js';
+import * as preferencesStore from '../../data/preferences.js';
+import { seedFrom } from '../../core/rng.js';
+import * as profiles from '../../data/profiles.js';
 import * as modal from '../components/modal.js';
 import * as toast from '../components/toast.js';
 import { empty, error as errorState } from '../components/state.js';
@@ -22,6 +27,22 @@ import { int as num } from '../format.js';
 
 let mealCount = 4;
 let refeedToday = false;
+
+/**
+ * Catálogo de alimentos, cargado bajo demanda. `null` = todavía no está.
+ * @type {import('../../core/foods.js').Food[] | null}
+ */
+let catalog = null;
+
+/**
+ * El menú del día. NO se persiste: es determinista, así que se regenera igual
+ * que la proyección. Guardarlo solo crearía una copia que puede envejecer mal.
+ * @type {* | null}
+ */
+let currentMenu = null;
+
+/** Semilla del menú actual, para que regenerar una comida sea reproducible. */
+let menuSeed = 1;
 
 /** Tarjeta de macros del día. */
 function renderMacros(/** @type {*} */ macros, /** @type {*} */ point) {
@@ -105,6 +126,84 @@ function renderMeals(/** @type {*} */ macros) {
     `;
 }
 
+/**
+ * El menú de verdad: qué comer y cuántos gramos (V2-M3).
+ *
+ * El reparto de arriba dice «525 kcal y 41 g de proteína», que es correcto y no
+ * le sirve a nadie para hacer la compra. Esto lo convierte en comida.
+ */
+function renderMenu() {
+    if (catalog === null) {
+        return html`
+            <section class="card">
+                <h2 class="card__title">${t('menu.title')}</h2>
+                <p class="muted" role="status">${t('foods.loading')}</p>
+            </section>
+        `;
+    }
+    if (currentMenu === null) {
+        // Sin menú posible se DICE por qué. Un planificador que calla cuando no
+        // puede es peor que uno que no planifica.
+        return html`
+            <section class="card">
+                <h2 class="card__title">${t('menu.title')}</h2>
+                <p class="notice notice--warning">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <span>${t('menu.unavailable')}</span>
+                </p>
+            </section>
+        `;
+    }
+
+    const off = currentMenu.bands.off ?? {};
+    return html`
+        <section class="card" aria-labelledby="menu-title">
+            <div class="card__header">
+                <h2 id="menu-title" class="card__title">${t('menu.title')}</h2>
+                <button type="button" class="btn btn--sm" data-regenerate-menu>${t('menu.regenerate')}</button>
+            </div>
+            <p class="muted">${t('menu.explain')}</p>
+
+            ${currentMenu.meals.map((/** @type {*} */ meal) => html`
+                <div class="menu-meal">
+                    <div class="card__header">
+                        <h3 class="menu-meal__title">${t('nutrition.meal', { n: meal.index + 1 })}</h3>
+                        <button type="button" class="btn btn--sm" data-regenerate-meal="${meal.index}">
+                            ${t('menu.another')}
+                        </button>
+                    </div>
+                    <ul class="profile-list">
+                        ${meal.items.map((/** @type {*} */ item) => html`
+                            <li class="profile-item">
+                                <span>${item.name}</span>
+                                <span class="muted numeric">${num(item.grams)} g · ${num(item.macros.kcal)} kcal</span>
+                            </li>
+                        `)}
+                    </ul>
+                    <p class="muted numeric">${t('menu.mealTotal', {
+                        kcal: num(meal.totals.kcal), p: num(meal.totals.proteinG),
+                        c: num(meal.totals.carbsG), f: num(meal.totals.fatG)
+                    })}</p>
+                </div>
+            `)}
+
+            <!--
+                El total del dia frente al objetivo, y cuanto se desvia. Es la
+                misma disciplina que la vista de Gasto: ensenar la cuenta, no un
+                numero. (Sin acentos graves aqui: CIERRAN la plantilla.)
+            -->
+            <p class="muted numeric">${t('menu.dayTotal', {
+                kcal: num(currentMenu.totals.kcal), p: num(currentMenu.totals.proteinG),
+                c: num(currentMenu.totals.carbsG), f: num(currentMenu.totals.fatG)
+            })}</p>
+            <p class="muted">${t('menu.deviation', {
+                kcal: Math.round((off.kcal ?? 0) * 100),
+                protein: Math.round((off.proteinG ?? 0) * 100)
+            })}</p>
+        </section>
+    `;
+}
+
 /** Plantillas de comida del usuario (CRUD). */
 function renderTemplates(/** @type {*} */ templates) {
     return html`
@@ -134,6 +233,38 @@ function renderTemplates(/** @type {*} */ templates) {
     `;
 }
 
+/**
+ * Macros de HOY, si hay plan. Es la entrada del solver, y sale del motor: el
+ * menú las RELLENA, nunca las recalcula (B3).
+ * @returns {{ kcal: number, proteinG: number, carbsG: number, fatG: number } | null}
+ */
+function todayMacros() {
+    const data = plans.get();
+    if (!data) return null;
+    const today = plans.todayIndex(data, plans.todayISO());
+    const base = macrosFor(data.projection.daily[today.dayIndex]);
+    if (!base.ok) return null;
+    const { kcal, proteinG, carbsG, fatG } = base.value;
+    return { kcal, proteinG, carbsG, fatG };
+}
+
+/** Rehace el menú del día con la semilla actual. */
+function rebuildMenu() {
+    const macros = todayMacros();
+    if (macros === null || catalog === null) { currentMenu = null; return; }
+    const split = splitIntoMeals(/** @type {*} */ ({ ...macros, warnings: [] }), mealCount);
+    if (!split.ok) { currentMenu = null; return; }
+    const built = buildMenu({
+        macros,
+        mealTargets: split.value,
+        foods: catalog,
+        preferences: /** @type {*} */ (preferencesStore.get()),
+        seed: menuSeed
+    });
+    currentMenu = built.ok ? built.value : null;
+    if (!built.ok) console.warn('[menu] sin solución:', built.error, built.detail ?? {});
+}
+
 /** @param {HTMLElement} container */
 function draw(container) {
     const data = plans.get();
@@ -159,13 +290,37 @@ function draw(container) {
         <h1 class="card__title">${t('nutrition.title')}</h1>
         ${renderMacros(macros, point)}
         ${renderMeals(macros)}
+        ${renderMenu()}
         ${renderTemplates(nutritionStore.listTemplates())}
     `);
 }
 
 /** @param {HTMLElement} container */
-export function mount(container) {
+export async function mount(container) {
     draw(container);
+
+    // El catálogo se carga DESPUÉS del primer pintado: las macros del día no
+    // dependen de él, y esperar 2 000 alimentos para enseñar cuatro cifras que
+    // ya están calculadas sería castigar al usuario por una función que quizá ni
+    // mire.
+    if (catalog === null) {
+        const loaded = await foodsDb.load();
+        if (loaded.ok) {
+            catalog = loaded.value;
+            const bundle = plans.get();
+            // Semilla del perfil + el día: mismo perfil y mismo día, mismo menú;
+            // días distintos, menús distintos. Sin el día, comerías lo mismo
+            // toda la definición.
+            const dayIndex = bundle ? plans.todayIndex(bundle, plans.todayISO()).dayIndex : 0;
+            const active = profiles.getActive();
+            menuSeed = seedFrom(active.ok ? active.value : 'p1',
+                bundle?.startDateISO ?? '1970-01-01') + dayIndex;
+            rebuildMenu();
+        } else {
+            console.warn('[menu] no se pudo cargar la base de alimentos:', loaded.error);
+        }
+        draw(container);
+    }
 
     on(container, 'change', '[data-refeed]', (_event, target) => {
         refeedToday = /** @type {HTMLInputElement} */ (target).checked;
@@ -174,6 +329,35 @@ export function mount(container) {
 
     on(container, 'input', '[data-meal-count]', (_event, target) => {
         mealCount = Number(/** @type {HTMLInputElement} */ (target).value);
+        // Cambiar el número de comidas cambia los objetivos por comida, así que
+        // el menú anterior deja de corresponder a nada.
+        rebuildMenu();
+        draw(container);
+    });
+
+    on(container, 'click', '[data-regenerate-menu]', () => {
+        // Otra semilla, mismo objetivo. El menú no se persiste, así que
+        // «regenerar» es literalmente volver a resolver.
+        menuSeed += 1;
+        rebuildMenu();
+        draw(container);
+    });
+
+    on(container, 'click', '[data-regenerate-meal]', (_event, target) => {
+        const index = Number(target.getAttribute('data-regenerate-meal'));
+        if (currentMenu === null || catalog === null || !Number.isInteger(index)) return;
+        const cambiado = regenerateMeal(currentMenu, index, {
+            foods: catalog,
+            preferences: /** @type {*} */ (preferencesStore.get()),
+            seed: menuSeed
+        });
+        if (!cambiado.ok) {
+            // No hay alternativa que mantenga el DÍA dentro de banda. Se dice,
+            // en vez de servir algo que rompe el plan sin avisar.
+            toast.error('menu.noAlternative');
+            return;
+        }
+        currentMenu = cambiado.value;
         draw(container);
     });
 

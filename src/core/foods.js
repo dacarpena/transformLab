@@ -47,7 +47,8 @@ export const REFERENCE_GRAMS = 100;
  * @property {number} c hidratos g/100 g
  * @property {number} f grasa g/100 g
  * @property {[number, 'g'|'ml']} [q] formato del envase
- * @property {string} [cat] pasillo
+ * @property {string} [cat] pasillo de la tienda («dónde está»)
+ * @property {string} [diet] origen alimentario («de qué viene»): meat|fish|dairy|egg|plant
  * @property {string} [e] EAN
  * @property {string[]} [a] alérgenos
  * @property {'usda'|'off'|'user'} src

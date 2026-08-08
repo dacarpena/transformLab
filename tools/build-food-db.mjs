@@ -97,6 +97,48 @@ function pasilloDe(tags) {
     return undefined;
 }
 
+/**
+ * Origen alimentario, SEPARADO del pasillo. Y esto no es un matiz.
+ *
+ * El pasillo contesta «dónde está en la tienda»; el origen contesta «de qué
+ * viene». Son preguntas distintas y confundirlas produce el defecto exacto que
+ * este proyecto ya conoce: unas gambas congeladas están en el pasillo de
+ * CONGELADOS, así que filtrar una dieta vegana por pasillo se las sirve
+ * tranquilamente. Un solo campo haciendo dos trabajos es como se hundió la
+ * v4.0 con la palabra «músculo».
+ *
+ * `undefined` significa «no lo sabemos», y bajo una dieta restrictiva eso
+ * excluye. Ante la duda, un vegano prefiere menos opciones a un marisco.
+ * @type {readonly string[]}
+ */
+export const DIET_ORIGINS = Object.freeze(['meat', 'fish', 'dairy', 'egg', 'plant']);
+
+/** @type {Array<[RegExp, string]>} Más específico primero. */
+const A_ORIGEN = [
+    [/^en:(fishes|seafood|crustaceans|molluscs|shellfish|prawns|shrimps|tunas|salmons|canned-fish|surimi)/, 'fish'],
+    [/^en:(meats|poultry|hams|sausages|chickens|beef|pork|charcuteries|lamb|turkey|bacon)/, 'meat'],
+    [/^en:(cheeses|yogurts|milks|dairies|creams|butters)/, 'dairy'],
+    [/^en:(eggs|egg-)/, 'egg'],
+    [/^en:(plant-based-foods|fruits|vegetables|legumes|cereals|nuts|seeds|vegetable-oils)/, 'plant']
+];
+
+/**
+ * @param {string[]} tags categorías de OFF
+ * @param {string[]} alergenos
+ * @returns {string | undefined}
+ */
+function origenDe(tags, alergenos) {
+    // Los alérgenos mandan sobre las categorías: son un campo regulado del
+    // etiquetado, mientras que las categorías las teclea quien sube la ficha.
+    if (alergenos.includes('milk')) return 'dairy';
+    if (alergenos.includes('eggs')) return 'egg';
+    if (alergenos.some((a) => ['fish', 'crustaceans', 'molluscs'].includes(a))) return 'fish';
+    for (const [re, origen] of A_ORIGEN) {
+        for (const t of tags) if (re.test(t)) return origen;
+    }
+    return undefined;
+}
+
 /** @param {unknown} v @returns {number | null} */
 function n(v) {
     const x = typeof v === 'string' ? Number(v.replace(',', '.')) : v;
@@ -117,6 +159,16 @@ export function sanityCheck(food) {
     if (k < KCAL_MIN || k > KCAL_MAX) return { ok: false, reason: 'kcalFueraDeRango' };
     // Los macros no pueden pesar más de 100 g por cada 100 g de alimento.
     if (p + c + f > 105) return { ok: false, reason: 'macrosSuperan100g' };
+
+    // PROTEÍNA IMPOSIBLE. Encontrado en la base real: un «Coco» con 100 g de
+    // proteína por 100 g. Atwater no lo pilla —400 kcal de proteína frente a
+    // 414 declaradas cuadran— porque la ficha es internamente coherente y
+    // simplemente falsa. Solo un aislado de proteína llega ahí, y un aislado es
+    // un suplemento (V2-M5), no un ingrediente de menú: perderlos sale más
+    // barato que servir coco de fuente proteica.
+    if (p >= 60 && p * 4 > (p * 4 + c * 4 + f * 9) * 0.9) {
+        return { ok: false, reason: 'proteinaImposible' };
+    }
 
     const desdeMacros = p * ATWATER.protein + c * ATWATER.carbs + f * ATWATER.fat;
     // Un alimento sin energía ni macros (agua, café solo) es válido.
@@ -170,13 +222,16 @@ export function fromOpenFoodFacts(raw) {
     const ean = String(raw?.code ?? '');
     if (/^\d{8,14}$/.test(ean)) food.e = ean;
 
-    const cat = pasilloDe((raw?.categories_tags ?? []).map(String));
-    if (cat) food.cat = cat;
-
     const alergenos = (raw?.allergens_tags ?? [])
         .map((/** @type {string} */ a) => String(a).replace(/^[a-z]{2}:/, ''))
         .filter(Boolean).slice(0, 12);
     if (alergenos.length > 0) food.a = alergenos;
+
+    const tags = (raw?.categories_tags ?? []).map(String);
+    const cat = pasilloDe(tags);
+    if (cat) food.cat = cat;
+    const diet = origenDe(tags, alergenos);
+    if (diet) food.diet = diet;
 
     return { ok: true, value: food };
 }
@@ -213,6 +268,16 @@ async function fetchPage(page, extra = '', intentos = 4) {
     }
     return { ok: false, status: ultimo, products: [], count: 0 };
 }
+
+/**
+ * Origen de cada pasillo, para los genéricos. Aquí SÍ se puede afirmar, porque
+ * la lista está escrita a mano y sabemos qué hay en cada línea.
+ * @type {Record<string, string>}
+ */
+const ORIGEN_DE_PASILLO = {
+    carne: 'meat', pescado: 'fish', huevos: 'egg', lacteos: 'dairy',
+    verdura: 'plant', fruta: 'plant', panaderia: 'plant', despensa: 'plant'
+};
 
 /**
  * Genéricos españoles con valores de USDA FoodData Central (CC0).
@@ -292,7 +357,7 @@ function genericos() {
     for (const [nombre, k, p, c, f, cat] of GENERICOS) {
         const id = `usda:${nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
             .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`;
-        const food = { id, n: nombre, k, p, c, f, cat, src: 'usda' };
+        const food = { id, n: nombre, k, p, c, f, cat, diet: ORIGEN_DE_PASILLO[cat], src: 'usda' };
         const sane = sanityCheck(food);
         if (!sane.ok) {
             console.warn(`  genérico descartado (${sane.reason}): ${nombre}`);

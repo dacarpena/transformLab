@@ -1323,3 +1323,16 @@ button.timeline__event:hover {
 }
 
 .plan-history__item:last-child { border-bottom: 0; }
+
+/* Una comida del menú generado (V2-M3). Separador sutil en vez de tarjeta
+   anidada: cuatro tarjetas dentro de otra convierten la vista en una cebolla. */
+.menu-meal {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.menu-meal__title {
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    margin: 0;
+}

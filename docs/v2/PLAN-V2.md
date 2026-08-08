@@ -420,3 +420,49 @@ toque (CLAUDE.md §7).
   regla obvia que los separe de un nombre corto legítimo. La insignia «marca
   (comunidad)» ya avisa de la garantía; si molesta, la vía es una lista de
   bloqueo por id, no una heurística.
+
+### V2-M3 · Menú que cuadra macros — cerrada el 2026-08-08
+
+`src/core/menu.js`: un **solver combinatorio**, no un modelo ni «IA». Recibe las
+macros que ya fijó el motor y busca alimentos y gramajes que caigan dentro de sus
+bandas. **Nunca recalcula las kcal** (B3): si el plan dice 2 100, el menú rellena
+2 100. Jerarquía de restricciones en dos niveles —duras (alergias, dieta, suelo
+de proteína) y blandas (lo que no gusta, que penaliza pero no prohíbe)— porque
+meterlo todo como duro deja el problema sin solución factible.
+
+Determinista por semilla de perfil + día. El menú **no se persiste**: se
+regenera, igual que la proyección. «Otra opción» cambia UNA comida y solo la
+acepta si el DÍA sigue dentro de banda y el suelo de proteína se mantiene;
+sustituir a ciegas convertiría ese botón en la forma más rápida de romper el plan
+sin enterarse.
+
+**Cuatro defectos reales encontrados ejecutando el solver contra la base entera**,
+y ninguno se habría visto con cuatro alimentos de juguete:
+
+1. **La grasa se pasaba un 30 %** con las otras tres macros cuadrando al 1 %: el
+   aceite se añadía siempre, aunque un salmón o un queso ya cubrieran la grasa.
+   Ahora, si no hay hueco, no se añade.
+2. **Un solo intento no es un solver.** Con búsqueda local (24 tiradas, se queda
+   con la de menor penalización y para en cuanto una cuadra) encuentra
+   combinaciones que una sola tirada no ve, y sigue siendo determinista.
+3. **`cat` hacía dos trabajos y por eso un vegano recibía gambas.** El pasillo
+   contesta «dónde está en la tienda»; la dieta necesita «de qué viene», y unas
+   gambas peladas están en CONGELADOS. Es exactamente el patrón que hundió la
+   v4.0 con la palabra «músculo». Se separó en un campo `diet`
+   (`meat|fish|dairy|egg|plant`), derivado de los alérgenos —campo regulado—
+   antes que de las categorías, que las teclea la comunidad. Sin origen conocido,
+   una dieta restrictiva excluye.
+4. **Menú aritméticamente impecable y gastronómicamente absurdo**: miel de flores
+   de fuente de hidratos, postre gelificado de guarnición y caldo cocido de
+   verdura. Tres causas y tres arreglos: ordenar por pureza de macro premia a los
+   alimentos extremos (→ los genéricos van primero, porque los 56 SON los
+   básicos de una cocina); cualquier pasillo valía para cualquier papel (→
+   `ROLE_AISLES`); y el sorteo era uniforme sobre 40 candidatos (→ sesgo
+   cuadrático hacia la cabeza). Verificado en navegador: «langostino + arroz +
+   sandía + aceite de oliva», «ternera + patata + calabacín + almendras».
+
+Y un quinto, de clasificación: la rúcula —26 kcal, 4,3 g de proteína— caía en el
+grupo de fuentes proteicas y el solver la ofrecía de plato principal. La verdura
+se define ahora por densidad y solo por densidad.
+
+**580 unitarios · 101 E2E · typecheck limpio.**

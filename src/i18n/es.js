@@ -642,5 +642,15 @@ export const es = {
     "pantry.add": "Añadir a la despensa",
     "pantry.entry": "{name} · {quantity} {unit}",
     "pantry.invalid": "Escribe qué tienes y cuántos gramos.",
-};
 
+    // V2-M3 · el menú del día
+    "menu.title": "Qué comer hoy",
+    "menu.explain": "Un menú que cuadra con tus macros. Los gramos están calculados; ajústalos a ojo si te sobra o te falta.",
+    "menu.regenerate": "Otro menú",
+    "menu.another": "Otra opción",
+    "menu.mealTotal": "{kcal} kcal · {p} g P · {c} g H · {f} g G",
+    "menu.dayTotal": "Total del día: {kcal} kcal · {p} g P · {c} g H · {f} g G",
+    "menu.deviation": "Desvío frente al objetivo: {kcal} % en calorías, {protein} % en proteína.",
+    "menu.unavailable": "No he encontrado un menú que cuadre con tus macros y tus restricciones. Prueba a relajar alguna, o móntalo tú con las recetas.",
+    "menu.noAlternative": "No hay otra opción para esa comida que mantenga el día dentro de tus macros.",
+};
