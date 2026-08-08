@@ -61,6 +61,7 @@ test('availableLocales expone es y en', () => {
  * ---------------------------------------------------------------------- */
 
 import { readFileSync, readdirSync } from 'node:fs';
+import { isICloudDuplicate } from './helpers/tree.js';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import * as plans from '../src/ui/plan-state.js';
@@ -72,6 +73,7 @@ function coreIssueCodes() {
     /** @type {Set<string>} */ const codes = new Set();
     const walk = (/** @type {string} */ dir) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (isICloudDuplicate(entry.name)) continue;  // duplicado de iCloud, no fuente
             const full = join(dir, entry.name);
             if (entry.isDirectory()) walk(full);
             else if (entry.name.endsWith('.js')) {

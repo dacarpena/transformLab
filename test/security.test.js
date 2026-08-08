@@ -15,6 +15,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { isICloudDuplicate } from './helpers/tree.js';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 
@@ -73,6 +74,7 @@ function sourceFiles() {
     /** @type {Array<{ path: string, source: string }>} */ const out = [];
     const walk = (/** @type {string} */ dir) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            if (isICloudDuplicate(entry.name)) continue;  // duplicado de iCloud, no fuente
             const full = join(dir, entry.name);
             if (entry.isDirectory()) walk(full);
             else if (entry.name.endsWith('.js')) {

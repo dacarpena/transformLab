@@ -21,6 +21,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { isICloudDuplicate } from './helpers/tree.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { escapeHtml, html, raw, safeUrl, RawHtml } from '../src/ui/dom.js';
@@ -309,6 +310,7 @@ function jsFilesUnder(dir) {
     /** @type {string[]} */ const out = [];
     const walk = (/** @type {string} */ current) => {
         for (const entry of readdirSync(current, { withFileTypes: true })) {
+            if (isICloudDuplicate(entry.name)) continue;  // duplicado de iCloud, no fuente
             const full = join(current, entry.name);
             if (entry.isDirectory()) walk(full);
             else if (entry.name.endsWith('.js')) out.push(full);

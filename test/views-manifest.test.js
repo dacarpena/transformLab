@@ -13,6 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { isICloudDuplicate } from './helpers/tree.js';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { VIEWS, VIEW_IDS, EAGER_VIEW_ID } from '../src/ui/views/_manifest.js';
@@ -32,7 +33,8 @@ const FUERA_DEL_ROUTER = {
 };
 
 test('toda vista de la carpeta está en el manifiesto, o justificada fuera', () => {
-    const ficheros = readdirSync(join(ROOT, 'src/ui/views')).filter((f) => f.endsWith('.js'));
+    const ficheros = readdirSync(join(ROOT, 'src/ui/views'))
+        .filter((f) => f.endsWith('.js') && !isICloudDuplicate(f));
     const enManifiesto = new Set(VIEWS.map((v) => v.path.split('/').pop()));
     const huerfanas = ficheros.filter((f) => !enManifiesto.has(f) && !(f in FUERA_DEL_ROUTER));
     assert.deepEqual(huerfanas, [],

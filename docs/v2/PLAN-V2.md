@@ -214,6 +214,48 @@ Están en el prompt de cada milestone que las toca. Las de fondo:
   cuota).
 - **Marca/dominio:** ¿la v2 continúa en `motifyer.com` con la marca TransformLab?
 
+## 9.bis. Fricción medida (una sonda implementó 4 features de v2 de verdad)
+
+Antes de escribir este plan, cuatro agentes implementaron **de verdad**, cada uno en su
+worktree, cuatro funcionalidades plausibles de v2 —perímetros corporales, comparar dos
+perfiles, tema claro, y deep-links en la URL— y se midió dónde dolía. Las cuatro salieron
+en verde (unitarios, typecheck y E2E bajo la CSP). **El dato más elocuente: nadie tocó un
+solo módulo de `src/core/`.** Toda la fricción estuvo en `src/ui/` y en la fontanería.
+Veredicto: **el código está listo para crecer.** Lo que la sonda destapó, verificado
+ejecutando, y ya repartido por los milestones:
+
+- **`chart.js` singleton — el único bloqueo de verdad (→ V2-M8).** Dos agentes chocaron; uno
+  lo resolvió indexando el estado por `HTMLCanvasElement` en un `Map`, el otro lo esquivó
+  duplicando 108 líneas. Con dos lienzos, el primero quedaba en 300×150 px y **cero píxeles
+  opacos**, `draw()` devolvía `true` las dos veces, sin un error de consola, y la región
+  `aria-live` describía una gráfica que ya no existía.
+- **`storage.get()` solo habla del perfil ACTIVO (→ nota en V2-M0).** Comparar perfiles, o
+  cualquier lectura cruzada, necesita una primitiva `getForProfile(pid, key)` que lea otro
+  namespace **sin** cambiar el activo (hoy hay que hacer malabares con `setActiveProfile`,
+  justo lo que abrió la fuga entre perfiles de M7). Añadirla en V2-M0.
+- **`plans.load()` hace dos cosas (carga Y fija el activo), así que no se puede llamar dos
+  veces (→ nota en V2-M0).** Separar «cargar el plan de un perfil» de «fijarlo como activo».
+- **`chart.js` solo sabe dibujar un `Projection` (→ relevante a V2-M9 y a la vista de
+  Medidas).** No hay forma de trazar una serie medida arbitraria; la sonda añadió una
+  primitiva `chart.drawSeries`. La factoría de V2-M8 debe exponerla.
+- **`sw.js` + `sw.lock.json` colisionan en el 100 % de las ramas paralelas.** Los cuatro
+  agentes ejecutaron `npm run sw:bump` y los cuatro obtuvieron `tl-v5-0033` (el bump es un
+  contador sobre el lock de partida). Fusionar dos ramas da conflicto irresoluble eligiendo
+  un lado, porque `precacheHash` depende del contenido combinado. **Opción buena** (una
+  tarde): derivar `CACHE_VERSION` del `precacheHash` en vez de de un contador, y el valor
+  deja de depender del orden. **Mínimo:** reejecutar `sw:bump` tras cada merge que toque
+  `PRECACHE` — anotado en `CLAUDE.md` §6.
+- **`playwright.config.js` fija los puertos 8081/8082** (y `dom-security.spec.js` cablea el
+  8082), así que no se pueden correr los E2E de dos worktrees a la vez. Leer los puertos de
+  variable de entorno con esos valores por defecto devuelve el paralelismo. Pendiente.
+- **`_manifest.js` y los diccionarios i18n son puntos de anexión compartidos.** No es un
+  defecto —es el precio correcto de tener fuente única— pero garantiza conflictos de texto
+  triviales al trabajar en paralelo: **ordena las fusiones de la v2, no las hagas
+  simultáneas.**
+
+Ya arreglado de la lista: el duplicado de iCloud que ponía `npm test` en rojo
+(`test/helpers/tree.js`, filtro en los seis recorridos del árbol).
+
 ## 10. Cómo se trabaja la v2
 
 Igual que la v1 (CLAUDE.md §7): una milestone a la vez y en orden; cualquier idea fuera de

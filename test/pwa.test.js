@@ -13,6 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { isICloudDuplicate } from './helpers/tree.js';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 
@@ -23,6 +24,7 @@ function filesUnder(dir, extensions) {
     /** @type {string[]} */ const out = [];
     const walk = (current) => {
         for (const entry of readdirSync(current, { withFileTypes: true })) {
+            if (isICloudDuplicate(entry.name)) continue;  // duplicado de iCloud, no fuente
             const full = join(current, entry.name);
             if (entry.isDirectory()) walk(full);
             else if (extensions.some((ext) => entry.name.endsWith(ext))) {

@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { isICloudDuplicate } from './helpers/tree.js';
 import { join } from 'node:path';
 import { makeComposition, targetWeightKg, planPhases } from '../src/core/engine.js';
 import { generateProjection } from '../src/core/generator.js';
@@ -195,6 +196,7 @@ test('escenarios — pesimista ≤ esperado ≤ optimista en posición de plan y
 function jsFilesUnder(dir) {
     /** @type {string[]} */ const out = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (isICloudDuplicate(entry.name)) continue;  // duplicado de iCloud, no fuente
         const p = join(dir, entry.name);
         if (entry.isDirectory()) out.push(...jsFilesUnder(p));
         else if (entry.name.endsWith('.js')) out.push(p);
