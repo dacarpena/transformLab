@@ -339,3 +339,84 @@ la milestone activa va al BACKLOG y **no** se implementa; tests e invariantes en
 typecheck limpio antes de cada commit; `npm run sw:bump` si se toca algo precacheado;
 ataque adversarial con refutador al cierre; bitácora de 2–4 líneas por sesión. La
 definición de «hecho» de CLAUDE.md §8 aplica sin cambios.
+
+## 11. Bitácora de la v2
+
+### V2-M2 · Alimentos, recetas y despensa — cerrada el 2026-08-08
+
+Base de alimentos construida y empaquetada: **2 000 alimentos, 338 KB crudos /
+56 KB gzip**. Dos capas con procedencia explícita en el campo `src`, análogo a
+`muscleSource` (A3): **56 genéricos** de USDA FoodData Central (CC0), con nombre
+español escrito a mano, que cubren el fresco; y **1 944 productos Hacendado** de
+Open Food Facts (ODbL), obtenidos con `tools/build-food-db.mjs`.
+
+Lo que la investigación dejó cerrado, y sostiene el diseño:
+
+- **La API de Mercadona no publica macronutrientes.** No es que sean difíciles
+  de extraer: el dato no existe en el origen, lo que invalida de paso todos los
+  «datasets de Mercadona» que circulan. La vía honesta es cruzar por marca con
+  Open Food Facts.
+- **BEDCA está descartada por licencia**, no por estar caída: exige autorización
+  escrita y prohíbe modificar los datos — normalizar a JSON ya es modificarlos.
+- **La API de OFF tiene techo duro de 1 000 resultados por consulta.** Los
+  11 581 Hacendado no caben en una; se trocea por categoría, y cada rodaja tiene
+  su propio techo. Su 503 es intermitente y llega como HTML, así que hay que
+  mirar estado Y content-type, y reintentar.
+- **Es un saneador, no un importador.** La criba (rango de kcal + Atwater ±35 % +
+  nombre no vacío + macros completos) descartó el **10 %** de lo descargado:
+  93 con macros incompletos, 75 sin nombre, 74 incoherentes con Atwater, 9 con
+  kcal imposibles.
+
+Obligación ODbL cumplida en dos sitios: `vendor/data/foods.LICENSE.md` y el array
+`sources` **dentro del propio `foods.json`**, para que la atribución viaje con
+los datos. El código MIT no queda contagiado (*Produced Work*, ODbL §4.5b). No se
+empaquetan imágenes de OFF: son CC BY-SA y esas sí contagiarían.
+
+Invariantes con nombre, todos en verde: `solo_verificado` (únicamente `usda` y
+`off` alimentan cálculos; lo del usuario se registra y se declara, no se suma),
+`saneado` (comprobado de forma **independiente** en el test, rehaciendo Atwater a
+mano y no llamando a la misma función que construyó el fichero — si no, el test
+solo diría que el constructor se aplicó a sí mismo), `agregacion_conserva` (la
+cantidad total por alimento y unidad no cambia al fusionar; unidades distintas
+NO se fusionan, porque 200 g y 2 unidades de tomate no se pueden sumar) y
+`cobertura_declarada`.
+
+Tres defectos propios encontrados y cerrados durante la etapa:
+
+1. **`foods-db.js` no tenía `close()`**, y la conexión a IndexedDB está cacheada
+   en el módulo: dos tests seguidos compartían la base del anterior y el segundo
+   pasaba por lo que había dejado el primero. `photos-db.js` ya tenía ese
+   `close()` por la misma razón.
+2. **El mock de IndexedDB mentía en tres puntos**: `keyPath` cableado a `'id'`
+   (los registros del almacén de metadatos se guardaban todos bajo `undefined`),
+   sin `oncomplete` de transacción (un `putAll` no habría resuelto nunca), y sin
+   rama de subida de versión (el salto 1→2 no se ejercitaba).
+3. **`src/data/foods-db.js` estaba dos veces en `PRECACHE`** tras la edición.
+
+Un test mío estaba equivocado, no el código: daba por hecho que el almacén
+saneaba el markup. No lo hace ni debe: escapar es trabajo de `escapeHtml` en el
+render (F6), y sanear también en el almacén daría falsa seguridad.
+
+**553 unitarios · 94 E2E · typecheck limpio.** Verificado en navegador a 320 px:
+la base se siembra, la búsqueda no roba el foco al escribir, la procedencia se ve
+en cada fila y no hay desbordamiento horizontal.
+
+## 12. BACKLOG de la v2
+
+Ideas surgidas fuera de la milestone activa. **No se implementan** hasta que les
+toque (CLAUDE.md §7).
+
+- **`num()` formatea con punto decimal en español.** `src/ui/format.js` usa
+  `toFixed`, que siempre pone `.`, así que toda la aplicación escribe «82.8 kg»
+  donde en español va «82,8 kg». Es un defecto **preexistente** y transversal
+  (afecta a todas las vistas de la v1), detectado al revisar V2-M2 en navegador.
+  El arreglo es `Intl.NumberFormat` con el locale activo, y toca hacerlo de una
+  vez para toda la app, con su test.
+- **`CACHE_VERSION` debería derivarse de `precacheHash`** en vez de ser un
+  contador: dos ramas que lo suban obtienen el mismo número y colisionan al
+  fusionar (ver §9.bis).
+- **Nombres basura en el catálogo de OFF.** Quedan fichas con nombres truncados
+  o sin sentido («esa Plátano»). La criba actual no los detecta y no hay una
+  regla obvia que los separe de un nombre corto legítimo. La insignia «marca
+  (comunidad)» ya avisa de la garantía; si molesta, la vía es una lista de
+  bloqueo por id, no una heurística.

@@ -19,7 +19,7 @@
  * Al tocar cualquier fichero de PRECACHE hay que subir CACHE_VERSION.
  */
 
-const CACHE_VERSION = 'tl-v5-0041';
+const CACHE_VERSION = 'tl-v5-0043';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -43,6 +43,7 @@ const PRECACHE = [
     // se precachea igual: sin él no habría gráfica sin red.
     'vendor/chart.umd.min.js',
     'vendor/data/exercises.json',
+    'vendor/data/foods.json',
     'icons/icon-192.png',
     'icons/icon-512.png',
     'icons/icon-maskable-192.png',
@@ -62,6 +63,7 @@ const PRECACHE = [
     'src/core/rng.js',
     'src/core/scale.js',
     'src/core/silhouette.js',
+    'src/core/foods.js',
     'src/core/timeline.js',
     'src/core/tracking.js',
     'src/core/training.js',
@@ -69,6 +71,7 @@ const PRECACHE = [
     'src/data/checkins.js',
     'src/data/foods-db.js',
     'src/data/intake-log.js',
+    'src/data/recipes.js',
     'src/data/migrate.js',
     'src/data/migrations.js',
     'src/data/nutrition.js',
@@ -100,6 +103,7 @@ const PRECACHE = [
     'src/ui/views/body.js',
     'src/ui/views/checkin.js',
     'src/ui/views/expenditure.js',
+    'src/ui/views/foods.js',
     'src/ui/views/dashboard.js',
     'src/ui/views/milestones.js',
     'src/ui/views/nutrition.js',

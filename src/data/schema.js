@@ -526,7 +526,11 @@ export const validateRecipes = rootValidator({
         ingredients: arrayOf(objectOf({
             name: str({ maxLength: 120 }),
             quantity: num({ min: 0, max: 100000 }),
-            unit: str({ maxLength: 20 })
+            unit: str({ maxLength: 20 }),
+            // Enlace a la base de alimentos, OPCIONAL a propósito: una receta
+            // con «un chorrito de aceite» sigue siendo una receta válida. Sin
+            // `foodId` no hay macros, y la interfaz lo dice en vez de inventarlas.
+            foodId: opt(str({ maxLength: 80 }))
         }), { maxItems: 60 }),
         notes: opt(str({ maxLength: 2000 }))
     }), { maxItems: 300 })

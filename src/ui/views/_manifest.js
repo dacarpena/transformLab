@@ -77,6 +77,10 @@ export const VIEWS = [
         path: 'src/ui/views/expenditure.js', load: () => import('./expenditure.js')
     },
     {
+        id: 'foods', labelKey: 'nav.foods', icon: '🍎', primary: false,
+        path: 'src/ui/views/foods.js', load: () => import('./foods.js')
+    },
+    {
         id: 'training', labelKey: 'nav.training', icon: '⬛', primary: false,
         path: 'src/ui/views/training.js', load: () => import('./training.js')
     },

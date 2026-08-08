@@ -344,6 +344,13 @@ ul { margin: 0; padding: 0; list-style: none; }
 .badge--transition    { background: var(--color-phase-transition); }
 .badge--maintenance   { background: var(--color-phase-maintenance); }
 
+/* Procedencia de un alimento (V2-M2). Los tres colores no son decoración: son
+   tres niveles de garantía distintos, y distinguirlos de un vistazo es lo que
+   impide tratar una cifra de la comunidad como si fuera verificada. */
+.badge--usda { background: var(--color-success); }
+.badge--off  { background: var(--color-phase-recomposition); }
+.badge--user { background: var(--color-text-muted); }
+
 /* ---------------- Dashboard HOY ---------------- */
 
 .today__head {
@@ -948,6 +955,41 @@ button.timeline__event:hover {
 .profile-item > * { min-width: 0; }
 
 .profile-item--active { border-color: var(--color-accent); }
+
+/* ---------------- Alimentos y recetas (V2-M2) ---------------- */
+
+/* Una fila de alimento apila nombre, macros y procedencia: a 320 px los tres
+   en línea no caben, y el nombre de un producto de marca es largo. */
+.food-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.food-row__name {
+    font-weight: var(--weight-medium);
+    /* Sin esto, un nombre largo sin espacios empuja el documento a lo ancho. */
+    overflow-wrap: anywhere;
+}
+
+.ingredient-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* Campo numérico corto, para los gramos de un ingrediente en línea. */
+.input--inline {
+    width: 6rem;
+    min-width: 0;
+}
+
+.profile-item--stacked {
+    align-items: flex-start;
+}
 
 .danger-zone {
     border-color: var(--color-danger);
