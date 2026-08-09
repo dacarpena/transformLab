@@ -1452,3 +1452,16 @@ series y los hitos que dependen de ella no tienen nada que dibujar.
   Y a 320 px todo eso ocupaba pantalla y media con la gráfica debajo del pliegue:
   los controles se pliegan tras «Ajustes de la vista», que en escritorio viene
   desplegado y con el resorte oculto por CSS. Un solo camino, plegado o no.
+
+  **El cajón nació roto y lo cazaron los E2E.** El atributo `open` se ponía por
+  interpolación en la plantilla —`${'`'}${'$'}{isNarrow() ? '' : ' open'}${'`'}`— y `html${'`'}${'`'}`
+  hace exactamente lo que promete: escapó el espacio, así que salía
+  `class="..."&#32;open` y `open` acabó siendo TEXTO. El cajón nacía cerrado para
+  todo el mundo y, como en escritorio el resorte está oculto por CSS, los
+  controles quedaban **inalcanzables**: trece tests de `analysis.spec.js` en rojo
+  a la vez, todos con «element is not visible».
+
+  El arreglo invierte el sentido: el marcado nace ABIERTO y `collapseDrawer()` lo
+  pliega desde JS solo si la pantalla es estrecha. Si un día ese JS no llega a
+  correr, lo que queda es todo a la vista, que es el fallo bueno. Y la regla
+  queda fijada en las dos direcciones por un test propio.

@@ -266,6 +266,10 @@ test('un id guardado que ya no existe no rompe la vista: se descarta y se dice',
 test('a 320 px se dibuja más grueso, y el control refleja lo EFECTIVO', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     await goToAnalysis(page);
+    // A este ancho los controles viven plegados para que la gráfica ocupe la
+    // pantalla (E14-4): hay que abrir el cajón antes de tocarlos, igual que el
+    // usuario. Que haya que hacerlo ES la garantía de que están plegados.
+    await page.locator('.control-drawer > summary').click();
     await page.click('[data-grain="day"]');
     await expect.poll(() => page.locator('[data-effective-hint]').isVisible()).toBe(true);
 
@@ -277,6 +281,7 @@ test('a 320 px se dibuja más grueso, y el control refleja lo EFECTIVO', async (
         return JSON.parse(localStorage.getItem(clave ?? '') ?? '{}').analysis.grain;
     });
     expect(pedido).toBe('day');
+    await page.locator('.control-drawer > summary').click();
     await expect(page.locator('[data-grain="week"][aria-pressed="true"]')).toBeVisible();
     await expect(page.locator('[data-effective-hint]')).toContainText('ancho de pantalla');
 
@@ -851,6 +856,26 @@ test.describe('marcadores de hito', () => {
     // hay que llegar a la vista.
     test.beforeEach(async ({ page }) => {
         await goToAnalysis(page);
+    });
+
+    test('el cajón de controles está abierto en escritorio y plegado a 320 px', async ({ page }) => {
+        // Este test nace de un defecto real: el atributo `open` se ponía por
+        // interpolación en la plantilla, `html` escapaba el espacio y acababa
+        // como TEXTO. El cajón nacía cerrado siempre y, como en escritorio el
+        // resorte está oculto por CSS, los controles quedaban inalcanzables.
+        // Aquí se fija la regla en las dos direcciones.
+        await expect(page.locator('[data-window="all"]')).toBeVisible();
+        await expect(page.locator('.control-drawer > summary')).toBeHidden();
+
+        // Se recarga en vez de re-navegar: el cajón se pliega al montar la
+        // vista, y volver a una vista que ya está montada no la vuelve a montar.
+        await page.setViewportSize({ width: 320, height: 720 });
+        await page.reload();
+        await goToAnalysis(page);
+        await expect(page.locator('.control-drawer > summary')).toBeVisible();
+        await expect(page.locator('[data-window="all"]')).toBeHidden();
+        await page.locator('.control-drawer > summary').click();
+        await expect(page.locator('[data-window="all"]')).toBeVisible();
     });
 
     test('la gráfica dibuja marcadores y el filtro los quita y los devuelve', async ({ page }) => {

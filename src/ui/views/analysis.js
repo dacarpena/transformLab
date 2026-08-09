@@ -366,9 +366,18 @@ function view() {
                 <!-- A 320 px los cuatro atajos y los once interruptores ocupan
                      pantalla y media, y la gráfica —que es la vista— quedaba
                      debajo del pliegue. Aquí se pliegan tras un control; en
-                     escritorio el atributo «open» viene puesto y el resorte se oculta por
-                     CSS, así que no hay dos caminos: hay uno, plegado o no. -->
-                <details class="control-drawer"${isNarrow() ? '' : ' open'}>
+                     escritorio el resorte se oculta por CSS, así que no hay dos
+                     caminos: hay uno, plegado o no.
+
+                     Nace ABIERTO y lo cierra collapseDrawer si la pantalla es
+                     estrecha, nunca al revés. Dos motivos: interpolar un
+                     atributo suelto no funciona —la plantilla escapa el espacio
+                     y «open» acaba siendo texto, que es como este cajón nació
+                     cerrado para todo el mundo y dejó los controles
+                     inalcanzables en escritorio—; y si un día el JS de cerrar
+                     no llega a correr, lo que queda es todo a la vista, que es
+                     el fallo bueno. -->
+                <details class="control-drawer" open>
                     <summary class="btn btn--sm">${t('analysis.controls.toggle')}</summary>
                     <div class="control-drawer__body">
                     <div class="control-bar">
@@ -990,11 +999,25 @@ function persist() {
 }
 
 /** Repinta la vista entera y redibuja. */
+/**
+ * Pliega el cajón de controles si la pantalla es estrecha.
+ *
+ * Se hace desde JS y después de renderizar porque el marcado nace abierto (ver
+ * el comentario del `<details>`): el estado por defecto es «todo a la vista», y
+ * plegar es la excepción.
+ * @param {HTMLElement} container
+ */
+function collapseDrawer(container) {
+    const cajon = /** @type {HTMLDetailsElement | null} */ (container.querySelector('.control-drawer'));
+    if (cajon && isNarrow()) cajon.open = false;
+}
+
 async function refresh(/** @type {HTMLElement} */ container) {
     const data = plans.get();
     if (!data) return;
     resolveSelection(data);
     render(container, selected.length === 0 ? emptySelection() : view());
+    collapseDrawer(container);
     if (selected.length === 0) return;
     // La tabla se pinta ANTES de dibujar y fuera de `redraw`, a propósito:
     // `redraw` sale antes de tiempo cuando Chart.js no carga, y la tabla es
