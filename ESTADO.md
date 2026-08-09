@@ -5,6 +5,8 @@ etapa: chispa
 siguiente:
   texto: "Darle forma a la chispa: la idea en una frase"
   destino: borja
+omitidas:
+  - etapa: chispa
 ---
 # Estado — transformLab
 Último: el proyecto acaba de nacer en Borja
