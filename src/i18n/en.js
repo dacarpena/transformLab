@@ -1018,4 +1018,6 @@ export const en = {
     'projection.goAnalysis': 'Compare several series…',
     'analysis.preset.muscleVsFat': 'Muscle vs. fat',
     'analysis.strip.hint': 'You are viewing {from} to {to} within the whole plan.',
+'onboarding.field.targetMuscle.plausible': 'At your level, gaining {min} to {max} kg in {months} months is realistic.',
+    'onboarding.field.targetMuscle.noGain': 'With this target you would gain no muscle: the plan would only lose fat.',
 };

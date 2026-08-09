@@ -21,7 +21,7 @@ import { t, getLocale, setLocale, availableLocales } from '../../i18n/i18n.js';
 import { checkProfile, checkComposition, checkTarget, LIMITS } from '../../core/ranges.js';
 import { fromBioimpedance } from '../../core/scale.js';
 import { muscleUnitsFor } from '../muscle-units.js';
-import { makeComposition } from '../../core/engine.js';
+import { makeComposition, plausibleMuscleGainKg } from '../../core/engine.js';
 import { SCHEMA_VERSION } from '../../data/schema.js';
 import * as settingsStore from '../../data/settings.js';
 import * as storage from '../../data/storage.js';
@@ -140,8 +140,23 @@ function draftUnits() {
 }
 
 /**
+ * Horizonte de referencia para proponer el objetivo de músculo: seis meses.
+ *
+ * Es un plazo de PROPUESTA, no del plan. Con menos, la cifra sugerida sale tan
+ * pequeña que vuelve a parecer «no ganes nada»; con mucho más, se propone un
+ * objetivo que tardará años y desanima antes de empezar.
+ */
+const DEFAULT_HORIZON_DAYS = 182;
+
+/**
+ * Por debajo de esto, un objetivo de músculo no es un objetivo: es conservar.
+ * 200 g en meses está dentro del error de cualquier método de medida.
+ */
+const NO_GAIN_THRESHOLD_KG = 0.2;
+
+/**
  * Objetivo de músculo efectivo **en la unidad que ve el usuario**: el tecleado
- * o, si aún no ha tecleado nada, su cifra actual.
+ * o, si aún no ha tecleado nada, su cifra actual MÁS la ganancia plausible.
  *
  * OJO: esto NO es lo que consume el motor. Para eso está `targetMuscleSkeletal`.
  * Mezclarlas es exactamente lo que hacía que escribir «60» —el número natural
@@ -166,7 +181,33 @@ function effectiveTargetMuscle() {
     }
     const { composition } = currentComposition();
     if (!composition) return null;
-    return Math.round(units.toDisplay(composition.muscleKg) * 10) / 10;
+    // POR OMISIÓN SE OFRECE GANAR, NO CONSERVAR (auditoría E14). Antes el
+    // defecto era el músculo actual, así que quien no rellenaba este campo
+    // —que es casi todo el mundo, porque nadie sabe cuántos kilos de músculo
+    // tiene— recibía un plan con ganancia CERO. Un principiante de 85 kg salía
+    // con +0,013 kg en cinco meses mientras el motor sabía que podía ganar
+    // entre 5 y 8. El plan no prometía de más: no prometía nada.
+    const ganancia = plausibleGain();
+    const objetivo = composition.muscleKg + (ganancia?.avg ?? 0);
+    return Math.round(units.toDisplay(objetivo) * 10) / 10;
+}
+
+/**
+ * La ganancia muscular plausible para este borrador, en el horizonte del plan.
+ *
+ * El horizonte es circular —depende del plan, que depende del objetivo— así que
+ * se rompe con un plazo de referencia FIJO: no se trata de acertar el plan, sino
+ * de proponer un objetivo que no sea absurdo. El usuario lo edita si quiere.
+ * @returns {{ min: number, avg: number, max: number } | null}
+ */
+function plausibleGain() {
+    const { composition } = currentComposition();
+    if (!composition) return null;
+    return plausibleMuscleGainKg(
+        composition.weightKg,
+        /** @type {*} */ (draft.trainingStatus),
+        /** @type {*} */ (draft.sex),
+        DEFAULT_HORIZON_DAYS);
 }
 
 /** El mismo objetivo, ya traducido a músculo esquelético para el motor. */
@@ -312,7 +353,24 @@ function refreshSideEffects(/** @type {*} */ root) {
     if (targetNote) {
         const units = draftUnits();
         const skeletal = targetMuscleSkeletal();
-        targetNote.textContent = units.isScale && skeletal !== null ? units.secondary(skeletal) : '';
+        const partes = [];
+        // Lo que es plausible, DICHO: el motor lo sabía y se lo callaba. Sin
+        // esta frase, «32,5» no significa nada para quien no sabe cuánto
+        // músculo tiene, y el campo se deja en blanco.
+        const ganancia = plausibleGain();
+        const { composition } = currentComposition();
+        if (ganancia && composition) {
+            partes.push(t('onboarding.field.targetMuscle.plausible', {
+                min: num(ganancia.min), max: num(ganancia.max),
+                months: Math.round(DEFAULT_HORIZON_DAYS / 30.4375)
+            }));
+            // Y si lo tecleado NO gana nada, se avisa. No se corrige: es su plan.
+            if (skeletal !== null && skeletal - composition.muscleKg < NO_GAIN_THRESHOLD_KG) {
+                partes.push(t('onboarding.field.targetMuscle.noGain'));
+            }
+        }
+        if (units.isScale && skeletal !== null) partes.push(units.secondary(skeletal));
+        targetNote.textContent = partes.join(' ');
     }
 }
 

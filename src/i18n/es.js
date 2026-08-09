@@ -1018,4 +1018,6 @@ export const es = {
     'projection.goAnalysis': 'Comparar varias series…',
     'analysis.preset.muscleVsFat': 'Músculo vs. grasa',
     'analysis.strip.hint': 'Estás viendo del {from} al {to} dentro de todo el plan.',
+'onboarding.field.targetMuscle.plausible': 'Con tu nivel, ganar entre {min} y {max} kg en {months} meses es realista.',
+    'onboarding.field.targetMuscle.noGain': 'Con este objetivo no ganarías músculo: el plan solo perdería grasa.',
 };

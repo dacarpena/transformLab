@@ -1359,3 +1359,34 @@ mover la geometría a `spark.js`, donde la excepción ya está justificada porqu
 no escribe ni un número legible. La excepción se mantiene estrecha.
 
 **810 unitarios · 200 E2E · typecheck limpio.**
+
+### E14 — auditoría de estimaciones y proyecciones
+
+Petición: «audita el sistema de estimaciones y proyecciones; nada funciona en la
+gráfica; deben poder verse los hitos estéticos, de energía y de salud». La
+auditoría encontró una causa raíz común a las tres quejas, y no está en la
+gráfica: **el plan que se genera no proyecta ganancia muscular**, así que las
+series y los hitos que dependen de ella no tienen nada que dibujar.
+
+- [x] **E14-1 · El objetivo de músculo por defecto era «no ganar nada».**
+  `effectiveTargetMuscle()` devolvía, a falta de cifra tecleada, **el músculo
+  actual**. Como casi nadie sabe cuántos kilos de músculo tiene, casi nadie
+  rellena ese campo: el objetivo salía igual al punto de partida y el plan
+  proyectaba +0,013 kg en cinco meses mientras el motor sabía que un principiante
+  de 85 kg puede ganar entre 5,2 y 8,0. El plan no prometía de más — no prometía
+  nada. Cascada: cero hitos de `muscleKg`, y de los 97 hitos estéticos solo 31
+  alcanzables, todos en el día 0.
+
+  El arreglo pone en la interfaz lo que el motor ya sabía. `engine.js` gana
+  `plausibleMuscleGainKg(peso, nivel, sexo, días)`, que integra
+  `monthlyMuscleGainKg` (Helms 2014 / McDonald 2008, factor 0,625 para mujeres)
+  sobre un horizonte; el onboarding propone `músculo actual + ganancia media` a
+  seis meses y **escribe el rango bajo el campo**: «con tu nivel, ganar entre X e
+  Y kg en 6 meses es realista». Si el usuario teclea un objetivo que no gana nada
+  (< 200 g, dentro del error de cualquier método), se le **avisa** — no se le
+  corrige: es su plan (B9).
+
+  El horizonte de propuesta es fijo y no el del plan, a propósito: el del plan
+  depende del objetivo, que es lo que se está proponiendo. Seis meses porque con
+  menos la cifra vuelve a parecer «no ganes nada» y con más se propone algo que
+  tarda años.

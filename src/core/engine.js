@@ -249,6 +249,44 @@ export function monthlyMuscleGainKg(weightKg, trainingStatus, sex, bound = 'avg'
     return weightKg * MUSCLE_GAIN_RATES_PCT_BW_MONTH[trainingStatus][bound] * factor;
 }
 
+/**
+ * Días de un mes medio. `365,25 / 12`, no 30: con 30 el error se acumula a casi
+ * seis días al año, y aquí eso es media semana de ganancia.
+ */
+const DAYS_PER_MONTH = 30.4375;
+
+/**
+ * Cuánto músculo es PLAUSIBLE ganar en un plazo, con su rango.
+ *
+ * POR QUÉ EXISTE (auditoría E14). El motor sabía desde M1 lo que puede ganar
+ * cada nivel —`monthlyMuscleGainKg`, con su fuente— y no había forma de
+ * PREGUNTÁRSELO desde la interfaz sin replicar la aritmética. El resultado es
+ * que el onboarding ofrecía como objetivo por defecto «el músculo que ya
+ * tienes», y un principiante de 85 kg recibía un plan de +0,013 kg en cinco
+ * meses mientras el propio motor sabía que podía ganar entre 5 y 8.
+ *
+ * Un plan no puede prometer más de lo que la fisiología da, pero tampoco debe
+ * ofrecer por omisión un objetivo que no es un objetivo.
+ *
+ * @param {number} weightKg
+ * @param {UserProfile['trainingStatus']} trainingStatus
+ * @param {'male'|'female'} sex
+ * @param {number} days horizonte del plan
+ * @returns {{ min: number, avg: number, max: number } | null} kg, o null si la
+ *   entrada no permite calcularlo
+ */
+export function plausibleMuscleGainKg(weightKg, trainingStatus, sex, days) {
+    if (!isFiniteNumber(days) || days <= 0) return null;
+    const meses = days / DAYS_PER_MONTH;
+    /** @type {*} */ const out = {};
+    for (const bound of /** @type {const} */ (['min', 'avg', 'max'])) {
+        const mensual = monthlyMuscleGainKg(weightKg, trainingStatus, sex, bound);
+        if (!isFiniteNumber(mensual)) return null;
+        out[bound] = mensual * meses;
+    }
+    return out;
+}
+
 // ============================================================
 // Planificador de fases (M1-6)
 // ============================================================

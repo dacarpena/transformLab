@@ -9,7 +9,8 @@ import {
     caloricTarget,
     weeklyFatLossKg,
     monthlyMuscleGainKg,
-    planPhases
+    planPhases,
+    plausibleMuscleGainKg
 } from '../src/core/engine.js';
 import { CALORIC_FLOOR_KCAL, SMM_OF_LEAN_RATIO } from '../src/core/constants.js';
 
@@ -251,4 +252,38 @@ test('el planificador no muta ni la composición inicial ni el objetivo (GEN-06)
     planPhases(initial, target, PROFILE_M);
     assert.equal(JSON.stringify(initial), snapInitial);
     assert.equal(JSON.stringify(target), snapTarget);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Ganancia plausible (E14-1)
+ * ---------------------------------------------------------------------- */
+
+test('plausibleMuscleGainKg responde lo que el motor ya sabía pero no decía', () => {
+    // El caso de la auditoría: principiante, varón, 85 kg, plan de 154 días.
+    // El plan real proyectaba +0,013 kg mientras esto vale entre 5 y 8.
+    const r = plausibleMuscleGainKg(85, 'beginner', 'male', 154);
+    assert.ok(r);
+    assert.ok(r.avg > 5 && r.avg < 8, `media ${r.avg}`);
+    assert.ok(r.min < r.avg && r.avg < r.max, 'el rango tiene que ordenarse');
+
+    // Un principiante gana más que un intermedio, y este más que un avanzado:
+    // es la razón de ser de las tres tasas.
+    const inter = plausibleMuscleGainKg(85, 'intermediate', 'male', 154);
+    const avanz = plausibleMuscleGainKg(85, 'advanced', 'male', 154);
+    assert.ok(r.avg > inter.avg && inter.avg > avanz.avg);
+
+    // Y el factor por sexo se aplica (Helms 2014).
+    const mujer = plausibleMuscleGainKg(85, 'beginner', 'female', 154);
+    assert.ok(mujer.avg < r.avg);
+});
+
+test('plausibleMuscleGainKg escala con el tiempo y degrada con entradas imposibles', () => {
+    const mes = plausibleMuscleGainKg(80, 'intermediate', 'male', 30.4375);
+    const anio = plausibleMuscleGainKg(80, 'intermediate', 'male', 365.25);
+    assert.ok(Math.abs(anio.avg / mes.avg - 12) < 0.01, 'un año son doce meses de ganancia');
+
+    for (const malo of [[80, 'inventado', 'male', 100], [NaN, 'beginner', 'male', 100],
+        [80, 'beginner', 'male', 0], [80, 'beginner', 'male', -5]]) {
+        assert.equal(plausibleMuscleGainKg(...(/** @type {*} */ (malo))), null, JSON.stringify(malo));
+    }
 });
