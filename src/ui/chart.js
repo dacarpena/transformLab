@@ -1136,19 +1136,145 @@ export function createChart() {
         if (!source || typeof document === 'undefined') {
             return chartInstance.toBase64Image('image/png', 1);
         }
+        const leyenda = legendEntriesOf(chartInstance);
+        const ratio = source.width / Math.max(1, source.clientWidth || source.width);
+        const alto = legendHeight(leyenda, source.width, ratio);
+
         const out = document.createElement('canvas');
         out.width = source.width;
-        out.height = source.height;
+        out.height = source.height + alto;
         const ctx = out.getContext('2d');
         if (!ctx) return chartInstance.toBase64Image('image/png', 1);
         ctx.fillStyle = cssVar('--color-surface') || '#14141d';
         ctx.fillRect(0, 0, out.width, out.height);
         ctx.drawImage(source, 0, 0);
+        if (alto > 0) drawLegendInto(ctx, leyenda, source.width, source.height, ratio);
         return out.toDataURL('image/png');
     }
 
     return { draw, drawMulti, drawSeries, destroy, setWindow, announce, announceMulti,
         focusSeries, activeSeriesIndex, cursorIndex, focusDay, handleKey, toPng };
+}
+
+/**
+ * Las entradas de leyenda de una instancia, LEÍDAS DE SUS DATASETS.
+ *
+ * Fuente única y no un parámetro: si el llamador pasara su propia lista, el PNG
+ * podría describir una gráfica distinta de la que enseña — exactamente la
+ * mentira que el manifiesto vino a cerrar en pantalla, colada por el fichero
+ * que el usuario comparte. De los datasets no se puede divergir.
+ *
+ * Se descartan los de `borderWidth: 0` (el relleno de la banda, que aporta dos
+ * datasets sin línea) y los nombres repetidos: la banda usa el mismo rótulo dos
+ * veces y en una leyenda sería ruido.
+ *
+ * @param {*} instance
+ * @returns {Array<{ label: string, color: string, dash: number[] }>}
+ */
+export function legendEntriesOf(instance) {
+    const datasets = instance?.data?.datasets;
+    if (!Array.isArray(datasets)) return [];
+    /** @type {Array<{ label: string, color: string, dash: number[] }>} */ const out = [];
+    const vistos = new Set();
+    for (const d of datasets) {
+        const label = typeof d?.label === 'string' ? d.label.trim() : '';
+        if (!label || vistos.has(label)) continue;
+        if (d.borderWidth === 0) continue;
+        vistos.add(label);
+        out.push({
+            label,
+            color: typeof d.borderColor === 'string' ? d.borderColor : '#ffffff',
+            dash: Array.isArray(d.borderDash) ? d.borderDash : []
+        });
+    }
+    return out;
+}
+
+/** Geometría de la leyenda del PNG, en píxeles de DISPOSITIVO. */
+const LEGEND_PNG = Object.freeze({
+    fontPx: 13, rowPx: 22, padPx: 12, glyphPx: 26, gapPx: 8, minColPx: 190
+});
+
+/**
+ * Alto que hay que añadir al lienzo para que quepa la leyenda.
+ * @param {Array<*>} entries @param {number} width en píxeles de dispositivo
+ * @param {number} ratio devicePixelRatio efectivo del lienzo
+ * @returns {number} 0 si no hay nada que rotular
+ */
+export function legendHeight(entries, width, ratio = 1) {
+    if (!Array.isArray(entries) || entries.length === 0) return 0;
+    const filas = Math.ceil(entries.length / legendColumns(entries.length, width, ratio));
+    return Math.round((LEGEND_PNG.padPx * 2 + filas * LEGEND_PNG.rowPx) * ratio);
+}
+
+/**
+ * Cuántas columnas usa la leyenda del PNG.
+ *
+ * Se acota por el NÚMERO DE ENTRADAS, no solo por el ancho: con tres series en
+ * un lienzo grande caben cinco columnas, y repartir tres rótulos en cinco huecos
+ * los recorta a «Porcentaje de grasa previ…» teniendo sitio de sobra. Usando
+ * tantas columnas como series, cada una se lleva su parte entera del ancho.
+ * @param {number} count @param {number} width @param {number} ratio
+ * @returns {number}
+ */
+function legendColumns(count, width, ratio) {
+    const caben = Math.max(1, Math.floor(width / (LEGEND_PNG.minColPx * ratio)));
+    return Math.max(1, Math.min(count, caben));
+}
+
+/**
+ * Pinta la leyenda bajo la gráfica ya compuesta.
+ *
+ * Reproduce el TRAZO de cada serie, no un cuadrito de color: es la misma razón
+ * que en la leyenda de pantalla —un punto no se parece a la línea que dice
+ * describir— y aquí pesa más, porque un PNG se mira en escala de grises, se
+ * imprime y se reenvía sin la app al lado.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Array<{label: string, color: string, dash: number[]}>} entries
+ * @param {number} width @param {number} top @param {number} ratio
+ */
+export function drawLegendInto(ctx, entries, width, top, ratio = 1) {
+    const px = (/** @type {number} */ v) => v * ratio;
+    const cols = legendColumns(entries.length, width, ratio);
+    const colW = width / cols;
+
+    ctx.save();
+    ctx.font = `${px(LEGEND_PNG.fontPx)}px system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    entries.forEach((entry, i) => {
+        const col = i % cols;
+        const fila = Math.floor(i / cols);
+        const x = col * colW + px(LEGEND_PNG.padPx);
+        const y = top + px(LEGEND_PNG.padPx) + fila * px(LEGEND_PNG.rowPx) + px(LEGEND_PNG.rowPx) / 2;
+
+        ctx.strokeStyle = entry.color;
+        ctx.lineWidth = px(2);
+        ctx.setLineDash(entry.dash.map((n) => px(n)));
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + px(LEGEND_PNG.glyphPx), y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = cssVar('--color-text') || '#eaeaf4';
+        const textoX = x + px(LEGEND_PNG.glyphPx + LEGEND_PNG.gapPx);
+        const maxAncho = colW - (textoX - col * colW) - px(LEGEND_PNG.padPx);
+        ctx.fillText(ellipsize(ctx, entry.label, maxAncho), textoX, y);
+    });
+    ctx.restore();
+}
+
+/**
+ * Recorta un texto al ancho disponible, con puntos suspensivos.
+ * @param {CanvasRenderingContext2D} ctx @param {string} text @param {number} maxWidth
+ * @returns {string}
+ */
+function ellipsize(ctx, text, maxWidth) {
+    if (maxWidth <= 0 || ctx.measureText(text).width <= maxWidth) return text;
+    let corte = text.length;
+    while (corte > 1 && ctx.measureText(`${text.slice(0, corte)}…`).width > maxWidth) corte--;
+    return `${text.slice(0, corte)}…`;
 }
 
 /** Estado de error de la gráfica: recarga, jamás borrado (H-013). */

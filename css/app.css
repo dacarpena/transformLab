@@ -1651,3 +1651,40 @@ button.timeline__event:hover {
 .view[data-view-id="analysis"] .chart-wrap > canvas {
     touch-action: none;
 }
+
+/* Tira de contexto (E13-14): el plan entero en miniatura, con la ventana
+   marcada. Aparece SOLO cuando hay zoom — con el plan completo a la vista, un
+   rectángulo que lo cubre todo no informa de nada. */
+.context-strip {
+    margin-top: var(--space-2);
+}
+
+.context-strip__svg {
+    display: block;
+    width: 100%;
+    height: 40px;
+    background: var(--color-surface-2);
+    border-radius: var(--radius-sm);
+}
+
+.context-strip__line {
+    fill: none;
+    stroke: var(--color-text-muted);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+}
+
+/* El rectángulo NO tapa: enmarca. Un relleno opaco escondería justo el tramo
+   que el usuario está mirando. */
+.context-strip__window {
+    fill: var(--color-accent);
+    fill-opacity: 0.18;
+    stroke: var(--color-accent);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+}
+
+.context-strip__hint {
+    font-size: var(--text-xs);
+    margin-top: var(--space-1);
+}

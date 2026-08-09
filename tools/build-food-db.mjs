@@ -52,6 +52,32 @@ const ATWATER = Object.freeze({ protein: 4, carbs: 4, fat: 9 });
  */
 const ATWATER_TOLERANCE = 0.35;
 
+/**
+ * Fichas de OFF retiradas A MANO, por id (BACKLOG de la v2, cerrado en E13-13).
+ *
+ * POR QUÉ UNA LISTA Y NO UNA REGLA. Se midieron nueve heurísticas de «nombre
+ * basura» sobre las 2 002 fichas de OFF y todas cazan más legítimas que basura:
+ * «empieza en minúscula» marca 25, casi todas correctas («avena y semillas»);
+ * «lleva dígitos sueltos» marca 31, y son el número de unidades del envase
+ * («10 tortillas integrales»); «sin palabra de cuatro letras» marca «Hot dog»,
+ * que es un producto real. Juntas tumbarían 71 fichas para limpiar cinco. Una
+ * criba con ese cociente no es una criba, es una pérdida de datos con excusa.
+ *
+ * Estas cinco no describen ningún alimento, y por eso van por id y con motivo:
+ * la lista se lee, se audita y se discute; una expresión regular, no.
+ *
+ * Ojo al criterio: NO se retira por dudar de las CIFRAS —para eso está la
+ * criba de Atwater— sino porque el NOMBRE no identifica nada. Un usuario que
+ * busca «pan» no puede elegir entre dos fichas llamadas «hacendado».
+ */
+export const OFF_BLOCKLIST = Object.freeze({
+    'off:8480000213334': 'nombre = marca («hacendado»): no dice qué producto es',
+    'off:8402001025129': 'nombre = marca («hacendado»): no dice qué producto es',
+    'off:8402001020490': 'nombre «No»: fragmento de etiqueta, no un alimento',
+    'off:8480000561862': 'nombre «Untapan de»: truncado a mitad de palabra',
+    'off:8480000157867': 'nombre «x4»: es el número de unidades, no el producto'
+});
+
 /** Rango plausible de kcal por 100 g. El aceite puro ronda 900. */
 const KCAL_MIN = 0;
 const KCAL_MAX = 950;
@@ -416,6 +442,13 @@ async function main() {
                 vistos += 1;
                 const norm = fromOpenFoodFacts(raw);
                 if (!norm.ok) { descartes[norm.reason] = (descartes[norm.reason] ?? 0) + 1; continue; }
+                // La lista de bloqueo se aplica DESPUÉS del saneador y se cuenta
+                // como un descarte más: así el informe del constructor sigue
+                // cuadrando y nadie se pregunta dónde fueron esas fichas.
+                if (OFF_BLOCKLIST[norm.value.id]) {
+                    descartes.enListaDeBloqueo = (descartes.enListaDeBloqueo ?? 0) + 1;
+                    continue;
+                }
                 // Las rodajas se solapan: el mapa por id deduplica sin contar dos veces.
                 marcas.set(norm.value.id, norm.value);
             }

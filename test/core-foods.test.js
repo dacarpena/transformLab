@@ -319,3 +319,35 @@ test('recipeMacros · sin raciones declaradas no divide por cero', () => {
     assert.equal(r.perServing.kcal, 100);
     assert.ok(Number.isFinite(r.perServing.kcal));
 });
+
+/* ---------------------------------------------------------------------- *
+ * La lista de bloqueo del catálogo (E13-13)
+ * ---------------------------------------------------------------------- */
+
+test('el catálogo publicado no contiene ninguna ficha bloqueada', async () => {
+    // Vigila las DOS mitades del arreglo: la lista se aplica en el constructor
+    // (`tools/build-food-db.mjs`) y también se aplicó al JSON ya publicado. Sin
+    // este test, una reconstrucción que olvidara la lista devolvería la basura
+    // al catálogo sin que nada avisara.
+    const { readFile } = await import('node:fs/promises');
+    const { OFF_BLOCKLIST } = await import('../tools/build-food-db.mjs');
+    const db = JSON.parse(await readFile(new URL('../vendor/data/foods.json', import.meta.url), 'utf8'));
+
+    const bloqueados = Object.keys(OFF_BLOCKLIST);
+    assert.ok(bloqueados.length > 0, 'la lista de bloqueo no puede quedarse vacía sin motivo');
+
+    const colados = db.foods.filter((/** @type {*} */ f) => bloqueados.includes(f.id));
+    assert.deepEqual(colados.map((/** @type {*} */ f) => `${f.id} «${f.n}»`), [],
+        'fichas bloqueadas presentes en el catálogo publicado');
+});
+
+test('cada id bloqueado lleva su motivo escrito', async () => {
+    // Una lista de ids sin motivo es imposible de auditar: dentro de un año
+    // nadie sabrá si esa ficha se retiró por basura o por error.
+    const { OFF_BLOCKLIST } = await import('../tools/build-food-db.mjs');
+    for (const [id, motivo] of Object.entries(OFF_BLOCKLIST)) {
+        assert.match(id, /^off:\d+$/, `id con formato raro: ${id}`);
+        assert.ok(typeof motivo === 'string' && motivo.length > 15,
+            `${id} no explica por qué está bloqueado`);
+    }
+});

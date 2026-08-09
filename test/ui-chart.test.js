@@ -20,7 +20,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { createChart, milestoneLabel, unavailable, seriesAnchors, phaseSpansOf } from '../src/ui/chart.js';
+import { createChart, milestoneLabel, unavailable, seriesAnchors, phaseSpansOf, legendEntriesOf, legendHeight } from '../src/ui/chart.js';
 
 /**
  * Desde V2-M8 `chart.js` es una FACTORÍA: el cursor, la instancia y la unidad de
@@ -355,4 +355,49 @@ test('phaseSpansOf degrada sin lanzar', () => {
     for (const roto of [null, undefined, {}, { daily: [] }, { daily: 'no' }]) {
         assert.deepEqual(phaseSpansOf(/** @type {*} */ (roto)), []);
     }
+});
+
+/* ---------------------------------------------------------------------- *
+ * La leyenda del PNG (E13-12)
+ * ---------------------------------------------------------------------- */
+
+test('legendEntriesOf sale de los DATASETS: el PNG no puede describir otra gráfica', () => {
+    const instancia = {
+        data: { datasets: [
+            // El relleno de la banda: dos datasets, mismo rótulo, sin línea.
+            { label: 'Banda', borderWidth: 0, borderColor: '#111' },
+            { label: 'Banda', borderWidth: 0, borderColor: '#111' },
+            { label: 'Peso', borderWidth: 2, borderColor: '#abc', borderDash: [] },
+            { label: 'Peso medido', borderWidth: 1, borderColor: '#def', borderDash: [3, 3] },
+            { label: '', borderWidth: 2, borderColor: '#000' }
+        ] }
+    };
+    const entradas = legendEntriesOf(/** @type {*} */ (instancia));
+
+    // Sin el relleno (no tiene línea que enseñar), sin duplicados y sin la
+    // serie anónima: rotular lo que no se ve es la mentira al revés.
+    assert.deepEqual(entradas.map((e) => e.label), ['Peso', 'Peso medido']);
+    assert.deepEqual(entradas[1].dash, [3, 3], 'el trazo viaja al PNG: en gris es la ÚNICA señal');
+    assert.equal(entradas[0].color, '#abc');
+});
+
+test('legendEntriesOf degrada sin lanzar', () => {
+    for (const roto of [null, undefined, {}, { data: {} }, { data: { datasets: 'no' } }]) {
+        assert.deepEqual(legendEntriesOf(/** @type {*} */ (roto)), []);
+    }
+});
+
+test('legendHeight crece con las filas y vale 0 sin entradas', () => {
+    assert.equal(legendHeight([], 800), 0, 'sin series, el PNG no crece');
+
+    const una = legendHeight([{ label: 'a', color: '#fff', dash: [] }], 800);
+    assert.ok(una > 0);
+
+    // A 800 px caben 4 columnas (190 px mínimo): 8 entradas son DOS filas.
+    const ocho = Array.from({ length: 8 }, (_, i) => ({ label: `s${i}`, color: '#fff', dash: [] }));
+    assert.ok(legendHeight(ocho, 800) > una, 'ocho series necesitan más alto que una');
+
+    // Y en un lienzo estrecho, las mismas ocho necesitan más filas todavía.
+    assert.ok(legendHeight(ocho, 320) > legendHeight(ocho, 1600),
+        'a menos ancho, más filas de leyenda');
 });

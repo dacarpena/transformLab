@@ -73,3 +73,31 @@ export function sample(list, maxPoints = 60) {
     const step = (list.length - 1) / (maxPoints - 1);
     return Array.from({ length: maxPoints }, (_, i) => list[Math.round(i * step)]);
 }
+
+/**
+ * El rectángulo de ventana sobre una tira, en unidades de `viewBox`.
+ *
+ * Vive aquí y no en la vista por una razón concreta: formatear coordenadas SVG
+ * exige `toFixed` —el punto decimal es obligatorio en un atributo de camino, y
+ * una coma partiría la coordenada en dos— y `toFixed` está PROHIBIDO en
+ * `src/ui/` salvo excepción declarada. La excepción es este módulo, que no
+ * escribe ni un número que alguien lea. Abrirla a una vista, que sí los
+ * escribe, dejaría entrar por la puerta de atrás el defecto del punto decimal
+ * en español que costó media milestone arreglar.
+ *
+ * @param {number} from primer día visible
+ * @param {number} to último día visible
+ * @param {number} totalDays
+ * @param {number} width en unidades de viewBox
+ * @returns {{ x: string, width: string }} ya formateados
+ */
+export function windowRect(from, to, totalDays, width) {
+    if (!Number.isFinite(totalDays) || totalDays <= 0) return { x: '0', width: '0' };
+    const px = (/** @type {number} */ dia) =>
+        (Math.min(totalDays, Math.max(0, dia)) / totalDays) * width;
+    const izq = px(from);
+    // Mínimo de 2 unidades: una ventana de un día sería un rectángulo de
+    // anchura cero, invisible justo cuando más falta hace saber dónde estás.
+    const ancho = Math.max(2, px(to) - izq);
+    return { x: izq.toFixed(1), width: ancho.toFixed(1) };
+}

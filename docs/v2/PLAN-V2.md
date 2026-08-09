@@ -412,11 +412,10 @@ toque (CLAUDE.md §7).
   2026-08-09 (E13-11): la versión es `tl-<12 hex del hash>`, `sw:bump` es
   idempotente, y el test del candado exige que la versión sea exactamente la
   derivada — escribirla a mano no compila en verde.
-- **Nombres basura en el catálogo de OFF.** Quedan fichas con nombres truncados
-  o sin sentido («esa Plátano»). La criba actual no los detecta y no hay una
-  regla obvia que los separe de un nombre corto legítimo. La insignia «marca
-  (comunidad)» ya avisa de la garantía; si molesta, la vía es una lista de
-  bloqueo por id, no una heurística.
+- ~~**Nombres basura en el catálogo de OFF.**~~ **HECHO** el 2026-08-09
+  (E13-13). Se confirmó midiendo lo que el propio punto sospechaba: no hay
+  regla que valga. Lista de bloqueo por id, cinco fichas, cada una con su
+  motivo escrito.
 
 - ~~**El peso esperado SALE de su propia banda de escenarios, y el invariante que
   debía impedirlo no lo comprueba.**~~ **HECHO** el 2026-08-09 (E13-8, ver su
@@ -1311,3 +1310,52 @@ derivación dejaría de ser estable). La limpieza de `activate()` borra por
 prefijo `tl-`, así que las cachés contadas viejas caen solas.
 
 **802 unitarios · 197 E2E · typecheck limpio.**
+
+### E13-12/13/14 — el BACKLOG, cerrado
+
+Tres puntos, y ninguno era una idea nueva: los tres estaban señalados y sin
+hacer. De paso, una corrección de registro — dos de ellos los había mencionado
+al usuario como «están en el BACKLOG» y nunca los escribí allí. Lo que no está
+anotado no existe.
+
+**E13-12 · El PNG dice qué es cada línea.** Un PNG de tres series no decía cuál
+era cuál: la leyenda vivía en el DOM y se quedaba fuera del fichero. Ahora
+`toPng` **hace crecer el lienzo** y pinta la leyenda debajo, **leyéndola de los
+propios datasets** (`legendEntriesOf`) — fuente única, así que el fichero no
+puede describir una gráfica distinta de la que enseña. Reproduce el TRAZO de
+cada serie y no un cuadrito de color, porque un PNG se mira en gris, se imprime
+y se reenvía sin la app al lado. Descarta el relleno de la banda (dos datasets
+sin línea) y los rótulos repetidos. Analizar gana su botón de PNG, que no tenía.
+
+Un detalle que solo se vio mirando el fichero: con tres series en un lienzo
+ancho se repartían cinco columnas y los rótulos salían cortados —«Porcentaje de
+grasa previ…»— teniendo sitio de sobra. Las columnas se acotan ahora al número
+de series.
+
+**E13-13 · Nombres basura de OFF.** El punto del BACKLOG proponía «lista de
+bloqueo por id, no una heurística», y **medir lo confirmó**: nueve heurísticas
+sobre las 2 002 fichas de OFF marcan 71, de las que ~65 son legítimas —
+«10 tortillas integrales» es el número de unidades del envase, y «Hot dog» cae
+por no tener ninguna palabra de cuatro letras. Tumbar 71 para limpiar 5 no es
+una criba. Van por id, con motivo escrito y auditable: dos «hacendado» (nombre =
+marca, no identifican producto), «No», «Untapan de» (truncado) y «x4». La lista
+se aplica en el constructor y al catálogo ya publicado, y un test comprueba las
+dos mitades — una reconstrucción que la olvidara devolvería la basura.
+
+**E13-14 · Tira de contexto.** La mitad del zoom que faltaba: con la gráfica
+acercada, ves treinta días sin saber si son los primeros o los últimos. Una tira
+SVG bajo el lienzo dibuja el plan ENTERO en miniatura con la ventana enmarcada
+(enmarcada, no tapada: un relleno opaco escondería justo lo que se mira), y
+aparece SOLO con zoom — con el plan completo a la vista, un rectángulo que lo
+cubre todo no informa de nada. SVG y no otra instancia de Chart.js, mismo
+criterio que ya cerró `muscle-grid.js`. Se repinta CON el gesto, no al final: si
+esperara al siguiente dibujado completo, señalaría un tramo que ya no es el
+visible.
+
+**Y el vigilante de `toFixed` hizo su trabajo por tercera vez.** La geometría del
+rectángulo lo necesitaba, y la respuesta correcta no era añadir la vista a la
+lista de excepciones —esa vista también escribe cifras que el usuario lee— sino
+mover la geometría a `spark.js`, donde la excepción ya está justificada porque
+no escribe ni un número legible. La excepción se mantiene estrecha.
+
+**810 unitarios · 200 E2E · typecheck limpio.**

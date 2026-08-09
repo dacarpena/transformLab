@@ -1017,4 +1017,5 @@ export const en = {
     'series.reason.noChart': 'It could not be drawn',
     'projection.goAnalysis': 'Compare several series…',
     'analysis.preset.muscleVsFat': 'Muscle vs. fat',
+    'analysis.strip.hint': 'You are viewing {from} to {to} within the whole plan.',
 };

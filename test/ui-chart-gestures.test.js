@@ -13,6 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { clampWindow, zoomAround } from '../src/ui/chart-gestures.js';
+import { windowRect } from '../src/ui/spark.js';
 
 const PLAN = { from: 0, to: 200 };
 
@@ -76,4 +77,39 @@ test('alejarse del todo devuelve el plan entero, sin residuo', () => {
 test('las coordenadas son enteras: media jornada no existe', () => {
     const r = zoomAround({ from: 10, to: 90 }, 33, 0.7, PLAN);
     assert.ok(Number.isInteger(r.from) && Number.isInteger(r.to), `${r.from}..${r.to}`);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Geometría de la tira de contexto (E13-14)
+ * ---------------------------------------------------------------------- */
+
+test('windowRect sitúa la ventana en proporción al plan', () => {
+    // La mitad central de un plan de 200 días ocupa la mitad central de la tira.
+    const medio = windowRect(50, 150, 200, 1000);
+    assert.equal(medio.x, '250.0');
+    assert.equal(medio.width, '500.0');
+
+    // El principio ancla en cero, el final no se sale.
+    assert.equal(windowRect(0, 20, 200, 1000).x, '0.0');
+    const fin = windowRect(180, 200, 200, 1000);
+    assert.ok(Number(fin.x) + Number(fin.width) <= 1000.01);
+});
+
+test('windowRect nunca produce un rectángulo invisible ni fuera de la tira', () => {
+    // Una ventana de un solo día tendría anchura cero: sería invisible justo
+    // cuando más falta hace saber dónde estás.
+    assert.ok(Number(windowRect(100, 100, 200, 1000).width) >= 2);
+
+    // Y una ventana que se sale por los extremos se recorta, no desborda.
+    for (const [from, to] of [[-50, 300], [-10, 10], [190, 400]]) {
+        const r = windowRect(from, to, 200, 1000);
+        assert.ok(Number(r.x) >= 0, `x=${r.x}`);
+        assert.ok(Number(r.x) + Number(r.width) <= 1000.01, `${r.x}+${r.width}`);
+    }
+});
+
+test('windowRect degrada con un plan imposible', () => {
+    for (const total of [0, -5, NaN, undefined]) {
+        assert.deepEqual(windowRect(0, 10, /** @type {*} */ (total), 1000), { x: '0', width: '0' });
+    }
 });

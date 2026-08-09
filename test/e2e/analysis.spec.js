@@ -735,3 +735,109 @@ test.describe('1RM por ejercicio', () => {
         await expect(page.locator('[data-legend-row="est_e1rm__ex_1_sentadilla"]')).toBeVisible();
     });
 });
+
+/* ---------------------------------------------------------------------- *
+ * El PNG dice qué es cada línea (E13-12)
+ * ---------------------------------------------------------------------- */
+
+test('el PNG lleva la leyenda dentro: un fichero suelto no puede ser ilegible', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+    await page.click('[data-preset="muscleVsFat"]');
+    await expect.poll(() => page.locator('[data-legend-row]').count()).toBe(3);
+
+    const r = await page.evaluate(async () => {
+        const cv = /** @type {HTMLCanvasElement} */ (document.querySelector('.view[data-view-id="analysis"] canvas'));
+        const chart = await import('/src/ui/chart.js');
+        const c = /** @type {*} */ (globalThis).Chart.getChart(cv);
+        const entradas = chart.legendEntriesOf(c);
+        const alto = chart.legendHeight(entradas, cv.width, 1);
+        return {
+            entradas: entradas.map((/** @type {*} */ e) => e.label),
+            colores: new Set(entradas.map((/** @type {*} */ e) => e.color)).size,
+            alto,
+            altoLienzo: cv.height
+        };
+    });
+
+    // Una entrada por serie dibujada, con su nombre y su color: el fichero se
+    // explica solo, sin la app al lado.
+    expect(r.entradas).toHaveLength(3);
+    expect(r.entradas.some((l) => l.includes('Músculo'))).toBe(true);
+    expect(r.colores).toBe(3);
+    // Y el lienzo exportado CRECE para alojarla, en vez de taparla.
+    expect(r.alto).toBeGreaterThan(0);
+
+    // La descarga funciona de punta a punta y el PNG es más alto que la gráfica.
+    const descarga = page.waitForEvent('download');
+    await page.click('[data-png]');
+    const fichero = await descarga;
+    expect(fichero.suggestedFilename()).toMatch(/^transformlab-analisis-\d{4}-\d{2}-\d{2}\.png$/);
+
+    const ruta = await fichero.path();
+    const { readFileSync } = await import('node:fs');
+    const bytes = readFileSync(ruta ?? '');
+    // Cabecera PNG y alto > alto del lienzo (IHDR: ancho 16-19, alto 20-23).
+    expect(bytes.subarray(1, 4).toString()).toBe('PNG');
+    const altoPng = bytes.readUInt32BE(20);
+    expect(altoPng).toBeGreaterThan(r.altoLienzo);
+});
+
+/* ---------------------------------------------------------------------- *
+ * Tira de contexto (E13-14)
+ * ---------------------------------------------------------------------- */
+
+test('la tira aparece SOLO con zoom, y marca el tramo visible', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+
+    // Con el plan entero a la vista no aporta nada: un rectángulo que lo cubre
+    // todo no informa de dónde estás.
+    await expect(page.locator('[data-context-strip]')).toBeHidden();
+
+    await page.click('[data-window="30"]');
+    await expect(page.locator('[data-context-strip]')).toBeVisible();
+    await expect(page.locator('[data-context-strip]')).toContainText('dentro de todo el plan');
+
+    // El rectángulo ocupa una FRACCIÓN del ancho, proporcional a la ventana.
+    const r = await page.evaluate(() => {
+        const rect = document.querySelector('.context-strip__window');
+        const svg = document.querySelector('.context-strip__svg');
+        return {
+            x: Number(rect?.getAttribute('x')),
+            w: Number(rect?.getAttribute('width')),
+            viewBox: svg?.getAttribute('viewBox'),
+            oculto: svg?.getAttribute('aria-hidden')
+        };
+    });
+    expect(r.w).toBeGreaterThan(0);
+    expect(r.w).toBeLessThan(1000 * 0.9);      // no cubre casi todo
+    expect(r.x + r.w).toBeLessThanOrEqual(1001);
+    // Es un adorno de orientación: lo que enseña ya lo dicen el eje y el readout.
+    expect(r.oculto).toBe('true');
+});
+
+test('la tira sigue al zoom del gesto, sin ir un paso por detrás', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+    await page.locator('[data-canvas]').hover();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -240);
+    await page.keyboard.up('Control');
+
+    await expect(page.locator('[data-context-strip]')).toBeVisible();
+    const r = await page.evaluate(() => {
+        const cv = document.querySelector('.view[data-view-id="analysis"] canvas');
+        const c = /** @type {*} */ (globalThis).Chart.getChart(cv);
+        const rect = document.querySelector('.context-strip__window');
+        const total = c.data.datasets[0].data.at(-1).x;
+        return {
+            ventana: { from: c.options.scales.x.min, to: c.options.scales.x.max },
+            marcado: { x: Number(rect?.getAttribute('x')), w: Number(rect?.getAttribute('width')) },
+            total
+        };
+    });
+    // La posición del rectángulo corresponde a la ventana REAL del lienzo.
+    const esperadoX = (r.ventana.from / r.total) * 1000;
+    expect(Math.abs(r.marcado.x - esperadoX)).toBeLessThan(20);
+});

@@ -42,6 +42,7 @@ import * as trainingStore from '../../data/training.js';
 import { exercisesOf } from '../../data/training.js';
 import { MAX_SERIES, PROVENANCE_STYLE } from '../series-style.js';
 import { attachGestures, clampWindow } from '../chart-gestures.js';
+import { pathOf, sample, windowRect } from '../spark.js';
 
 /** @typedef {import('../../core/series-catalog.js').ResolvedSeries} ResolvedSeries */
 
@@ -347,6 +348,7 @@ function view() {
                         aria-label="${t('analysis.chart.label', { count: selected.length })}"
                         aria-describedby="analysis-keys"></canvas>
             </div>
+            <div class="context-strip" data-context-strip hidden></div>
             <p id="analysis-keys" class="visually-hidden">${t('analysis.readout.hint')}</p>
 
             <ul class="series-legend" data-legend aria-label="${t('analysis.legend.label')}">
@@ -368,6 +370,7 @@ function view() {
             </details>
             <div class="btn-row">
                 <button type="button" class="btn btn--sm" data-csv>${t('analysis.csv.download')}</button>
+                <button type="button" class="btn btn--sm" data-png>${t('action.downloadPng')}</button>
             </div>
             <p class="field__hint">${t('analysis.csv.hint')}</p>
         </section>
@@ -600,6 +603,7 @@ async function redraw(/** @type {HTMLElement} */ container) {
     }
 
     renderHints(container, data);
+    renderContextStrip(container, data);
     wireGestures(container, canvas, data);
 }
 
@@ -643,6 +647,10 @@ function wireGestures(container, canvas, data) {
             // permite que un gesto continuo se sienta continuo.
             instancia.setWindow(from, to);
             refreshWindowButtons(container);
+            // La tira se repinta con el gesto, no al final: si esperara al
+            // siguiente dibujado completo, la ventana marcada iría un paso por
+            // detrás del lienzo y señalaría un tramo que ya no es el visible.
+            renderContextStrip(container, data);
         }
     });
 }
@@ -722,6 +730,69 @@ function renderTable(container, data) {
     } else if ((showAllRows || rows.length <= TABLE_LIMIT) && yaHay) {
         yaHay.remove();
     }
+}
+
+/** Geometría de la tira, en unidades de `viewBox`. */
+const STRIP = Object.freeze({ w: 1000, h: 40 });
+
+/**
+ * La tira de contexto: el plan ENTERO en miniatura, con la ventana marcada.
+ *
+ * POR QUÉ EXISTE. Con zoom, la gráfica deja de decir dónde estás: ves treinta
+ * días sin saber si son los primeros o los últimos. La tira responde eso de un
+ * vistazo — y es la mitad del zoom que faltaba, porque orientarse es lo que
+ * convierte «acercarse» en «explorar».
+ *
+ * POR QUÉ SVG Y NO OTRA INSTANCIA DE CHART.JS. Mismo criterio que ya cerró
+ * `muscle-grid.js` para gráficas pequeñas sin ejes: un `path` de cien puntos
+ * hace el trabajo de un controlador completo con escalas y detección de
+ * impactos, y una segunda instancia sería un segundo ciclo de vida que destruir
+ * en cada `unmount` — por ahí sangró V2-M8 entera.
+ *
+ * `aria-hidden`: es un adorno de orientación. Lo que la tira enseña ya lo dicen
+ * el eje X y la región `aria-live`, y duplicarlo en ARIA sería más superficie
+ * para cero capacidad añadida. El teclado maneja la ventana desde el lienzo.
+ *
+ * @param {HTMLElement} container @param {*} data
+ */
+function renderContextStrip(container, data) {
+    const host = /** @type {HTMLElement | null} */ (container.querySelector('[data-context-strip]'));
+    if (!host) return;
+
+    const total = data.plan.totalDays;
+    const principal = resolved.find((r) => r.points.length > 1);
+    const today = plans.todayIndex(data, plans.todayISO());
+    const ventana = windowBounds(data, today.dayIndex);
+    // Sin serie que perfilar, o con el plan entero a la vista, la tira no
+    // aporta nada: se esconde en vez de dibujar un rectángulo que lo cubre todo.
+    const completa = ventana.from <= 0 && ventana.to >= total;
+    if (!principal || total <= 0 || completa) {
+        host.hidden = true;
+        render(host, html``);
+        return;
+    }
+    host.hidden = false;
+
+    const puntos = sample(principal.points, 120);
+    const valores = puntos.map((p) => p.y);
+    const min = Math.min(...valores);
+    const max = Math.max(...valores);
+    const d = pathOf(valores, min, max, STRIP.w, STRIP.h);
+
+    const marco = windowRect(ventana.from, ventana.to, total, STRIP.w);
+
+    render(host, html`
+        <svg class="context-strip__svg" viewBox="0 0 ${STRIP.w} ${STRIP.h}"
+             preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path class="context-strip__line" d="${d}"></path>
+            <rect class="context-strip__window" x="${marco.x}" y="0"
+                  width="${marco.width}" height="${STRIP.h}"></rect>
+        </svg>
+        <p class="context-strip__hint muted">${t('analysis.strip.hint', {
+            from: shortDate(data.projection.daily[Math.max(0, ventana.from)]?.dateISO ?? ''),
+            to: shortDate(data.projection.daily[Math.min(total, ventana.to)]?.dateISO ?? '')
+        })}</p>
+    `);
 }
 
 /**
@@ -913,6 +984,20 @@ function wire(/** @type {HTMLElement} */ container) {
         showAllRows = true;
         await refresh(container);
         /** @type {HTMLElement | null} */ (container.querySelector('[data-table] tbody tr:last-child th'))?.focus();
+    });
+
+    on(container, 'click', '[data-png]', () => {
+        // El PNG solo se ofrece cuando hay gráfica: sin ella no hay nada que
+        // exportar y un fichero vacío sería peor que el aviso.
+        const url = chartInstance?.toPng() ?? null;
+        if (!url) {
+            toast.error('chart.unavailableTitle');
+            return;
+        }
+        const link = document.createElement('a');
+        link.href = safeUrl(url);
+        link.download = `transformlab-analisis-${plans.todayISO()}.png`;
+        link.click();
     });
 
     on(container, 'click', '[data-csv]', () => {
