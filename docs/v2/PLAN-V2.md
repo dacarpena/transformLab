@@ -406,6 +406,16 @@ en cada fila y no hay desbordamiento horizontal.
 Ideas surgidas fuera de la milestone activa. **No se implementan** hasta que les
 toque (CLAUDE.md §7).
 
+- **Proyección sigue sin enseñar los hitos estéticos ni los de salud.** E14-3 los
+  llevó al lienzo de Analizar, no al de Proyección. Ahí los hitos del motor ya se
+  dibujan como PUNTOS SOBRE LA LÍNEA, con su propio camino de clic y tres
+  contratos de test posicionales colgando de él (`clickDatasetIndex`, «los hitos
+  son el último dataset», `pointStyle === 'rectRot'`). Añadir el carril encima
+  dejaría **dos mecanismos de hito en una misma vista**, que es justo el patrón
+  que este proyecto persigue; y sustituir los puntos por el carril rompe los tres
+  contratos a la vez. La salida limpia es unificar en el carril y reescribir esos
+  contratos, y eso es una tarea propia, no una nota al pie de otra.
+
 - ~~**`num()` formatea con punto decimal en español.**~~ **HECHO** el
   2026-08-08, ver §13.
 - ~~**`CACHE_VERSION` debería derivarse de `precacheHash`**~~ **HECHO** el
