@@ -1052,4 +1052,5 @@ export const en = {
     'analysis.marks.kind.risk': 'Heads-up',
     'analysis.marks.kind.aesthetic': 'Aesthetics',
     'analysis.marks.hidden': '{count} more markers do not fit at this zoom level. Zoom in to see them.',
+    'analysis.controls.toggle': 'View settings',
 };

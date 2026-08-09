@@ -363,6 +363,15 @@ function view() {
                 <button type="button" class="btn btn--primary" data-open-picker aria-haspopup="dialog">
                     ${t('analysis.series.choose')}
                 </button>
+                <!-- A 320 px los cuatro atajos y los once interruptores ocupan
+                     pantalla y media, y la gráfica —que es la vista— quedaba
+                     debajo del pliegue. Aquí se pliegan tras un control; en
+                     escritorio el atributo «open» viene puesto y el resorte se oculta por
+                     CSS, así que no hay dos caminos: hay uno, plegado o no. -->
+                <details class="control-drawer"${isNarrow() ? '' : ' open'}>
+                    <summary class="btn btn--sm">${t('analysis.controls.toggle')}</summary>
+                    <div class="control-drawer__body">
+                    <div class="control-bar">
                 <div class="control-group control-group--grow">
                     <span class="control-group__label" id="cg-preset">${t('analysis.preset.label')}</span>
                     <div class="chip-row" role="group" aria-labelledby="cg-preset">
@@ -372,7 +381,7 @@ function view() {
                         `)}
                     </div>
                 </div>
-            </div>
+                    </div>
             <!-- Y después CÓMO se mira. Tres preguntas rotuladas, no once botones. -->
             <div class="control-bar">
                 ${segmented('analysis.window.label', 'data-window', [
@@ -401,6 +410,9 @@ function view() {
                         `)}
                     </div>
                 </div>
+            </div>
+                    </div>
+                </details>
             </div>
             <p class="field__hint" data-effective-hint hidden></p>
             <p class="field__hint" data-marks-note hidden></p>

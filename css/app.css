@@ -554,6 +554,23 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 .control-group--grow { flex: 1 1 auto; }
 
+/* El cajón de controles. A partir de 561 px el resorte sobra —el marcado ya
+   viene `open`— y desaparece; por debajo es lo único que separa la gráfica de
+   pantalla y media de botones. Un solo camino, plegado o no. */
+.control-drawer { flex: 1 1 100%; min-width: 0; }
+.control-drawer > summary { display: inline-flex; width: fit-content; }
+.control-drawer__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+}
+
+@media (min-width: 561px) {
+    .control-drawer > summary { display: none; }
+    .control-drawer__body { padding-top: 0; }
+}
+
 .control-group__label {
     font-size: var(--text-xs);
     letter-spacing: 0.06em;

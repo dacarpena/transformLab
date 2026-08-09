@@ -1053,4 +1053,5 @@ export const es = {
     'analysis.marks.kind.risk': 'Aviso',
     'analysis.marks.kind.aesthetic': 'Estética',
     'analysis.marks.hidden': 'Hay {count} marcadores más que no caben a este nivel de zoom. Acércate para verlos.',
+    'analysis.controls.toggle': 'Ajustes de la vista',
 };
