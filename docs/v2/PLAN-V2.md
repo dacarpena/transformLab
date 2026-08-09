@@ -1390,3 +1390,55 @@ series y los hitos que dependen de ella no tienen nada que dibujar.
   depende del objetivo, que es lo que se está proponiendo. Seis meses porque con
   menos la cifra vuelve a parecer «no ganes nada» y con más se propone algo que
   tarda años.
+
+- [x] **E14-2 · Hitos de salud, con la fuente pegada.**
+  `src/core/health-milestones.js`. Franjas de IMC (OMS, *Technical Report Series
+  894*), franjas de porcentaje de grasa (American Council on Exercise) y
+  perímetro de cintura (consulta de expertos de la OMS, 2008, con los cortes del
+  NIH). Cada umbral trae su `sourceKey` y esa frase llega hasta la pantalla: es
+  la diferencia entre «la app dice» y «la OMS dice».
+
+  Tres decisiones que el módulo toma una vez y valen para todo: el **IMC solo
+  cuenta hacia abajo** —no distingue músculo de grasa, así que subir de 24,9 a
+  25,1 en un volumen no es un evento de salud—; la **cintura no se proyecta** y
+  sale de los check-ins o no existe, porque estimarla con un modelo de población
+  y anunciarla como umbral de riesgo es la clase de promesa que hundió la v4.0;
+  y **entrar en grasa esencial es un hito marcado como RIESGO**, no como logro,
+  porque un producto que solo sabe felicitar acaba felicitando a quien se está
+  haciendo daño.
+
+- [x] **E14-3 · Los hitos se ven EN la gráfica.**
+  Las tres familias —motor, catálogo estético y salud— se juntan en
+  `src/ui/marks.js` y llegan al lienzo. Se dibujan como **marcas de regla en un
+  carril superior, no como puntos sobre una línea**: con dos unidades a la vez,
+  anclar un punto a un eje es elegir a cuál de las dos se le miente sobre la
+  altura. Una columna no afirma ninguna altura; afirma un DÍA, que es lo único
+  que el hito sabe de verdad.
+
+  La primera versión cruzaba el lienzo entero y con treinta hitos el plan quedaba
+  detrás de una empalizada: los marcadores tapaban justo las series que venían a
+  anotar. Se quedó en una marca corta.
+
+  Los del mismo día se agrupan (el catálogo tiene 97 fichas sobre dos umbrales:
+  cinco triángulos en la misma columna de píxeles no dibujan cinco cosas, dibujan
+  una mancha), los que no caben se descartan **por prioridad** —un aviso de salud
+  nunca lo tapa el hito estético número 54— y **se dice cuántos quedaron fuera**.
+  El adelgazamiento se recalcula por fotograma con el área y la ventana reales,
+  así que al acercar el zoom caben más de verdad y el recuento no se queda rancio.
+
+- [x] **E14-4 · La barra de la vista, rehecha.**
+  Eran trece botones seguidos en dos filas indistinguibles. Los cuatro atajos de
+  comparación se veían igual que los controles de estado de al lado y no marcaban
+  nunca cuál estaba aplicado; los tres grupos excluyentes corrían juntos sin
+  ningún rótulo a la vista —solo `aria-label`—, así que había que pulsarlos para
+  averiguar qué preguntaban.
+
+  Ahora cada grupo lleva su rótulo visible y lo usa con `aria-labelledby`: **el
+  nombre accesible y el visible son el mismo nodo**, y no pueden divergir. Los
+  atajos se separan como acción principal y marcan el que coincide con la
+  selección. Los filtros de hito son interruptores sueltos, no un grupo de radio
+  disfrazado.
+
+  Y a 320 px todo eso ocupaba pantalla y media con la gráfica debajo del pliegue:
+  los controles se pliegan tras «Ajustes de la vista», que en escritorio viene
+  desplegado y con el resorte oculto por CSS. Un solo camino, plegado o no.
