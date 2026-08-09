@@ -51,6 +51,8 @@ import { planAxes, axisIdFor, styleFor, rebase, MAX_SERIES } from './series-styl
  * @property {number} [maxTicks]
  * @property {number} [clickDatasetIndex] dataset cuyos puntos abren ficha; -1 = ninguno
  * @property {(index: number) => void} [onPointClick]
+ * @property {Array<{ x: number, group: MarkGroup }>} [markHitBoxes] los rellena `marksPlugin`
+ * @property {(group: MarkGroup) => void} [onMarkClick]
  *
  * @typedef {Object} RenderedSeries
  * @property {string} id
@@ -79,6 +81,9 @@ import { planAxes, axisIdFor, styleFor, rebase, MAX_SERIES } from './series-styl
  * @property {{ from: number, to: number }} range
  * @property {'raw'|'delta'} [normalize]
  * @property {number} [maxTicks]
+ * @property {ChartMark[]} [marks] hitos a marcar como columnas (E14-3)
+ * @property {(group: MarkGroup) => void} [onMark] clic sobre un marcador
+ * @property {(hiddenCount: number) => void} [onMarksThinned] cuántos no cupieron
  */
 
 /** @returns {*} el global Chart, o null si el vendor no cargó */
@@ -240,6 +245,187 @@ function todayLinePlugin(getTodayIndex) {
             ctx.textAlign = 'center';
             ctx.fillText(t('chart.today'), x, chartArea.top - 4);
             ctx.restore();
+        }
+    };
+}
+
+/* ------------------------------------------------------------------ *
+ * Marcadores de hito sobre el lienzo (E14-3)
+ * ------------------------------------------------------------------ */
+
+/**
+ * @typedef {'phase' | 'risk' | 'health' | 'body' | 'aesthetic'} MarkKind
+ *
+ * @typedef {Object} ChartMark
+ * @property {number} dayIndex
+ * @property {string} label YA traducido: el lienzo no sabe de idiomas
+ * @property {MarkKind} kind
+ * @property {string} [detail] la fuente del umbral, para la ficha
+ *
+ * @typedef {Object} MarkGroup
+ * @property {number} dayIndex
+ * @property {MarkKind} kind la de mayor prioridad del grupo
+ * @property {ChartMark[]} marks
+ */
+
+/**
+ * Prioridad de los marcadores, de más a menos.
+ *
+ * No es estética: decide QUÉ se ve cuando dos hitos caen tan juntos que sus
+ * marcadores se tocarían. Un aviso de salud tapado por el hito estético número
+ * 54 sería exactamente al revés de lo que hace falta.
+ */
+export const MARK_PRIORITY = /** @type {readonly MarkKind[]} */ (
+    Object.freeze(['risk', 'phase', 'health', 'body', 'aesthetic']));
+
+/** Token de color por tipo. El color NO carga solo con el significado: la ficha lo dice con palabras. */
+const MARK_COLOR = Object.freeze({
+    risk: '--color-danger',
+    phase: '--color-accent',
+    health: '--color-success',
+    body: '--color-warning',
+    aesthetic: '--color-text-muted'
+});
+
+/**
+ * Junta en un solo marcador los hitos que caen el mismo día.
+ *
+ * Un plan típico alcanza varios hitos estéticos a la vez —el catálogo tiene 97
+ * fichas sobre los mismos dos umbrales—, y pintar cinco triángulos en la misma
+ * columna de píxeles no dibuja cinco cosas: dibuja una mancha.
+ *
+ * @param {ChartMark[]} marks
+ * @returns {MarkGroup[]} ordenados por día
+ */
+export function groupMarks(marks) {
+    if (!Array.isArray(marks)) return [];
+    /** @type {Map<number, ChartMark[]>} */ const byDay = new Map();
+    for (const m of marks) {
+        if (!m || !Number.isFinite(m.dayIndex)) continue;
+        const day = Math.round(m.dayIndex);
+        const list = byDay.get(day) ?? [];
+        list.push(m);
+        byDay.set(day, list);
+    }
+    return [...byDay.entries()]
+        .map(([dayIndex, list]) => ({
+            dayIndex,
+            kind: MARK_PRIORITY.find((k) => list.some((m) => m.kind === k)) ?? 'aesthetic',
+            marks: [...list].sort((a, b) => MARK_PRIORITY.indexOf(a.kind) - MARK_PRIORITY.indexOf(b.kind))
+        }))
+        .sort((a, b) => a.dayIndex - b.dayIndex);
+}
+
+/**
+ * Descarta los marcadores que no caben, por prioridad y no por orden de llegada.
+ *
+ * Y devuelve **cuántos ha descartado**: un recorte silencioso se lee como «esto
+ * es todo lo que hay», que es justo la mentira que este proyecto persigue. La
+ * vista lo dice en una línea bajo la gráfica.
+ *
+ * @param {MarkGroup[]} groups
+ * @param {number} plotWidthPx ancho útil del lienzo
+ * @param {{ from: number, to: number }} range ventana visible, en días
+ * @param {number} [minGapPx] separación mínima entre dos marcadores. 20 px es
+ *   algo más que el triángulo (12 px): pegados se leen como una banda continua
+ *   y deja de verse dónde empieza cada uno.
+ * @returns {{ visible: MarkGroup[], hiddenCount: number }}
+ */
+export function thinMarks(groups, plotWidthPx, range, minGapPx = 20) {
+    if (!Array.isArray(groups) || groups.length === 0) return { visible: [], hiddenCount: 0 };
+    const span = (range?.to ?? 0) - (range?.from ?? 0);
+    const dentro = groups.filter((g) => g.dayIndex >= range.from && g.dayIndex <= range.to);
+    if (!Number.isFinite(plotWidthPx) || plotWidthPx <= 0 || span <= 0) {
+        return { visible: dentro, hiddenCount: 0 };
+    }
+    const px = (/** @type {number} */ day) => ((day - range.from) / span) * plotWidthPx;
+
+    // Se recorre por prioridad, no por fecha: si el primer día del plan trae un
+    // hito estético y el segundo un aviso de salud, recorrer por fecha dejaría
+    // fuera el aviso.
+    const orden = [...dentro].sort((a, b) => {
+        const p = MARK_PRIORITY.indexOf(a.kind) - MARK_PRIORITY.indexOf(b.kind);
+        return p !== 0 ? p : a.dayIndex - b.dayIndex;
+    });
+    /** @type {MarkGroup[]} */ const aceptados = [];
+    for (const g of orden) {
+        const x = px(g.dayIndex);
+        if (aceptados.some((a) => Math.abs(px(a.dayIndex) - x) < minGapPx)) continue;
+        aceptados.push(g);
+    }
+    return {
+        visible: aceptados.sort((a, b) => a.dayIndex - b.dayIndex),
+        hiddenCount: dentro.length - aceptados.length
+    };
+}
+
+/** Radio de acierto del clic sobre un marcador: el triángulo mide 12 px de ancho. */
+const MARK_HIT_PX = 12;
+
+/**
+ * Dibuja los marcadores como columnas verticales, no como puntos sobre una línea.
+ *
+ * Es la única forma honesta con varias series: un punto necesita un valor en
+ * ALGÚN eje, y con dos unidades a la vez elegir eje es elegir a cuál de las dos
+ * se le miente sobre la altura. Una columna no afirma ninguna altura: afirma un
+ * DÍA, que es lo único que el hito sabe de verdad.
+ *
+ * @param {() => MarkGroup[]} getGroups
+ * @param {Array<{ x: number, group: MarkGroup }>} hitBoxes se rellena al dibujar
+ * @param {((hiddenCount: number) => void) | undefined} onThinned
+ */
+function marksPlugin(getGroups, hitBoxes, onThinned) {
+    const GLYPH = 6;
+    let lastHidden = -1;
+    return {
+        id: 'milestoneMarks',
+        afterDatasetsDraw(/** @type {*} */ chart) {
+            hitBoxes.length = 0;
+            const { ctx, chartArea, scales } = chart;
+            if (!chartArea || !scales.x) return;
+            // El adelgazamiento se hace AQUÍ y no al construir, con el área real
+            // y la ventana real: al hacer zoom entran más marcadores porque de
+            // verdad caben, y el recuento de ocultos no se queda rancio.
+            const { visible, hiddenCount } = thinMarks(
+                getGroups(),
+                chartArea.right - chartArea.left,
+                { from: scales.x.min, to: scales.x.max }
+            );
+            if (hiddenCount !== lastHidden) {
+                lastHidden = hiddenCount;
+                if (onThinned) onThinned(hiddenCount);
+            }
+            for (const group of visible) {
+                const x = scales.x.getPixelForValue(group.dayIndex);
+                if (!Number.isFinite(x) || x < chartArea.left || x > chartArea.right) continue;
+                const color = cssVar(MARK_COLOR[group.kind] ?? MARK_COLOR.aesthetic);
+                ctx.save();
+                // Una marca de regla, NO una línea de arriba abajo. La primera
+                // versión cruzaba el lienzo entero y con treinta hitos el plan
+                // quedaba detrás de una empalizada: los marcadores tapaban justo
+                // las series que venían a anotar. La columna completa no añadía
+                // información —el día ya lo dice la posición— y sí quitaba la
+                // que el usuario vino a mirar.
+                ctx.globalAlpha = 0.55;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top + GLYPH * 1.6);
+                ctx.lineTo(x, chartArea.top + GLYPH * 3);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                // Triángulo colgando del borde superior. Apunta hacia abajo, a su
+                // propia columna: hacia arriba señalaría fuera del lienzo.
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(x - GLYPH, chartArea.top);
+                ctx.lineTo(x + GLYPH, chartArea.top);
+                ctx.lineTo(x, chartArea.top + GLYPH * 1.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+                hitBoxes.push({ x, group });
+            }
         }
     };
 }
@@ -781,6 +967,9 @@ export function createChart() {
             });
         });
 
+        const markGroups = groupMarks(options.marks ?? []);
+        /** @type {Array<{ x: number, group: MarkGroup }>} */ const markHitBoxes = [];
+
         const ok = drawSeries({
             canvas: options.canvas,
             datasets,
@@ -801,7 +990,13 @@ export function createChart() {
                 const point = projection.daily[Number(items[0]?.parsed?.x ?? 0)];
                 return point ? `${point.dateISO} · ${t('phase.' + point.phaseType)}` : '';
             },
-            extraPlugins: [phaseBandsPlugin(projection), todayLinePlugin(() => options.todayIndex)],
+            extraPlugins: [
+                phaseBandsPlugin(projection),
+                todayLinePlugin(() => options.todayIndex),
+                marksPlugin(() => markGroups, markHitBoxes, options.onMarksThinned)
+            ],
+            markHitBoxes,
+            onMarkClick: options.onMark,
             maxTicks: options.maxTicks
         });
         if (!ok) {
@@ -1011,6 +1206,22 @@ export function createChart() {
                     // `elements` trae el hito más CERCANO aunque el clic haya caído
                     // en zona vacía, y se abría la ficha de un hito que no estaba
                     // ahí. Aquí se vuelve a consultar exigiendo intersección real.
+                    // Los marcadores van PRIMERO: viven en el borde superior,
+                    // donde no hay puntos de ninguna serie, así que preguntarles
+                    // después significaría no preguntarles nunca en la práctica.
+                    if (options.onMarkClick && options.markHitBoxes?.length) {
+                        const px = /** @type {*} */ (event).x
+                            ?? /** @type {*} */ (event).native?.offsetX;
+                        if (Number.isFinite(px)) {
+                            const cerca = options.markHitBoxes
+                                .filter((b) => Math.abs(b.x - px) <= MARK_HIT_PX)
+                                .sort((a, b) => Math.abs(a.x - px) - Math.abs(b.x - px))[0];
+                            if (cerca) {
+                                options.onMarkClick(cerca.group);
+                                return;
+                            }
+                        }
+                    }
                     const index = options.clickDatasetIndex ?? -1;
                     if (index < 0 || !options.onPointClick) return;
                     const hits = chart.getElementsAtEventForMode(

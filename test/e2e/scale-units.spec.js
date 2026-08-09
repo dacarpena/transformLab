@@ -99,8 +99,10 @@ test('un perfil SIN báscula sigue viendo músculo esquelético, exactamente com
     await page.fill('[data-field="targetFatPct"]', '12');
     await page.fill('[data-field="targetMuscleKg"]', '30');
 
-    // ni nota de conversión en el objetivo...
-    await expect(page.locator('[data-target-muscle-note]')).toHaveText('');
+    // ni nota de conversión en el objetivo. Se mira que NO esté la conversión,
+    // no que la nota esté vacía: desde E14-1 la nota lleva además el rango de
+    // ganancia plausible, que es de todos los perfiles, con báscula o sin ella.
+    await expect(page.locator('[data-target-muscle-note]')).not.toContainText('esquelético');
     await page.click('[data-next]');
     await page.click('[data-next]');
     await expect(page.locator('#today-title')).toBeVisible();
@@ -177,9 +179,9 @@ test('cambiar de unidad a mitad del asistente conserva la CANTIDAD, no el númer
     await page.fill('[data-field="fatPct"]', XIAOMI.fatPct);
     await page.click('[data-next]');
 
-    // objetivo en esquelético, sin báscula
+    // objetivo en esquelético, sin báscula: no hay conversión que enseñar
     await page.fill('[data-field="targetMuscleKg"]', '33');
-    await expect(page.locator('[data-target-muscle-note]')).toHaveText('');
+    await expect(page.locator('[data-target-muscle-note]')).not.toContainText('esquelético');
 
     // vuelve atrás y añade las cifras de su báscula
     await page.click('[data-back]');

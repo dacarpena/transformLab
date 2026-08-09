@@ -520,6 +520,122 @@ ul { margin: 0; padding: 0; list-style: none; }
 .notice--warning { border-color: var(--color-warning); }
 .notice--warning .notice__icon { color: var(--color-warning); }
 
+/* ---------------- Barra de controles de la gráfica (E14-4) ----------------
+
+   Antes eran trece botones seguidos en dos filas indistinguibles: los cuatro
+   atajos de comparación se veían igual que los controles de estado que tenían
+   al lado, y los tres grupos excluyentes corrían juntos sin ningún rótulo a la
+   vista —solo `aria-label`—, así que había que pulsarlos para averiguar qué
+   preguntaban. Ahora cada grupo lleva su rótulo, y los rótulos son los que leen
+   TODOS: el nombre accesible sale del mismo nodo. */
+
+.control-bar {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+/* La fila de arriba es la acción principal —elegir qué se mira— y va separada
+   de la de abajo, que es cómo se mira. */
+.control-bar--primary {
+    align-items: flex-end;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-3);
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.control-group--grow { flex: 1 1 auto; }
+
+.control-group__label {
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+/* Un chip es redondeado y sin relleno: se distingue de un botón rectangular
+   sin depender del color, que es lo que pedía WCAG 1.4.1 aquí. */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    /* 44 px, el mismo objetivo táctil que .btn */
+    min-height: 44px;
+}
+
+.chip:hover { border-color: var(--color-accent); color: var(--color-text); }
+
+.chip[aria-pressed="true"] {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-on-accent);
+}
+
+/* El punto de color del filtro de hitos repite el color del marcador del
+   lienzo. Es un desempate, no la señal: la palabra va al lado siempre. */
+.chip--mark::before {
+    content: "";
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.chip--mark[aria-pressed="true"].is-mark-phase { background: var(--color-accent); border-color: var(--color-accent); }
+.chip--mark[aria-pressed="true"].is-mark-body { background: var(--color-warning); border-color: var(--color-warning); color: var(--color-bg); }
+.chip--mark[aria-pressed="true"].is-mark-health { background: var(--color-success); border-color: var(--color-success); color: var(--color-bg); }
+.chip--mark[aria-pressed="true"].is-mark-aesthetic { background: var(--color-text-muted); border-color: var(--color-text-muted); color: var(--color-bg); }
+
+/* Ficha de un marcador. */
+.mark-card {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.mark-card__item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-left: var(--space-3);
+    border-left: 3px solid var(--color-border);
+}
+
+.mark-card__item.is-mark-phase { border-left-color: var(--color-accent); }
+.mark-card__item.is-mark-body { border-left-color: var(--color-warning); }
+.mark-card__item.is-mark-health { border-left-color: var(--color-success); }
+.mark-card__item.is-mark-risk { border-left-color: var(--color-danger); }
+.mark-card__item.is-mark-aesthetic { border-left-color: var(--color-text-muted); }
+
+.mark-card__label { margin: 0; }
+
 /* ---------------- Gráfica ---------------- */
 
 .chart-toolbar {

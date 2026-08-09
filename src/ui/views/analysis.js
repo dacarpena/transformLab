@@ -43,6 +43,7 @@ import { exercisesOf } from '../../data/training.js';
 import { MAX_SERIES, PROVENANCE_STYLE } from '../series-style.js';
 import { attachGestures, clampWindow } from '../chart-gestures.js';
 import { pathOf, sample, windowRect } from '../spark.js';
+import { buildMarks, MARK_CATEGORIES } from '../marks.js';
 
 /** @typedef {import('../../core/series-catalog.js').ResolvedSeries} ResolvedSeries */
 
@@ -88,6 +89,19 @@ let customBounds = null;
  */
 let grain = 'day';
 /** @type {'raw'|'delta'} */ let normalize = 'raw';
+/**
+ * Qué familias de hito se marcan sobre el lienzo (E14-3).
+ *
+ * Todas encendidas de salida: la queja que abrió E14 fue justamente que los
+ * hitos no se veían, y estrenarlas apagadas repetiría el problema con un
+ * interruptor delante. Vive en memoria y no en `settings`: el esquema
+ * persistido de la vista se cierra en su propio commit, y una clave nueva sin
+ * `opt()` es exactamente el defecto que costó las alergias en V2-M10.
+ * @type {Set<string>}
+ */
+let markCategories = new Set(MARK_CATEGORIES);
+/** Los del último dibujado, para la ficha del clic. @type {import('../chart.js').ChartMark[]} */
+let marks = [];
 /** @type {import('../../core/series-catalog.js').SeriesContext | null} */ let context = null;
 /** @type {import('../chart.js').ChartInstance | null} */ let chartInstance = null;
 /** @type {import('../chart.js').DrawManifest | null} */ let manifest = null;
@@ -211,17 +225,44 @@ function windowBounds(data, todayIndex) {
     return { from: 0, to: total };
 }
 
-/** Un grupo de botones excluyentes; el estado vive en `aria-pressed`. */
+/**
+ * Un grupo de botones excluyentes, con su etiqueta A LA VISTA.
+ *
+ * La etiqueta era `aria-label` y solo existía para los lectores de pantalla:
+ * quien mira la barra veía trece botones seguidos —«Todo · Fase actual · 90
+ * días · Día · Semana · Valores reales»— sin ninguna pista de que fueran tres
+ * preguntas distintas. Ahora el rótulo es un nodo real y el grupo lo usa con
+ * `aria-labelledby`, así que **el nombre accesible y el visible son el mismo**:
+ * no pueden divergir, que es como se estropean estas cosas.
+ */
 function segmented(/** @type {string} */ labelKey, /** @type {string} */ attr,
     /** @type {Array<{value: string, labelKey: string}>} */ options, /** @type {string} */ active) {
+    const id = `cg-${attr.replace(/[^a-z]/g, '')}`;
     return html`
-        <div class="segmented" role="group" aria-label="${t(labelKey)}">
-            ${options.map((o) => html`
-                <button type="button" class="btn btn--sm" ${attr}="${o.value}"
-                        aria-pressed="${o.value === active ? 'true' : 'false'}">${t(o.labelKey)}</button>
-            `)}
+        <div class="control-group">
+            <span class="control-group__label" id="${id}">${t(labelKey)}</span>
+            <div class="segmented" role="group" aria-labelledby="${id}">
+                ${options.map((o) => html`
+                    <button type="button" class="btn btn--sm" ${attr}="${o.value}"
+                            aria-pressed="${o.value === active ? 'true' : 'false'}">${t(o.labelKey)}</button>
+                `)}
+            </div>
         </div>
     `;
+}
+
+/**
+ * El preset que describe la selección actual, o null si no la describe ninguno.
+ *
+ * Sin esto, los cuatro atajos se pintaban idénticos a los controles de estado
+ * que tienen al lado y ninguno se marcaba nunca: parecían un grupo excluyente
+ * que jamás recordaba tu elección. O son estado y lo enseñan, o son acciones y
+ * se ven como acciones. Son las dos cosas —fijan la selección— así que se marca
+ * el que coincide y punto.
+ */
+function activePreset() {
+    const actual = [...selected].sort().join('|');
+    return PRESETS.find((p) => [...p.ids].sort().join('|') === actual)?.id ?? null;
 }
 
 /**
@@ -314,17 +355,26 @@ function view() {
                 <h1 id="analysis-chart" class="card__title">${t('analysis.title')}</h1>
                 <span class="muted" data-series-count>${t('analysis.series.count', { count: selected.length, max: MAX_SERIES })}</span>
             </div>
-            <div class="btn-row">
+            <!-- Primero QUÉ se mira. Es la acción principal de la vista y va
+                 sola, separada de los controles de cómo se mira: mezclarlas en
+                 una fila de trece botones era pedirle al usuario que adivinara
+                 cuáles cambian los datos y cuáles la presentación. -->
+            <div class="control-bar control-bar--primary">
                 <button type="button" class="btn btn--primary" data-open-picker aria-haspopup="dialog">
                     ${t('analysis.series.choose')}
                 </button>
-                <div class="segmented" role="group" aria-label="${t('analysis.preset.label')}">
-                    ${PRESETS.map((p) => html`
-                        <button type="button" class="btn btn--sm" data-preset="${p.id}">${t(`analysis.preset.${p.id}`)}</button>
-                    `)}
+                <div class="control-group control-group--grow">
+                    <span class="control-group__label" id="cg-preset">${t('analysis.preset.label')}</span>
+                    <div class="chip-row" role="group" aria-labelledby="cg-preset">
+                        ${PRESETS.map((p) => html`
+                            <button type="button" class="chip" data-preset="${p.id}"
+                                    aria-pressed="${p.id === activePreset() ? 'true' : 'false'}">${t(`analysis.preset.${p.id}`)}</button>
+                        `)}
+                    </div>
                 </div>
             </div>
-            <div class="chart-toolbar">
+            <!-- Y después CÓMO se mira. Tres preguntas rotuladas, no once botones. -->
+            <div class="control-bar">
                 ${segmented('analysis.window.label', 'data-window', [
                     { value: 'all', labelKey: 'projection.window.all' },
                     { value: 'phase', labelKey: 'projection.window.phase' },
@@ -340,8 +390,20 @@ function view() {
                     { value: 'raw', labelKey: 'analysis.normalize.raw' },
                     { value: 'delta', labelKey: 'analysis.normalize.delta' }
                 ], efectivaEscala)}
+                <!-- Los hitos NO son excluyentes: se encienden y apagan sueltos,
+                     así que son interruptores, no un grupo de radio disfrazado. -->
+                <div class="control-group">
+                    <span class="control-group__label" id="cg-marks">${t('analysis.marks.label')}</span>
+                    <div class="chip-row" role="group" aria-labelledby="cg-marks">
+                        ${MARK_CATEGORIES.map((c) => html`
+                            <button type="button" class="chip chip--mark is-mark-${c}" data-mark-cat="${c}"
+                                    aria-pressed="${markCategories.has(c) ? 'true' : 'false'}">${t(`analysis.marks.${c}`)}</button>
+                        `)}
+                    </div>
+                </div>
             </div>
             <p class="field__hint" data-effective-hint hidden></p>
+            <p class="field__hint" data-marks-note hidden></p>
 
             <div class="chart-wrap" data-chart-host>
                 <canvas data-canvas role="img" tabindex="0"
@@ -569,6 +631,12 @@ async function redraw(/** @type {HTMLElement} */ container) {
     const today = plans.todayIndex(data, plans.todayISO());
     const range = windowBounds(data, today.dayIndex);
 
+    marks = buildMarks(data, today.dayIndex, {
+        muscle: muscleUnitsOf(data),
+        checkins: /** @type {*} */ (context?.checkins ?? []),
+        categories: [...markCategories]
+    });
+
     chartInstance = chartFor(canvas);
     manifest = chartInstance.drawMulti({
         canvas,
@@ -578,6 +646,9 @@ async function redraw(/** @type {HTMLElement} */ container) {
         todayIndex: today.dayIndex,
         range,
         normalize: effectiveNormalize(),
+        marks,
+        onMark: (group) => openMarkCard(group),
+        onMarksThinned: (hidden) => renderMarksNote(container, hidden),
         // A 320 px, ocho rótulos en el eje X se solapan.
         ...(isNarrow() ? { maxTicks: 4 } : {})
     });
@@ -796,6 +867,45 @@ function renderContextStrip(container, data) {
 }
 
 /**
+ * La ficha de un marcador: qué pasa ese día, y de dónde sale cada cosa.
+ *
+ * Un modal y no un tooltip porque lo que hay dentro es texto que se lee —el
+ * umbral, su fuente, la advertencia de que el IMC no distingue músculo— y un
+ * tooltip que se va al mover el ratón no se puede leer ni alcanzar con teclado.
+ * @param {import('../chart.js').MarkGroup} group
+ */
+function openMarkCard(group) {
+    const fecha = plans.get()?.projection?.daily?.[group.dayIndex]?.dateISO;
+    modal.open({
+        titleKey: 'analysis.marks.cardTitle',
+        body: html`
+            ${fecha ? html`<p class="muted">${longDate(fecha)}</p>` : ''}
+            <ul class="mark-card">
+                ${group.marks.map((m) => html`
+                    <li class="mark-card__item is-mark-${m.kind}">
+                        <span class="badge badge--outline">${t(`analysis.marks.kind.${m.kind}`)}</span>
+                        <p class="mark-card__label">${m.label}</p>
+                        ${m.detail ? html`<p class="muted">${m.detail}</p>` : ''}
+                    </li>
+                `)}
+            </ul>
+        `
+    });
+}
+
+/**
+ * Dice cuántos marcadores no cupieron. Nunca se calla un recorte: una gráfica
+ * que enseña doce de treinta hitos sin decirlo se lee como «hay doce».
+ * @param {HTMLElement} container @param {number} hidden
+ */
+function renderMarksNote(container, hidden) {
+    const nodo = /** @type {HTMLElement | null} */ (container.querySelector('[data-marks-note]'));
+    if (!nodo) return;
+    nodo.textContent = hidden > 0 ? t('analysis.marks.hidden', { count: hidden }) : '';
+    nodo.hidden = hidden <= 0;
+}
+
+/**
  * Los avisos de «lo que se dibuja no es lo que pediste», en UN solo sitio.
  *
  * Van aquí y no al construir el marcado porque uno de ellos —desde qué día se
@@ -966,6 +1076,16 @@ function wire(/** @type {HTMLElement} */ container) {
     on(container, 'click', '[data-grain]', async (_event, target) => {
         grain = /** @type {*} */ (target.getAttribute('data-grain'));
         persist();
+        await refresh(container);
+    });
+    on(container, 'click', '[data-mark-cat]', async (_event, target) => {
+        const cat = target.getAttribute('data-mark-cat');
+        if (!cat) return;
+        // Apagar la última no deja la gráfica sin explicación: el propio botón
+        // queda sin pulsar, que es la señal. No se impide, porque quitarlos
+        // todos es una petición legítima cuando se comparan series finas.
+        if (markCategories.has(cat)) markCategories.delete(cat);
+        else markCategories.add(cat);
         await refresh(container);
     });
     on(container, 'click', '[data-normalize]', async (_event, target) => {

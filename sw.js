@@ -21,7 +21,7 @@
  * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-67427ee7859b';
+const CACHE_VERSION = 'tl-5140318defb3';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -64,6 +64,7 @@ const PRECACHE = [
     'src/core/expenditure.js',
     'src/core/generator.js',
     'src/core/milestones.js',
+    'src/core/health-milestones.js',
     'src/core/nutrition.js',
     'src/core/ranges.js',
     'src/core/rng.js',
@@ -110,6 +111,7 @@ const PRECACHE = [
     'src/ui/muscle-grid.js',
     'src/ui/plan-summary.js',
     'src/ui/muscle-units.js',
+    'src/ui/marks.js',
     'src/ui/plan-chart.js',
     'src/ui/series-style.js',
     'src/ui/plan-state.js',

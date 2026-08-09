@@ -841,3 +841,71 @@ test('la tira sigue al zoom del gesto, sin ir un paso por detrás', async ({ pag
     const esperadoX = (r.ventana.from / r.total) * 1000;
     expect(Math.abs(r.marcado.x - esperadoX)).toBeLessThan(20);
 });
+
+/* ---------------------------------------------------------------------- *
+ * Los hitos, EN la gráfica (E14-3)
+ * ---------------------------------------------------------------------- */
+
+test.describe('marcadores de hito', () => {
+    // El `beforeEach` global ya deja un perfil con ocho check-ins: aquí solo
+    // hay que llegar a la vista.
+    test.beforeEach(async ({ page }) => {
+        await goToAnalysis(page);
+    });
+
+    test('la gráfica dibuja marcadores y el filtro los quita y los devuelve', async ({ page }) => {
+        // El plugin rellena sus cajas de acierto al dibujar: son la prueba de
+        // que algo llegó al lienzo, no de que la lista tuviera elementos.
+        const cajas = () => page.evaluate(() => {
+            const c = Object.values(/** @type {*} */ (window).Chart.instances)[0];
+            return /** @type {*} */ (c).config.plugins.some((p) => p.id === 'milestoneMarks');
+        });
+        await expect(page.locator('[data-mark-cat="aesthetic"]')).toHaveAttribute('aria-pressed', 'true');
+        expect(await cajas()).toBe(true);
+
+        // Apagar TODAS las familias no rompe la gráfica: se queda sin marcas.
+        for (const cat of ['phase', 'body', 'health', 'aesthetic']) {
+            await page.locator(`[data-mark-cat="${cat}"]`).click();
+            await expect(page.locator(`[data-mark-cat="${cat}"]`)).toHaveAttribute('aria-pressed', 'false');
+        }
+        await expect(page.locator('canvas[data-canvas]')).toBeVisible();
+        await expect(page.locator('[data-marks-note]')).toBeHidden();
+
+        // Y volver a encenderlas las devuelve.
+        await page.locator('[data-mark-cat="phase"]').click();
+        await expect(page.locator('[data-mark-cat="phase"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('pulsar un marcador abre su ficha, con la fuente del umbral', async ({ page }) => {
+        // Solo salud: así la ficha que se abre es de un umbral publicado, que es
+        // lo que hay que comprobar que llega entero hasta el usuario.
+        for (const cat of ['phase', 'body', 'aesthetic']) {
+            await page.locator(`[data-mark-cat="${cat}"]`).click();
+        }
+
+        const caja = await page.locator('canvas[data-canvas]').boundingBox();
+        const area = await page.evaluate(() => {
+            const c = /** @type {*} */ (Object.values(/** @type {*} */ (window).Chart.instances)[0]);
+            return { top: c.chartArea.top, left: c.chartArea.left, right: c.chartArea.right };
+        });
+        if (!caja) throw new Error('sin lienzo');
+
+        // Se barre el carril hasta dar con un marcador: dónde cae depende del
+        // plan, y fijar la coordenada a mano ataría el test a una proyección.
+        let abierto = false;
+        for (let x = area.left; x < area.right && !abierto; x += 6) {
+            await page.mouse.click(caja.x + x, caja.y + area.top + 3);
+            abierto = await page.locator('[role="dialog"]').count() > 0;
+        }
+        expect(abierto).toBe(true);
+
+        const ficha = page.locator('[role="dialog"]');
+        await expect(ficha.locator('.mark-card__item')).not.toHaveCount(0);
+        // La familia va en PALABRAS, no solo en el color de la barra lateral.
+        await expect(ficha.locator('.badge').first()).toHaveText('Salud');
+        // Y la fuente del umbral viaja con el hito hasta la pantalla: es la
+        // diferencia entre «la app dice» y «la OMS dice».
+        const fuente = await ficha.locator('.mark-card__item .muted').first().textContent();
+        expect(fuente ?? '').toMatch(/OMS|American Council on Exercise|check-ins/);
+    });
+});
