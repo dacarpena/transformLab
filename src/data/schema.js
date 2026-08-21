@@ -20,7 +20,12 @@
 
 export { SCHEMA_VERSION } from './version.js';
 import { SCHEMA_VERSION } from './version.js';
-import { migrateValue } from './migrations.js';
+// Del módulo PURO, no de `migrations.js`: éste importa `storage.js`, que tiene
+// estado a nivel de módulo (`activeProfileId`), y `schema.js` se reutiliza en el
+// servidor para validar lo que llega. En un Worker el estado de módulo se
+// comparte entre peticiones del mismo aislado (M8-0). Hay un test que lo vigila
+// recorriendo el grafo de imports: `test/data-migrate-value.test.js`.
+import { migrateValue } from './migrate-value.js';
 
 /**
  * @typedef {{ code: string, path: string, params?: Record<string, string | number> }} SchemaIssue

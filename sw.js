@@ -21,7 +21,7 @@
  * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-1909108f42d2';
+const CACHE_VERSION = 'tl-9f83cd220c69';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -93,6 +93,7 @@ const PRECACHE = [
     'src/data/recipes.js',
     'src/data/steps.js',
     'src/data/migrate.js',
+    'src/data/migrate-value.js',
     'src/data/migrations.js',
     'src/data/nutrition.js',
     'src/data/photos-db.js',
@@ -187,6 +188,21 @@ self.addEventListener('fetch', (event) => {
     // Solo se sirve lo del propio origen. Cualquier otra cosa se deja pasar
     // sin tocarla: este SW no es un proxy de nada ajeno.
     if (url.origin !== self.location.origin) return;
+
+    // La API NUNCA pasa por aquí. Es del propio origen, así que sin esta línea
+    // caería en el manejador de recursos de abajo, que es cache-first y SIN
+    // revalidar: la primera respuesta de `/api/sync` se congelaría en la caché
+    // hasta el siguiente `sw:bump`, y a partir de ahí el dispositivo creería
+    // estar sincronizado sirviéndose a sí mismo una respuesta de hace semanas.
+    // Es el fallo más silencioso que puede tener una sincronización, y por eso
+    // esta línea va ANTES de que exista el primer endpoint (M8-0).
+    //
+    // `return` a secas, sin `respondWith`: el navegador hace la petición él
+    // mismo, con sus cookies y su caché HTTP, exactamente como si no hubiera
+    // service worker. Que además la API responda `Cache-Control: no-store` no
+    // sustituye a esto: la Cache API no mira esa cabecera, guarda lo que se le
+    // dé.
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
 
     // Navegación: se responde con el shell cacheado. Es una SPA, así que
     // cualquier ruta se resuelve en el mismo documento.

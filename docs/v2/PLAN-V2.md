@@ -2048,6 +2048,94 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   a la escala dónde está el marcador, pulsarlo con el ratón de verdad, y afirmar
   por COMPORTAMIENTO —si responde o no— en vez de por píxeles.
 
+### M8 — identidad y llaves
+
+Un sistema de cuentas con **passkeys** y **cifrado extremo a extremo**. En toda
+esta milestone **no sale del dispositivo ni un byte de datos del usuario**: M8
+construye la identidad y el llavero; la sincronización es M9.
+
+Las cuatro decisiones tomadas antes de empezar:
+
+| | |
+|---|---|
+| **Alcance** | Sincronía **opt-in**. La aplicación funciona al 100 % sin cuenta, y eso pasa a ser un invariante con test |
+| **Identidad** | **Passkeys** (WebAuthn descubribles) + kit de recuperación de 160 bits imprimible |
+| **Cifrado** | **Extremo a extremo**: el servidor guarda solo bytes cifrados, y la clave nunca sale del dispositivo |
+| **Topología** | **Pages Functions**, mismo origen. Es lo que permite no tocar `connect-src 'self'` |
+
+Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
+
+1. Esto **contradice el invariante fundacional** («cero backend»), publicado
+   además en el `og:description` de `index.html`. Lo resuelven el *opt-in* y el
+   cifrado extremo a extremo, y §1 y el `og:description` se reescriben en **M9-3**,
+   en el mismo commit que introduzca la primera petición con datos del usuario.
+2. **R2 no es una base de datos.** Es almacenamiento de objetos, sin índices ni
+   consultas. Para datos estructurados va **D1**; R2 queda para lo único que sí es
+   un objeto opaco: las fotos de progreso. Se usan las dos, cada una donde toca.
+
+#### Tareas
+
+- [x] **M8-0 · Preparar el terreno, antes de que exista un solo endpoint.**
+  Dos cosas que son mucho más baratas ahora que después.
+
+  **El service worker se tragaba `/api/`.** Es del propio origen, así que caía en
+  el manejador de recursos, que es cache-first **y sin revalidar**: la primera
+  respuesta de `/api/sync` se habría congelado en la caché hasta el siguiente
+  `sw:bump`, y a partir de ahí el dispositivo creería estar sincronizado
+  sirviéndose a sí mismo una respuesta de hace semanas. Es el fallo más silencioso
+  que puede tener una sincronización. El bypass va **antes** del manejador de
+  navegación —si va después, una navegación a `/api/export` se responde con el
+  shell— y es un `return` a secas, sin `respondWith`, para que el navegador haga
+  la petición con sus cookies y su caché HTTP. Que la API mande `no-store` no
+  sustituye a esto: la Cache API no mira esa cabecera, guarda lo que se le dé.
+
+  **`schema.js` arrastraba estado global de módulo.** Su cadena era
+  `schema.js → migrations.js → storage.js`, y `storage.js` tiene `activeProfileId`
+  y `revisionCounter` a nivel de módulo. En el navegador es inocuo —un usuario por
+  pestaña—, pero el servidor va a reutilizar `validateCollection` para validar lo
+  que le llega, y **en un Worker el estado de módulo se comparte entre peticiones
+  del mismo aislado**: un `activeProfileId` compartido entre dos usuarios es la
+  clase de fuga que no se ve venir hasta que alguien lee los datos de otro.
+  `migrateValue` se extrae a `src/data/migrate-value.js`, que solo importa
+  `version.js`; `migrations.js` la reexporta, así que ningún llamante cambia.
+
+  Los dos guardianes son de **comportamiento**, no de texto:
+  `test/sw-fetch.test.js` carga `sw.js` de verdad en un contexto de `vm` con un
+  ámbito de service worker fingido y le despacha eventos —comprueba qué DECIDE—,
+  y `test/data-migrate-value.test.js` recorre el **grafo de imports real** de
+  `schema.js` buscando `localStorage`/`document`/`window`/`indexedDB`, en vez de
+  comparar contra una lista escrita a mano que se pudre al primer import nuevo.
+  Los cuatro defectos posibles se reintrodujeron uno a uno para comprobar que cada
+  uno cae: sin bypass, bypass detrás de la navegación, bypass demasiado ancho
+  (`includes('api')`, que se llevaría por delante cualquier módulo con «api» en el
+  nombre), y `schema.js` volviendo a apuntar a `migrations.js`.
+
+- [ ] **M8-1 · El esqueleto del servidor.** `wrangler.toml`, `_routes.json`,
+  `functions/api/[[path]].js`, `functions/_middleware.js` y `GET /api/health`.
+  `wrangler` entra como devDep, justificada aquí según §5 de `CLAUDE.md`.
+- [ ] **M8-2 · D1.** Base creada con `--jurisdiction=eu`, `migrations/0001_init.sql`,
+  y `test/helpers/d1-fake.js` sobre `node:sqlite` (ya en Node 22: cero devDeps
+  nuevas) aplicando el DDL real y ejecutando las cadenas SQL reales.
+- [ ] **M8-3 · WebAuthn.** Registro y login con credenciales descubribles, sin una
+  sola dependencia, con vectores grabados en `node:test`.
+- [ ] **M8-4 · Sesiones y autorización por fila.** Rotación con detección de reuso,
+  revocación, `openUserScope` y los cinco tests estáticos que hacen imposible
+  escribir una consulta sin `WHERE user_id = ?`.
+- [ ] **M8-5 · El llavero.** DK, los dos envoltorios (PRF y kit de recuperación),
+  la pantalla del kit, la regla dura de no subir nada sin vía de vuelta, y la
+  vista **Cuenta**.
+
+#### Bitácora M8
+
+**2026-08-21 · M8-0.** Cerrada. Bypass de `/api/` en `sw.js` y `migrateValue`
+extraída a `src/data/migrate-value.js`, con `schema.js` apuntando ya al módulo
+puro. **950 unitarios**, typecheck limpio. `npm run sw:bump` ejecutado
+(`tl-37641be72320` → `tl-9f83cd220c69`).
+
+Siguiente paso concreto: **M8-1**, que es la primera etapa que crea recursos en la
+cuenta de Cloudflare (D1, R2) y añade `wrangler` como devDep. Hay que pedírselo a
+Dani antes de ejecutarla.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`

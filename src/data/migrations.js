@@ -37,66 +37,13 @@ import * as storage from './storage.js';
 import { SCHEMA_VERSION, MIGRATABLE_FROM, rootPrefix } from './version.js';
 
 /**
- * @typedef {(value: Record<string, unknown>) => Record<string, unknown>} StepFn
+ * La migración de un valor vive en `migrate-value.js`, que es PURO. Se reexporta
+ * desde aquí para que ningún llamante existente tenga que cambiar (M8-0).
  */
+export { migrateValue } from './migrate-value.js';
+// Y se importa además, porque `migrateStore` la usa.
+import { migrateValue } from './migrate-value.js';
 
-/**
- * Transformaciones por versión de origen y colección.
- *
- * `STEPS[5].checkins` es «cómo se convierte una colección `checkins` de la v5 en
- * una de la v6». Lo que no aparece usa el paso por defecto (identidad + subir el
- * número), que es el caso de TODO el salto 5→6: la v2 no cambia la forma de
- * ninguna colección existente, solo añade colecciones nuevas que en la v5 no
- * existían. La maquinaria está aquí para el día que sí cambie una forma — y ese
- * día no habrá que inventarla con los datos de alguien en juego.
- * @type {Record<number, Record<string, StepFn>>}
- */
-const STEPS = {
-    5: {
-        // Sin cambios de forma en el salto 5→6.
-    }
-};
-
-/**
- * Migra un valor de una colección hasta la versión vigente. PURA.
- *
- * @param {string} collection
- * @param {unknown} value
- * @returns {{ ok: true, value: Record<string, unknown>, from: number, migrated: boolean }
- *          | { ok: false, error: string }}
- */
-export function migrateValue(collection, value) {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        return { ok: false, error: 'migrations.notAnObject' };
-    }
-    const record = /** @type {Record<string, unknown>} */ ({ ...value });
-    const found = record.schemaVersion;
-    if (typeof found !== 'number' || !Number.isInteger(found)) {
-        return { ok: false, error: 'migrations.versionMissing' };
-    }
-    if (found === SCHEMA_VERSION) {
-        return { ok: true, value: record, from: found, migrated: false };
-    }
-    if (found > SCHEMA_VERSION) {
-        // Datos de una versión FUTURA: los escribió una versión más nueva de la
-        // aplicación (otra pestaña actualizada, un backup de mañana). Migrar
-        // hacia atrás es adivinar, así que se rechaza en vez de destruir.
-        return { ok: false, error: 'migrations.fromTheFuture' };
-    }
-    if (!MIGRATABLE_FROM.includes(found)) {
-        return { ok: false, error: 'migrations.versionUnsupported' };
-    }
-
-    let current = record;
-    let version = found;
-    while (version < SCHEMA_VERSION) {
-        const step = STEPS[version]?.[collection];
-        current = step ? { ...step(current) } : current;
-        version += 1;
-        current.schemaVersion = version;
-    }
-    return { ok: true, value: current, from: found, migrated: true };
-}
 
 /** Clave donde se guarda la copia de seguridad previa a migrar. */
 export const BACKUP_KEY_PREFIX = 'tl.migrationBackup.v';
