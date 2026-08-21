@@ -1051,14 +1051,10 @@ frente a los 11 ms de ahora, contra un umbral de 500.
 
 **Del análisis de M9-2** (2026-08-21). Prerrequisitos de M9-3, no ideas:
 
-- **Los ids de `pantry`, `recipes`, `nutrition` y `training.exercises` colisionan
-  entre dispositivos.** `freshId` es `<prefijo>_<longitud+1>_<slug>`, determinista
-  y sin azar: **reproducido**, dos dispositivos con la despensa vacía que añaden
-  «Arroz» generan los dos `pantry_1_Arroz`. Es el mismo defecto que M9-1 arregló
-  para los perfiles. Hasta que se remapeen a ids opacos, esas cuatro colecciones
-  están marcadas `local` en `sync-policy.js` y NO viajan. En `training` es lo más
-  grave: dos ejercicios distintos con el mismo id atribuyen las series al grupo
-  muscular equivocado — un dato falso presentado como verdadero.
+- ~~Los ids de item colisionan entre dispositivos.~~ **HECHO** (esquema v8): los
+  cuatro generadores producen ids opacos y `STEPS[7]` remapea lo que ya existe,
+  arrastrando las referencias de las sesiones. `recipes`, `nutrition` y
+  `training` ya viajan.
 - **`pantry.quantity` es un acumulador, no un atributo.** Ninguna política por
   fila da un valor correcto sin un log de movimientos o un contador PN. Hoy va
   como documento, y el perdedor pierde lo que compró desde el último pull.

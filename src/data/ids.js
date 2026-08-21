@@ -47,6 +47,32 @@ export function newProfileId() {
 }
 
 /**
+ * Un id de ITEM opaco, con su prefijo para que siga siendo legible en un volcado.
+ *
+ * Los cuatro generadores que había —`freshId`, `freshExerciseId`,
+ * `freshTemplateId`— construían `<prefijo>_<longitud+1>_<slug>`: deterministas a
+ * propósito, para no depender del reloj ni del azar. Eso está bien dentro de un
+ * dispositivo y es **una certeza de colisión entre dos**.
+ *
+ * Reproducido, y con nombres que un usuario escribe de verdad: «Press de banca
+ * con barra» y «Press de banca con mancuernas» comparten los doce primeros
+ * caracteres alfanuméricos, así que los dos salen `ex_1_Pressdeban`. Son dos
+ * ejercicios DISTINTOS con pesos musculares distintos: al sincronizar, las
+ * series de uno se atribuirían al grupo muscular del otro. Eso no es pérdida de
+ * datos, es **un dato falso presentado como verdadero** — la clase de defecto
+ * que hundió la v4.0.
+ *
+ * El prefijo se conserva porque cuesta cero y hace legible un volcado del
+ * almacén; la unicidad la aportan los 128 bits de detrás.
+ *
+ * @param {string} prefix
+ * @returns {string}
+ */
+export function newItemId(prefix) {
+    return `${prefix}_${newProfileId()}`;
+}
+
+/**
  * El id del perfil de ejemplo.
  *
  * Es fijo a propósito: el ejemplo se instala, se usa y se borra entero, y toda

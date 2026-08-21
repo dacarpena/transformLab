@@ -1,7 +1,11 @@
 // @ts-check
 
 /**
- * La migración a ids opacos, en un navegador de verdad (M9-1).
+ * Las migraciones de esquema, en un navegador de verdad.
+ *
+ * Cubren dos saltos: **v6 → v8**, donde cambian los ids de PERFIL y con ellos el
+ * nombre de todas las claves (M9-1); y **v7 → v8**, donde cambian los ids de
+ * ITEM, que viven dentro del valor.
  *
  * Es la única operación irreversible sobre datos que ya existen, y hay dos cosas
  * que **ningún test unitario puede demostrar**:
@@ -12,11 +16,12 @@
  *    todos los datos perfectamente copiados y la app inservible, y solo se vio
  *    abriéndola.
  *
- * Se siembra un almacén v6 completo —con dos perfiles, sus claves de interfaz y
+ * Se siembra un almacén completo —con dos perfiles, sus claves de interfaz y
  * fotos reales en IndexedDB— y se recarga.
  */
 
 import { test, expect } from '@playwright/test';
+import { rootPrefix, SCHEMA_VERSION } from '../../src/data/version.js';
 
 /**
  * Espera a que la aplicación esté montada.
@@ -31,8 +36,16 @@ async function esperarApp(page) {
     await expect(page.locator('.view[data-view-id]').first()).toBeVisible({ timeout: 20000 });
 }
 
-const V6 = 'tl.6.';
-const V7 = 'tl.7.';
+const V6 = rootPrefix(6);
+/**
+ * El DESTINO sale de `rootPrefix()`, no de una constante.
+ *
+ * Estaba fijado a `tl.7.` y se quedó obsoleto en cuanto la v8 subió la versión:
+ * el fichero seguía comprobando que los datos llegaban a un prefijo que ya no
+ * usa nadie. Derivarlo de la fuente única hace que estos tests sobrevivan al
+ * siguiente salto sin tocarlos.
+ */
+const V7 = rootPrefix();
 
 /** Siembra un almacén v6 con dos perfiles, sus claves y sus fotos. */
 async function sembrarV6(page, { fotos = 3 } = {}) {
@@ -164,7 +177,7 @@ test('un almacén v6 completo migra a ids opacos sin perder NADA', async ({ page
     expect(e.v7).toContain(`${V7}${p1}.ui.recalDeclinedFingerprint`);
 
     // El índice, coherente y sin un solo `pN`.
-    expect(e.indice.schemaVersion).toBe(7);
+    expect(e.indice.schemaVersion).toBe(SCHEMA_VERSION);
     expect(e.indice.profiles.map((p) => p.id).sort()).toEqual([p1, p2].sort());
     expect(e.indice.activeProfileId).toBe(p1);
 
@@ -221,20 +234,20 @@ test('los DATOS son los del usuario: sus check-ins, su idioma, su perfil', async
     await page.reload();
     await esperarApp(page);
 
-    const datos = await page.evaluate(() => {
+    const datos = await page.evaluate((DESTINO) => {
         const tabla = JSON.parse(localStorage.getItem('tl.profileRemap.opaqueV7') ?? '{}');
-        const ns = `tl.7.${tabla.map.p1}`;
+        const ns = `${DESTINO}${tabla.map.p1}`;
         return {
             checkins: JSON.parse(localStorage.getItem(`${ns}.checkins`) ?? 'null'),
             perfil: JSON.parse(localStorage.getItem(`${ns}.profile`) ?? 'null'),
             settings: JSON.parse(localStorage.getItem(`${ns}.settings`) ?? 'null'),
             declinada: localStorage.getItem(`${ns}.ui.recalDeclinedFingerprint`)
         };
-    });
+    }, rootPrefix());
 
     expect(datos.checkins.items).toHaveLength(3);
     expect(datos.checkins.items[0].weightKg).toBe(90);
-    expect(datos.checkins.schemaVersion).toBe(7);
+    expect(datos.checkins.schemaVersion).toBe(SCHEMA_VERSION);
     expect(datos.perfil.name).toBe('Dani');
     expect(datos.perfil.initial.weightKg).toBe(90);
     expect(datos.settings.locale).toBe('es');
@@ -256,4 +269,93 @@ test('migrar dos veces no duplica nada: la segunda carga es un no-op', async ({ 
     expect(segunda.tabla.map, 'la segunda carga regeneró los ids').toEqual(primera.tabla.map);
     expect(segunda.v7.sort(), 'aparecieron claves nuevas').toEqual(primera.v7.sort());
     expect(segunda.fotos.length).toBe(primera.fotos.length);
+});
+
+
+/* ══ v7 → v8: los ids de ITEM ═══════════════════════════════════════════════ */
+
+test('los ids de item se remapean y las sesiones siguen apuntando bien', async ({ page }) => {
+    // Es el defecto que el rekey cierra, con nombres que un usuario escribe: los
+    // dos ejercicios compartían los doce primeros caracteres alfanuméricos, así
+    // que `<prefijo>_<n>_<slug>` los hacía indistinguibles entre dispositivos —
+    // y sus series acabarían en el grupo muscular equivocado, porque su
+    // `catalogId` es distinto.
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => {
+        const AT = '2026-01-01T00:00:00.000Z';
+        const V7 = 'tl.7.';   // ORIGEN de este test, no destino
+        localStorage.setItem(`${V7}profiles`, JSON.stringify({
+            schemaVersion: 7, activeProfileId: 'op4co1234567890abcdefg',
+            profiles: [{ id: 'op4co1234567890abcdefg', name: 'Dani', createdAtISO: AT }]
+        }));
+        const ns = `${V7}op4co1234567890abcdefg`;
+        localStorage.setItem(`${ns}.profile`, JSON.stringify({
+            schemaVersion: 7, name: 'Dani', createdAtISO: AT,
+            user: { sex: 'male', age: 30, heightCm: 178, activityLevel: 'moderate', trainingStatus: 'intermediate' },
+            initial: { weightKg: 90, fatPct: 24, muscleKg: null, muscleSource: 'estimated' },
+            target: { fatPct: 15, muscleKg: 36 },
+            startDateISO: '2026-05-01', intensity: 'moderate'
+        }));
+        localStorage.setItem(`${ns}.training`, JSON.stringify({
+            schemaVersion: 7,
+            routine: { days: [{ name: 'Empuje', exercises: [
+                { id: 'ex_1_Pressdeban', name: 'Press de banca con barra', sets: 4, reps: 8, loadKg: 60, catalogId: null },
+                { id: 'ex_2_Pressdeban', name: 'Press de banca con mancuernas', sets: 3, reps: 10, loadKg: 24, catalogId: null }
+            ] }] },
+            sessions: [{
+                id: 'se_2026-05-01', dateISO: '2026-05-01',
+                entries: [
+                    { exerciseId: 'ex_1_Pressdeban', sets: [{ reps: 8, loadKg: 60 }] },
+                    { exerciseId: 'ex_2_Pressdeban', sets: [{ reps: 10, loadKg: 24 }] }
+                ]
+            }]
+        }));
+        localStorage.setItem(`${ns}.pantry`, JSON.stringify({
+            schemaVersion: 7,
+            items: [{ id: 'pantry_1_Arroz', name: 'Arroz', quantity: 1000, unit: 'g' }]
+        }));
+        localStorage.setItem(`${ns}.settings`, JSON.stringify({
+            schemaVersion: 7, locale: 'es', activeMeasures: ['waist'],
+            fluctuationVisible: false, reminder: null,
+            analysis: { seriesIds: ['peso', 'est_e1rm__ex_1_Pressdeban'], window: 'all', grain: 'week', normalize: 'raw' }
+        }));
+    });
+    await page.reload();
+    await esperarApp(page);
+
+    const estado = await page.evaluate((DESTINO) => {
+        const claves = Object.keys(localStorage).filter((k) => k.startsWith(DESTINO));
+        const ns = claves.find((k) => k.endsWith('.training'))?.replace('.training', '');
+        return {
+            training: JSON.parse(localStorage.getItem(`${ns}.training`) ?? 'null'),
+            pantry: JSON.parse(localStorage.getItem(`${ns}.pantry`) ?? 'null'),
+            settings: JSON.parse(localStorage.getItem(`${ns}.settings`) ?? 'null')
+        };
+    }, rootPrefix());
+
+    const ex = estado.training.routine.days[0].exercises;
+    // Los dos ejercicios tienen ahora ids DISTINTOS y opacos.
+    expect(ex[0].id).toMatch(/^ex_[A-Za-z0-9_-]{22}$/);
+    expect(ex[1].id).toMatch(/^ex_[A-Za-z0-9_-]{22}$/);
+    expect(ex[0].id).not.toBe(ex[1].id);
+    // Y los nombres, intactos.
+    expect(ex[0].name).toBe('Press de banca con barra');
+    expect(ex[1].name).toBe('Press de banca con mancuernas');
+
+    // Las sesiones siguen apuntando a SU ejercicio: sin esto, las series dejarían
+    // de contar para el volumen semanal, en silencio.
+    const refs = estado.training.sessions[0].entries.map((e) => e.exerciseId);
+    expect(refs[0]).toBe(ex[0].id);
+    expect(refs[1]).toBe(ex[1].id);
+
+    // La despensa también, y con su contenido.
+    expect(estado.pantry.items[0].id).toMatch(/^pantry_[A-Za-z0-9_-]{22}$/);
+    expect(estado.pantry.items[0].name).toBe('Arroz');
+    expect(estado.pantry.items[0].quantity).toBe(1000);
+
+    // Y la serie de Analizar que apuntaba a un ejercicio se quita: dejarla sería
+    // una referencia muerta que no aparece nunca y que nadie va a limpiar.
+    expect(estado.settings.analysis.seriesIds).toEqual(['peso']);
+    expect(estado.settings.analysis.window).toBe('all');
 });

@@ -15,6 +15,10 @@
  */
 
 import * as storage from './storage.js';
+// Ids OPACOS. `ex_1_Pressdeban` lo generaban DOS ejercicios distintos —«Press de
+// banca con barra» y «… con mancuernas» comparten los doce primeros caracteres—
+// y sus series acabarían en el grupo muscular equivocado. Ver `newItemId`.
+import { newItemId } from './ids.js';
 import { SCHEMA_VERSION, validateCollection } from './schema.js';
 
 /**
@@ -56,32 +60,6 @@ export function exercisesOf(/** @type {*} */ routine) {
     return routine.days.flatMap((/** @type {*} */ day) => (Array.isArray(day.exercises) ? day.exercises : []));
 }
 
-/**
- * Id nuevo que NO colisiona con ninguno existente.
- *
- * El generador anterior era `ex_${existing.length + 1}_${nombre}`, y eso
- * reutiliza el índice tras un borrado: añadir «Curl», añadir «Curl», borrar el
- * primero y añadir «Curl» otra vez producía dos ejercicios con el mismo id.
- * A partir de ahí, el modal de sesión leía siempre el primer campo (perdiendo
- * lo tecleado en el segundo) y borrar uno borraba los dos.
- *
- * El id se restringe además a `[A-Za-z0-9_]`, para que nunca pueda romper un
- * selector CSS ni el esquema de validación.
- * @param {Array<{id?: string}>} existing
- * @param {string} name
- * @returns {string}
- */
-function freshExerciseId(existing, name) {
-    const taken = new Set(existing.map((e) => e?.id).filter(Boolean));
-    const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || 'ex';
-    let n = existing.length + 1;
-    let id = `ex_${n}_${slug}`;
-    while (taken.has(id)) {
-        n += 1;
-        id = `ex_${n}_${slug}`;
-    }
-    return id;
-}
 
 /**
  * Añade un ejercicio al primer día de la rutina, creándola si no existía.
@@ -91,7 +69,7 @@ function freshExerciseId(existing, name) {
  */
 export function addExercise(input, context) {
     const data = read();
-    const id = freshExerciseId(exercisesOf(data.routine), input.name);
+    const id = newItemId('ex');
 
     // `days: []` es una rutina VÁLIDA para el esquema (`arrayOf` sin mínimo), y
     // un backup importado puede traerla sin un solo aviso. `routine.days[0]`

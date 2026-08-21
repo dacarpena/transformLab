@@ -55,18 +55,42 @@ test('los ids no colisionan aunque se borre por medio', () => {
     assert.equal(new Set(ids).size, ids.length, `ids repetidos: ${ids.join(', ')}`);
 });
 
-test('el id de un ejercicio nunca sale de [A-Za-z0-9_]', () => {
-    // Un id con comillas o corchetes rompería el selector CSS con el que la
-    // vista lo localiza, y el validador del esquema.
+test('el id de un ejercicio es SEGURO: nada que rompa el marcado ni el esquema', () => {
+    // Un id con comillas o corchetes rompería el atributo del que cuelga el
+    // botón de borrar. El alfabeto es el de `SAFE_ID`, que incluye el guion:
+    // base64url lo usa, y es inofensivo porque la vista delega por PRESENCIA del
+    // atributo (`[data-remove-exercise]`) y lee el valor con `getAttribute` —
+    // el id nunca entra en un selector como valor.
     training.addExercise({ name: 'Press "banca" <b>[1]</b>', sets: 3, reps: 8 }, RUTINA);
     const [ex] = training.exercisesOf(training.read().routine);
-    assert.match(ex.id, /^[A-Za-z0-9_]+$/, `id inseguro: ${ex.id}`);
+    assert.match(ex.id, /^[A-Za-z0-9_-]+$/, `id inseguro: ${ex.id}`);
+    assert.ok(training.read().routine, 'la rutina no quedó válida');
+});
+
+test('el id NO se deriva del nombre: dos ejercicios distintos nunca colisionan', () => {
+    // Es la razón del cambio, y está reproducida. El generador anterior usaba
+    // los doce primeros caracteres alfanuméricos del nombre, así que «Press de
+    // banca con barra» y «Press de banca con mancuernas» daban los DOS
+    // `ex_1_Pressdeban`. En dos dispositivos eso son dos ejercicios distintos
+    // con el mismo id: al sincronizar, las series de uno se atribuirían al grupo
+    // muscular del otro — un dato falso presentado como verdadero.
+    training.addExercise({ name: 'Press de banca con barra', sets: 4, reps: 8 }, RUTINA);
+    training.addExercise({ name: 'Press de banca con mancuernas', sets: 4, reps: 8 }, RUTINA);
+    const ids = training.exercisesOf(training.read().routine).map((/** @type {*} */ e) => e.id);
+    assert.equal(new Set(ids).size, 2, `ids repetidos: ${ids.join(', ')}`);
+    for (const id of ids) {
+        assert.doesNotMatch(id, /Press|banca|barra|mancuern/i, `el id lleva el nombre dentro: ${id}`);
+        assert.match(id, /^ex_[A-Za-z0-9_-]{22}$/, `no parece opaco: ${id}`);
+    }
 });
 
 test('un nombre sin caracteres utilizables sigue dando un id válido', () => {
+    // Antes el nombre alimentaba el id y un nombre sin alfanuméricos necesitaba
+    // un caso especial. Ahora no lo alimenta, así que esto es gratis — pero se
+    // queda: es el camino por el que se rompía.
     assert.ok(training.addExercise({ name: '«»…', sets: 3, reps: 8 }, RUTINA).ok);
     const [ex] = training.exercisesOf(training.read().routine);
-    assert.match(ex.id, /^ex_\d+_ex$/);
+    assert.match(ex.id, /^ex_[A-Za-z0-9_-]{22}$/);
 });
 
 test('borrar un ejercicio no toca a los demás', () => {

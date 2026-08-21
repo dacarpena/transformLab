@@ -79,6 +79,25 @@ test('dos recetas con el mismo nombre no comparten id', () => {
     assert.notEqual(a.id, b.id);
 });
 
+test('el id de una receta y el de un item de despensa son OPACOS (v8)', () => {
+    // Este fichero no tenía ningún test de la FORMA del id, y era la única de
+    // las cuatro colecciones rekeyadas sin él. Lo que se fija es que el id no
+    // deriva del nombre: el generador anterior usaba los doce primeros
+    // caracteres alfanuméricos, así que dos recetas distintas que empezaran
+    // igual daban el mismo id en dos dispositivos.
+    recipes.addRecipe({ ...ARROZ_CON_POLLO, name: 'Arroz con pollo al horno' });
+    recipes.addPantryItem({ name: 'Arroz con pollo congelado', quantity: 500, unit: 'g' });
+
+    const receta = recipes.listRecipes()[0];
+    const item = recipes.listPantry()[0];
+    assert.match(receta.id, /^recipe_[A-Za-z0-9_-]{22}$/, `receta: ${receta.id}`);
+    assert.match(item.id, /^pantry_[A-Za-z0-9_-]{22}$/, `despensa: ${item.id}`);
+    for (const id of [receta.id, item.id]) {
+        assert.doesNotMatch(id, /Arroz|pollo/i, `el id lleva el nombre dentro: ${id}`);
+        assert.doesNotMatch(id, /_\d+_/, `sigue el formato viejo: ${id}`);
+    }
+});
+
 test('borrar una receta no toca la otra, y borrar lo inexistente falla', () => {
     recipes.addRecipe(ARROZ_CON_POLLO);
     recipes.addRecipe({ ...ARROZ_CON_POLLO, name: 'Otra' });

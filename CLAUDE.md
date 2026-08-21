@@ -62,9 +62,11 @@ test/
   e2e/smoke.spec.js         Playwright — recorrido de humo
 ```
 
-Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (hoy `tl.7.<opaco>.checkins`; la versión sale de `src/data/version.js`, que es su fuente única — nunca se teclea). Índice de perfiles en `tl.<v>.profiles`. Nunca una clave plana nueva fuera de este esquema.
+Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (hoy `tl.8.<opaco>.checkins`; la versión sale de `src/data/version.js`, que es su fuente única — nunca se teclea). Índice de perfiles en `tl.<v>.profiles`. Nunca una clave plana nueva fuera de este esquema.
 
-**Desde la v7 (M9-1) los ids de perfil son OPACOS**, no `p1`/`p2`: dos dispositivos compartían `p1` por construcción, y eso hace imposible sincronizar sin mezclar los datos de dos personas. `src/data/profile-remap.js` es la fuente única de esa decisión —incluida la lista de ids reservados— y `migrateStore` remapea al subir de versión, con tabla persistida antes de escribir nada.
+**Los ids son OPACOS en los dos niveles.** Desde la v7 (M9-1) los de PERFIL: dos dispositivos compartían `p1` por construcción. Desde la v8, también los de ITEM —despensa, recetas, plantillas de comida y ejercicios—, que se generaban como `<prefijo>_<longitud+1>_<slug>`: «Press de banca con barra» y «Press de banca con mancuernas» daban los DOS `ex_1_Pressdeban`, y sus series acabarían en el grupo muscular equivocado.
+
+`src/data/ids.js` es la fuente única de los dos generadores. El remapeo de perfil renombra CLAVES y vive en `profile-remap.js` + `migrateStore`; el de item cambia el CONTENIDO y vive en `STEPS[7]` de `migrate-value.js`.
 
 ## 4. Invariantes del motor (no negociables)
 

@@ -63,17 +63,17 @@ test('ambito_declarado: qué viaja y qué no está decidido, campo por campo', (
             achievements: 'sync',
             checkins: 'sync',
             intakeLog: 'sync',
-            nutrition: 'local',      // hasta que los ids dejen de colisionar
+            nutrition: 'sync',       // desde la v8: ids opacos
             pantry: 'sync',
             photos: 'local',         // la fila es un puntero; el blob va en M9-5
             plan: 'sync',            // solo `history`
             preferences: 'sync',
             profile: 'sync',
-            recipes: 'local',        // ídem nutrition
+            recipes: 'sync',         // ídem nutrition
             settings: 'sync',        // solo algunos campos
             steps: 'sync',
             supplementsPlan: 'sync',
-            training: 'local',       // `exercise.id` colisiona entre dispositivos
+            training: 'sync',        // desde la v8: `exercise.id` ya no colisiona
             volumeLog: 'local'       // caché de una derivación, sin consumidores
         });
 

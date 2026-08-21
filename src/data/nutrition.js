@@ -10,6 +10,8 @@
  */
 
 import * as storage from './storage.js';
+// Ids OPACOS: ver `newItemId` en `ids.js`.
+import { newItemId } from './ids.js';
 import { SCHEMA_VERSION, validateCollection, sanitizeText } from './schema.js';
 
 /**
@@ -43,27 +45,6 @@ function write(templates) {
     return { ok: true, value: templates };
 }
 
-/**
- * Id nuevo que no colisiona con ninguno existente.
- *
- * Mismo cuidado que en `training.js`: derivarlo de `templates.length + 1`
- * reutiliza el índice tras un borrado, y dos plantillas con el mismo id hacen
- * que borrar una borre las dos. Sin reloj ni azar, para que sea determinista.
- * @param {any[]} existing
- * @param {string} name
- * @returns {string}
- */
-function freshTemplateId(existing, name) {
-    const taken = new Set(existing.map((tpl) => tpl?.id).filter(Boolean));
-    const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || 'meal';
-    let n = existing.length + 1;
-    let id = `meal_${n}_${slug}`;
-    while (taken.has(id)) {
-        n += 1;
-        id = `meal_${n}_${slug}`;
-    }
-    return id;
-}
 
 /**
  * Guarda una plantilla nueva.
@@ -78,7 +59,7 @@ export function addTemplate(input) {
     const clean = (/** @type {unknown} */ v) =>
         (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0);
     return write([...templates, {
-        id: freshTemplateId(templates, name),
+        id: newItemId('meal'),
         name,
         macros: {
             kcal: clean(input.macros?.kcal),

@@ -49,9 +49,17 @@ test('los ids no colisionan aunque se borre por medio', () => {
     assert.equal(new Set(ids).size, ids.length, `ids repetidos: ${ids.join(', ')}`);
 });
 
-test('el id nunca sale de [A-Za-z0-9_]', () => {
+test('el id es seguro y NO deriva del nombre', () => {
+    // El alfabeto incluye el guion desde la v8: los ids son base64url, y eso es
+    // inofensivo porque nunca entran en un selector CSS como valor.
+    //
+    // Lo que importa de verdad es la segunda mitad: el nombre ya no alimenta el
+    // id. Antes sí, y por eso dos plantillas distintas con el mismo comienzo
+    // daban el mismo id en dos dispositivos.
     nutrition.addTemplate({ name: 'Café "solo" <b>', macros: MACROS });
-    assert.match(nutrition.listTemplates()[0].id, /^[A-Za-z0-9_]+$/);
+    const id = nutrition.listTemplates()[0].id;
+    assert.match(id, /^meal_[A-Za-z0-9_-]{22}$/, `id inseguro o con formato viejo: ${id}`);
+    assert.doesNotMatch(id, /Caf|solo/i, `el id lleva el nombre dentro: ${id}`);
 });
 
 test('un nombre vacío o solo espacios se rechaza', () => {

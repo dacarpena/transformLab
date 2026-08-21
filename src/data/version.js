@@ -27,13 +27,17 @@
 /**
  * Versión de esquema vigente. La única.
  *
- * **v7 (M9-1): los ids de perfil pasan a ser OPACOS.** Es el único salto de
- * versión que no cambia ninguna forma de dato: cambia el NOMBRE de las claves,
- * porque el id de perfil va dentro. Ver `profile-remap.js` para el porqué —dos
- * dispositivos comparten `p1` por construcción, y eso no es un riesgo
- * estadístico sino una certeza en cuanto haya sincronía—.
+ * **v7 (M9-1): los ids de PERFIL pasan a ser opacos.** El único salto que no
+ * cambia ninguna forma de dato: cambia el NOMBRE de las claves, porque el id de
+ * perfil va dentro. Ver `profile-remap.js`.
+ *
+ * **v8: los ids de ITEM pasan a ser opacos.** Misma razón y un nivel más abajo:
+ * los generadores construían `<prefijo>_<longitud+1>_<slug>`, y «Press de banca
+ * con barra» y «Press de banca con mancuernas» daban los DOS `ex_1_Pressdeban`.
+ * Aquí sí cambia la forma del dato, así que va por `STEPS` en `migrate-value.js`
+ * y no por el renombrado de claves.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /**
  * Versiones anteriores desde las que sabemos migrar, de la más vieja a la más
@@ -46,7 +50,7 @@ export const SCHEMA_VERSION = 7;
  *
  * @type {readonly number[]}
  */
-export const MIGRATABLE_FROM = Object.freeze([5, 6]);
+export const MIGRATABLE_FROM = Object.freeze([5, 6, 7]);
 
 /**
  * Prefijo de las claves de una versión dada.

@@ -142,16 +142,18 @@ const POLICY = {
     /* ── Por item, pero todavía sin viajar ───────────────────────────────── */
 
     nutrition: {
-        note: 'Lista autocontenida y sin invariantes entre filas. LOCAL hasta que los '
-            + 'ids dejen de generarse con `<n>_<slug>`, que colisiona entre dispositivos.',
-        parts: [{ kind: 'list', field: 'mealTemplates', scope: 'local', key: (it) => [String(it.id)] }]
+        note: 'Lista autocontenida y sin invariantes entre filas. Viaja desde la v8, '
+            + 'cuando los ids dejaron de generarse con `<n>_<slug>` — que colisionaba '
+            + 'entre dispositivos por construcción.',
+        parts: [{ kind: 'list', field: 'mealTemplates', scope: 'sync', key: (it) => [String(it.id)] }]
     },
 
     recipes: {
-        note: 'Cada receta es atómica; `ingredients` no se parte. LOCAL por la misma '
-            + 'colisión de ids que la despensa. Ojo: aquí `notes` NO admite cadena '
-            + 'vacía, a diferencia de `nutrition.notes` y `photos.note`.',
-        parts: [{ kind: 'list', field: 'items', scope: 'local', key: (it) => [String(it.id)] }]
+        note: 'Cada receta es atómica; `ingredients` no se parte. Viaja desde la v8, '
+            + 'con los ids ya opacos. Ojo: aquí `notes` NO admite cadena vacía, a '
+            + 'diferencia de `nutrition.notes` y `photos.note`, así que una receta con '
+            + 'la nota vacía va a cuarentena en vez de tumbar la colección.',
+        parts: [{ kind: 'list', field: 'items', scope: 'sync', key: (it) => [String(it.id)] }]
     },
 
     photos: {
@@ -163,14 +165,17 @@ const POLICY = {
 
     training: {
         note: 'La única MIXTA: `routine` es un documento y cada sesión es una fila. '
-            + 'LOCAL hasta que `exercise.id` deje de ser `ex_<n>_<slug>`: dos '
-            + 'dispositivos generan el mismo id para ejercicios DISTINTOS, y entonces '
-            + 'las series se atribuyen al grupo muscular equivocado. Eso no es '
-            + 'pérdida, es un dato falso presentado como verdadero — el defecto que '
-            + 'hundió la v4.0.',
+            + 'Viaja desde la v8. Antes no podía: `exercise.id` era `ex_<n>_<slug>` y '
+            + 'dos dispositivos generaban el MISMO id para ejercicios distintos —«Press '
+            + 'de banca con barra» y «… con mancuernas» comparten los doce primeros '
+            + 'caracteres—, así que las series de uno se habrían atribuido al grupo '
+            + 'muscular del otro. Eso no es pérdida: es un dato falso presentado como '
+            + 'verdadero, el defecto que hundió la v4.0. La rutina va como documento '
+            + 'porque las sesiones cuelgan de sus ids: partirla por ejercicio dejaría '
+            + 'sesiones apuntando a ejercicios que la fusión no trajo.',
         parts: [
-            { kind: 'scalar', field: 'routine', scope: 'local' },
-            { kind: 'list', field: 'sessions', scope: 'local', key: (it) => [String(it.id)] }
+            { kind: 'scalar', field: 'routine', scope: 'sync' },
+            { kind: 'list', field: 'sessions', scope: 'sync', key: (it) => [String(it.id)] }
         ]
     },
 

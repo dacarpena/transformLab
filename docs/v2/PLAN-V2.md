@@ -2718,6 +2718,62 @@ relleno a múltiplos de 256 B antes de cifrar.
     ausente y uno a `null` son la misma cosa para este esquema. Se fundió con el
     que sí lo prueba, y el porqué quedó escrito para que no vuelva a añadirse.
 
+- [x] **M9-2b · Esquema v8: los ids de ITEM opacos.** Prerrequisito de M9-3, y el
+  mismo defecto que M9-1 arregló para los perfiles, un nivel más abajo.
+
+  Los generadores construían `<prefijo>_<longitud+1>_<slug>`, deterministas a
+  propósito para no depender del reloj ni del azar. Dentro de un dispositivo está
+  bien; entre dos es una **certeza de colisión**, y con nombres que cualquiera
+  escribe:
+
+  ```
+  Press de banca con barra  /  Press de banca con mancuernas → ex_1_Pressdeban
+  Curl de bíceps con barra  /  Curl de bíceps en polea       → ex_1_Curldebce
+  Elevaciones laterales     /  Elevaciones frontales         → ex_1_Elevaciones
+  ```
+
+  En `training` la consecuencia no es perder datos, es peor: dos ejercicios con
+  `catalogId` distinto bajo el mismo id, y las series de uno atribuidas al grupo
+  muscular del otro. Además `personalRecord` no encuentra el histórico y
+  `suggestProgression` le dice **«empieza de cero»** a alguien con seis meses de
+  sentadilla. Un dato falso presentado como verdadero — el defecto que hundió la
+  v4.0.
+
+  **Va por `STEPS[7]` y no por el renombrado de claves**, porque estos ids viven
+  dentro del VALOR de la colección. Se descartó sanearlos al escribir —los tres
+  repositorios tienen un único punto de escritura— porque sería perezoso de
+  verdad: un perfil que no vuelva a tocar su despensa conservaría `pantry_1_Arroz`
+  para siempre, y el invariante que hace falta para sincronizar no es «los nuevos
+  son opacos» sino **«nada con el formato viejo sobrevive»**.
+
+  `training` es la única transformación con una referencia interna: las sesiones
+  cuelgan del id del ejercicio. Se puede resolver porque `routine` y `sessions`
+  son campos hermanos del MISMO valor. Una referencia huérfana —a un ejercicio
+  que el usuario borró— se deja tal cual: inventarle un id la desconectaría igual
+  y encima borraría la pista de a qué apuntaba.
+
+  **La única referencia que vive fuera de su colección** es
+  `settings.analysis.seriesIds`, que guarda `est_e1rm__<exerciseId>`.
+  `migrateValue` trabaja colección a colección y no puede resolverla, así que la
+  poda: una serie seleccionada que ya no puede corresponder con nada no falla —
+  simplemente no aparece nunca, y nadie la limpiaría.
+
+  Con esto, `recipes`, `nutrition` y `training` pasan a `sync` en
+  `sync-policy.js`. `pantry` se queda como documento por el acumulador, y
+  `photos` como local hasta M9-5.
+
+  Un hallazgo del camino: `test/data-nutrition.test.js` exigía el alfabeto
+  `[A-Za-z0-9_]`, sin guion. Con ids base64url de 22 caracteres eso **no fallaba
+  siempre: fallaba el 29 % de las ejecuciones** —solo cuando salía un guion—, que
+  es peor que fallar siempre. Y `test/data-recipes.test.js` no tenía ningún test
+  de la forma del id; ahora sí.
+
+  11 tests nuevos con sus defectos verificados a mano, más uno en navegador real
+  con datos v7: los dos ejercicios acaban con ids distintos, las sesiones siguen
+  apuntando a los suyos, la despensa conserva su contenido y la serie huérfana de
+  Analizar desaparece. El E2E de migración dejó de fijar `tl.7.` como destino y
+  lo deriva de `rootPrefix()`, para que sobreviva al siguiente salto.
+
 - [ ] **M9-3 · Pull, solo lectura.** `GET /api/sync?since=<seq>` y
   `GET /api/export`. Nada del usuario puede destruirse todavía. **Aquí se
   reescriben `CLAUDE.md` §1 y el `og:description`**, en este mismo commit.

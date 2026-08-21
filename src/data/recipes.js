@@ -13,6 +13,9 @@
  */
 
 import * as storage from './storage.js';
+// Ids OPACOS: los deterministas de antes colisionaban entre dispositivos.
+// Ver `newItemId` en `ids.js`.
+import { newItemId } from './ids.js';
 import { SCHEMA_VERSION, validateCollection, sanitizeText } from './schema.js';
 
 /**
@@ -50,26 +53,6 @@ function writeItems(key, items) {
     return { ok: true, value: items };
 }
 
-/**
- * Id nuevo sin colisiones. Derivarlo de `length + 1` reutiliza el índice tras
- * un borrado, y dos recetas con el mismo id hacen que borrar una borre las dos.
- * Sin reloj ni azar, para que sea determinista.
- * @param {any[]} existing
- * @param {string} name
- * @param {string} prefix
- * @returns {string}
- */
-function freshId(existing, name, prefix) {
-    const taken = new Set(existing.map((it) => it?.id).filter(Boolean));
-    const slug = name.slice(0, 12).replace(/[^A-Za-z0-9]/g, '') || prefix;
-    let n = existing.length + 1;
-    let id = `${prefix}_${n}_${slug}`;
-    while (taken.has(id)) {
-        n += 1;
-        id = `${prefix}_${n}_${slug}`;
-    }
-    return id;
-}
 
 /** @returns {any[]} */
 export function listRecipes() {
@@ -116,7 +99,7 @@ export function addRecipe(input) {
     const servings = Number(input?.servings);
     const notes = sanitizeText(input?.notes ?? '');
     return writeItems(RECIPES_KEY, [...recipes, {
-        id: freshId(recipes, name, 'recipe'),
+        id: newItemId('recipe'),
         name,
         servings: Number.isFinite(servings) && servings >= 1 ? Math.min(50, Math.round(servings)) : 1,
         ingredients,
@@ -170,7 +153,7 @@ export function addPantryItem(input) {
     }
 
     /** @type {Record<string, *>} */ const item = {
-        id: freshId(items, name, 'pantry'),
+        id: newItemId('pantry'),
         name,
         quantity: Math.round(quantity * 10) / 10,
         unit
