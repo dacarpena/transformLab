@@ -130,6 +130,45 @@ function perfilesDe(keys, prefix) {
 }
 
 /**
+ * ¿Cabe la migración?
+ *
+ * Durante la migración conviven TRES copias —`tl.<from>.*`, la copia de seguridad
+ * y `tl.<to>.*`— bajo un techo de ~5 MB. Si no cabe, se aborta **sin haber
+ * escrito nada**: ése es un estado del que se sale recargando cuando haya sitio.
+ * Quedarse sin espacio a media copia no lo es.
+ *
+ * **No escribe nada**, y por eso `run()` la llama la PRIMERA de todas — antes
+ * incluso de mover las fotos. Si abortara después de moverlas, la aplicación se
+ * quedaría en la versión anterior con los blobs bajo el id nuevo: la galería
+ * vacía, en cada arranque, hasta que el usuario liberase espacio.
+ *
+ * Se mide con `usageBytes()` sin argumento, que suma todo lo que empieza por
+ * `tl.`. El margen es generoso a propósito: `localStorage` cuenta caracteres
+ * UTF-16 y ningún navegador dice cuánto le queda de verdad.
+ *
+ * @param {readonly string[]} keys claves de origen
+ * @returns {{ ok: true } | { ok: false, error: string }}
+ */
+export function preflight(keys) {
+    const usado = storage.usageBytes();
+    if (!usado.ok) return { ok: true };   // sin medida, se intenta
+
+    let origen = 0;
+    for (const key of keys) {
+        const raw = storage.getRaw(key);
+        if (raw.ok && raw.value !== null) origen += (key.length + raw.value.length) * 2;
+    }
+    // El backup es una copia del origen serializada dentro de un JSON, así que
+    // ocupa algo MÁS; el 1,2 es el coste del escapado. Y el destino, otro tanto
+    // más el prefijo nuevo, que con ids opacos es unos 20 caracteres más largo.
+    const necesario = usado.value + origen * 1.2 + origen + keys.length * 48;
+    if (necesario > storage.QUOTA_LIMIT_BYTES * 0.95) {
+        return { ok: false, error: 'migrations.quotaInsufficient' };
+    }
+    return { ok: true };
+}
+
+/**
  * Cuánto va a ocupar lo copiado, aproximadamente.
  *
  * Es el tamaño de los valores otra vez, más un margen por clave para el prefijo
@@ -237,23 +276,10 @@ export function migrateStore(context) {
         keys: snapshot
     });
 
-    // 1a. ¿CABE? Antes se escribía a ciegas y se descubría a mitad.
-    //
-    // Durante la migración conviven TRES copias —`tl.<from>.*`, la copia de
-    // seguridad y `tl.<to>.*`— y el techo son ~5 MB. Si no cabe, se aborta
-    // **sin haber escrito nada**, que es un estado del que se sale recargando;
-    // quedarse sin sitio a media copia no lo es (ver el paso 3).
-    //
-    // Se mide con `usageBytes()` sin argumento, que suma todo lo que empieza por
-    // `tl.`. El margen es generoso a propósito: `localStorage` cuenta caracteres
-    // UTF-16 y ningún navegador dice cuánto le queda de verdad.
-    const usado = storage.usageBytes();
-    if (usado.ok) {
-        const necesario = usado.value + (backupKey.length + serializado.length) * 2 + estimarDestino(snapshot);
-        if (necesario > storage.QUOTA_LIMIT_BYTES * 0.95) {
-            return { ok: false, error: 'migrations.quotaInsufficient' };
-        }
-    }
+    // 1a. ¿CABE? La comprobación vive en `preflight`, que también llama `run()`
+    //     ANTES de mover las fotos — ver allí el porqué.
+    const cabe = preflight(pending.keys);
+    if (!cabe.ok) return cabe;
 
     // 1b. ESCRITURA ÚNICA. La copia de seguridad que vale es la del día en que
     //     los datos estaban enteros; reescribirla en cada re-entrada machacaría
@@ -266,7 +292,7 @@ export function migrateStore(context) {
 
     // 2. LA TABLA DE REMAPEO, antes de copiar una sola clave.
     //
-    //    Va después de la copia de seguridad y antes de todo lo demás. Los ids
+    //    Va después de la copia de seguridad y antes de copiar nada. Los ids
     //    nuevos son aleatorios: si el proceso muriera a mitad de la copia sin
     //    haberlos guardado, la re-entrada generaría otros y la mitad de las
     //    claves quedaría bajo un id que no usa nadie — los datos ahí, huérfanos
@@ -435,10 +461,10 @@ export function readMigrationBackup(fromVersion) {
  * ## El orden, y por qué es ése
  *
  * ```
- *   1. copia de seguridad     (dentro de migrateStore, escritura única)
- *   2. tabla de remapeo       (dentro de migrateStore, y se REUTILIZA)
+ *   1. preflight de cuota     ← no escribe nada, así que va la primera
+ *   2. tabla de remapeo       (y se REUTILIZA en el paso 4)
  *   3. FOTOS                  ← antes que las claves
- *   4. claves + testigo       (el resto de migrateStore)
+ *   4. copia de seguridad, claves y testigo   (migrateStore)
  * ```
  *
  * Las fotos van **antes**. Si fueran después y fallaran, la aplicación ya
@@ -465,16 +491,24 @@ export async function run(context) {
         return { ok: true, value: { migrated: false, from: null, keysMigrated: 0, warnings: [], photos: fotos } };
     }
 
-    // 1 y 2 · copia de seguridad y tabla. Se hace con una pasada de
-    // `migrateStore` sobre un almacén que ya tiene todos los destinos ocupados?
-    // No: se llama a `ensureTable` directamente para no copiar nada todavía.
+    // 1 · ¿CABE? Va la PRIMERA porque no escribe nada. Si abortara después de
+    //     mover las fotos, la aplicación se quedaría en la versión anterior con
+    //     los blobs bajo el id nuevo: galería vacía en cada arranque, hasta que
+    //     el usuario liberase espacio.
+    const cabe = preflight(pending.keys);
+    if (!cabe.ok) return cabe;
+
+    // 2 · la tabla de remapeo, sin copiar todavía ninguna clave. Se escribe aquí
+    //     y no dentro de `migrateStore` porque la fase de fotos la necesita, y
+    //     las fotos van antes.
     const preparada = prepararTabla(pending, context);
     if (!preparada.ok) return preparada;
 
     // 3 · fotos, con la tabla ya fijada.
     const fotos = await migrarFotosSiHaceFalta(context.nowISO);
 
-    // 4 · claves y testigo.
+    // 4 · copia de seguridad, claves y testigo. `migrateStore` reutiliza la
+    //     tabla que acaba de escribirse: `ensureTable` es idempotente.
     const migrado = migrateStore(context);
     if (!migrado.ok) return migrado;
 

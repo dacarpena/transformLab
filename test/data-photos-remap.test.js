@@ -31,9 +31,12 @@
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installIndexedDbMock, uninstallIndexedDbMock, makeBlob } from './helpers/indexed-db-mock.js';
+import { installLocalStorageMock } from './helpers/local-storage-mock.js';
 import * as photos from '../src/data/photos-db.js';
 import { relabel } from '../src/data/photos-remap.js';
+import { run } from '../src/data/migrations.js';
 import { DEMO_PROFILE_ID } from '../src/data/ids.js';
+import { rootPrefix, SCHEMA_VERSION } from '../src/data/version.js';
 
 /** @type {ReturnType<typeof installIndexedDbMock>} */
 let idb;
@@ -233,4 +236,72 @@ test('las dos rechazan un profileId inválido en vez de barrer de más', async (
         assert.equal((await photos.keysOfProfile(malo)).ok, false, `aceptó ${JSON.stringify(malo)}`);
         assert.equal((await photos.countOfProfile(malo)).ok, false);
     }
+});
+
+/* ── El orden dentro de la migración completa ────────────────────────────── */
+
+test('si NO CABE la migración, no se mueve ni una foto', async () => {
+    // El *preflight* de cuota va el PRIMERO de todos, antes que las fotos. Si
+    // fuera después, abortar por cuota dejaría los blobs bajo el id nuevo con la
+    // aplicación todavía en la versión anterior: la galería vacía **en cada
+    // arranque**, hasta que el usuario liberase espacio. Y como el preflight
+    // vuelve a fallar cada vez, ese estado no se sale solo.
+    const mock = installLocalStorageMock();
+    const V6 = rootPrefix(6);
+    mock.setItem(`${V6}profiles`, JSON.stringify({
+        schemaVersion: 6, activeProfileId: 'p1',
+        profiles: [{ id: 'p1', name: 'Dani', createdAtISO: '2026-01-01T00:00:00.000Z' }]
+    }));
+    mock.setItem(`${V6}p1.settings`, JSON.stringify({
+        schemaVersion: 6, locale: 'es', activeMeasures: [], fluctuationVisible: false, reminder: null
+    }));
+    // Un bulto que deja el almacén por encima del umbral.
+    mock.setItem('tl.bulto', 'x'.repeat(2_600_000));
+
+    await sembrar('p1', 3);
+
+    const r = await run({ nowISO: '2026-08-21T10:00:00.000Z' });
+    assert.equal(r.ok, false);
+    assert.equal(r.ok === false && r.error, 'migrations.quotaInsufficient');
+
+    // Y las fotos siguen donde estaban.
+    const quedan = await photos.countOfProfile('p1');
+    assert.ok(quedan.ok);
+    assert.equal(quedan.value, 3, 'se movieron fotos pese a abortar por cuota');
+});
+
+test('la fase de fotos corre ANTES de copiar las claves', async () => {
+    // Al revés, un fallo al mover las fotos dejaría la aplicación ya en la
+    // versión nueva con los metadatos migrados y los blobs bajo el id viejo: la
+    // galería se acortaría sin decir nada (§D9).
+    const mock = installLocalStorageMock();
+    const V6 = rootPrefix(6);
+    mock.setItem(`${V6}profiles`, JSON.stringify({
+        schemaVersion: 6, activeProfileId: 'p1',
+        profiles: [{ id: 'p1', name: 'Dani', createdAtISO: '2026-01-01T00:00:00.000Z' }]
+    }));
+    mock.setItem(`${V6}p1.settings`, JSON.stringify({
+        schemaVersion: 6, locale: 'es', activeMeasures: [], fluctuationVisible: false, reminder: null
+    }));
+    await sembrar('p1', 2);
+
+    // Se anota CUÁNDO se escribe la primera clave de la versión nueva y cuándo
+    // termina de moverse la última foto.
+    let clavesEscritasAlMoverFotos = -1;
+    let escritas = 0;
+    const setItem = mock.setItem.bind(mock);
+    mock.setItem = (/** @type {string} */ k, /** @type {string} */ v) => {
+        if (k.startsWith(rootPrefix())) escritas += 1;
+        if (k.startsWith('tl.migrationPhotosDone')) clavesEscritasAlMoverFotos = escritas;
+        return setItem(k, v);
+    };
+
+    const r = await run({ nowISO: '2026-08-21T10:00:00.000Z' });
+    mock.setItem = setItem;
+    assert.ok(r.ok, JSON.stringify(!r.ok && r.error));
+
+    assert.notEqual(clavesEscritasAlMoverFotos, -1, 'la fase de fotos no llegó a cerrarse');
+    assert.equal(clavesEscritasAlMoverFotos, 0,
+        `se copiaron ${clavesEscritasAlMoverFotos} claves ANTES de terminar con las fotos`);
+    assert.equal((await photos.countOfProfile('p1')).value, 0);
 });
