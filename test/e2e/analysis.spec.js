@@ -991,3 +991,116 @@ test('el contador cuenta las series DIBUJADAS, y dice aparte cuántas están vac
     const etiqueta = await page.locator('[data-view-id="analysis"] [data-canvas]').getAttribute('aria-label');
     expect(etiqueta).toMatch(/\b2\b/);
 });
+
+/* ---------------------------------------------------------------------- *
+ * E15-13 · El zoom ancla en el día que hay BAJO el cursor
+ *
+ * `analysis.js` llamaba a `instancia.scaleX?.()`, un método que nunca ha
+ * existido en la factoría. El `?.` lo convirtió en degradación muda: siempre se
+ * tomaba el respaldo, que interpola sobre `canvas.clientWidth` e ignora los ~40
+ * píxeles de los rótulos del eje Y. El zoom anclaba en el día equivocado y el
+ * paneo resbalaba, sin un solo error en consola.
+ * ---------------------------------------------------------------------- */
+
+test('dayAtPixel coincide con la escala real, y NO con el ancho del lienzo', async ({ page }) => {
+    // El respaldo que se usaba antes interpolaba sobre `canvas.clientWidth`, que
+    // incluye los rótulos del eje Y. La escala de Chart.js interpola sobre el
+    // ÁREA DE TRAZADO, que empieza unos 40 px más a la derecha. La diferencia,
+    // sobre un plan de varios cientos de días, son decenas de días: el zoom
+    // anclaba ahí, y el paneo se movía menos que el dedo.
+    //
+    // Se dibuja una gráfica propia en vez de espiar la de la vista: la instancia
+    // de Analizar es estado de módulo y no se exporta, y este test va sobre la
+    // API de la factoría, no sobre la vista.
+    await goToAnalysis(page);
+    const r = await page.evaluate(async () => {
+        const chart = await import('/src/ui/chart.js');
+        const plans = await import('/src/ui/plan-state.js');
+        const data = plans.get();
+        if (!data) return { error: 'sin plan' };
+        if (!await chart.ensureLoaded()) return { error: 'vendor' };
+
+        const caja = document.createElement('div');
+        caja.style.cssText = 'width:600px;height:240px';
+        const canvas = document.createElement('canvas');
+        caja.appendChild(canvas);
+        document.body.appendChild(caja);
+
+        const instancia = chart.createChart();
+        const ok = instancia.draw({
+            canvas, readout: { textContent: '' }, projection: data.projection,
+            metric: 'weight', todayIndex: 0,
+            range: { from: 0, to: data.plan.totalDays },
+            onMilestone() {}, checkins: []
+        });
+        if (!ok) return { error: 'no dibujó' };
+
+        const c = /** @type {*} */ (globalThis).Chart.getChart(canvas);
+        const area = c.chartArea;
+        // Cerca del borde IZQUIERDO del área: en el centro exacto las dos
+        // interpolaciones casi coinciden por simetría, y el test no diría nada.
+        // Aquí es donde el desplazamiento del eje pesa.
+        const px = area.left + (area.right - area.left) * 0.08;
+
+        return {
+            deLaFactoria: instancia.dayAtPixel(px),
+            deLaEscala: c.scales.x.getValueForPixel(px),
+            // Lo que habría devuelto el respaldo viejo, para poder afirmar que
+            // NO es eso: interpola sobre el ancho entero del lienzo.
+            delRespaldoViejo: (px / canvas.clientWidth) * (c.scales.x.max - c.scales.x.min),
+            areaLeft: area.left,
+            pixelesPorDia: instancia.pixelsPerDay(),
+            pixelesPorDiaEsperado: (area.right - area.left) / (c.scales.x.max - c.scales.x.min)
+        };
+    });
+
+    expect(r.error).toBeUndefined();
+    // Coincide con la escala de verdad, al píxel.
+    expect(Math.abs(/** @type {*} */ (r).deLaFactoria - /** @type {*} */ (r).deLaEscala)).toBeLessThan(0.01);
+    // Y el respaldo viejo estaba lejos: ésa es la magnitud del defecto.
+    expect(/** @type {*} */ (r).areaLeft).toBeGreaterThan(10);
+    expect(Math.abs(/** @type {*} */ (r).deLaFactoria - /** @type {*} */ (r).delRespaldoViejo))
+        .toBeGreaterThan(1);
+    // `pixelsPerDay` mide sobre el área, no sobre el lienzo.
+    expect(Math.abs(/** @type {*} */ (r).pixelesPorDia - /** @type {*} */ (r).pixelesPorDiaEsperado))
+        .toBeLessThan(0.001);
+});
+
+test('el día bajo el cursor es el MISMO antes y después de hacer zoom', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await goToAnalysis(page);
+
+    /** El día que la escala de Chart.js dice que hay en esa X de pantalla. */
+    const diaEn = (clientX) => page.evaluate((x) => {
+        const cv = /** @type {HTMLCanvasElement} */ (
+            document.querySelector('.view[data-view-id="analysis"] canvas'));
+        const c = /** @type {*} */ (globalThis).Chart.getChart(cv);
+        const rect = cv.getBoundingClientRect();
+        return c.scales.x.getValueForPixel(x - rect.left);
+    }, clientX);
+
+    // Un punto claramente dentro del área de trazado, no en el borde.
+    const caja = await page.locator('[data-canvas]').boundingBox();
+    if (!caja) throw new Error('sin lienzo');
+    const cursorX = Math.round(caja.x + caja.width * 0.7);
+    const cursorY = Math.round(caja.y + caja.height * 0.5);
+
+    const antes = await diaEn(cursorX);
+
+    await page.mouse.move(cursorX, cursorY);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -240);
+    await page.keyboard.up('Control');
+    await page.waitForTimeout(400);
+
+    const despues = await diaEn(cursorX);
+
+    // Con el respaldo que ignoraba el área de trazado, el desplazamiento medido
+    // era del orden de días; con la escala real es de horas.
+    // Este test comprueba que `zoomAround` conserva el ancla; el de arriba, que
+    // el ancla es el día CORRECTO. Hacen falta los dos: `zoomAround` es
+    // autoconsistente y da esto por bueno aunque el ancla esté mal.
+    expect(Math.abs(despues - antes),
+        `el día bajo el cursor se movió de ${antes.toFixed(2)} a ${despues.toFixed(2)}`)
+        .toBeLessThan(1.5);
+});

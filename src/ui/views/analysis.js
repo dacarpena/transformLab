@@ -769,15 +769,25 @@ function wireGestures(container, canvas, data) {
             return windowBounds(data, today.dayIndex);
         },
         getBounds: () => ({ from: 0, to: total }),
+        // SIN `?.` (E15-13). Antes esto llamaba a `instancia.scaleX?.()`, un
+        // método que nunca ha existido en la factoría, y el encadenamiento
+        // opcional lo convertía en degradación muda: siempre se tomaba el
+        // respaldo, que interpola sobre `canvas.clientWidth` e ignora los ~40 px
+        // de los rótulos del eje. El zoom anclaba en el día equivocado y el
+        // paneo resbalaba, sin un solo error en consola. Si mañana la factoría
+        // deja de exponer esto, tiene que ser un fallo de tipos, no un silencio.
         dayAtPixel: (px) => {
-            const escala = /** @type {*} */ (instancia).scaleX?.() ?? null;
-            if (escala) return escala(px);
-            // Sin acceso a la escala, se interpola sobre la ventana visible.
+            const dia = instancia.dayAtPixel(px);
+            if (dia !== null) return dia;
+            // Respaldo para el instante entre montar el lienzo y dibujarlo, en
+            // el que todavía no hay escala a la que preguntar.
             const today = plans.todayIndex(data, plans.todayISO());
             const w = windowBounds(data, today.dayIndex);
             return w.from + (px / Math.max(1, canvas.clientWidth)) * (w.to - w.from);
         },
         pixelsPerDay: () => {
+            const pxDia = instancia.pixelsPerDay();
+            if (pxDia !== null) return pxDia;
             const today = plans.todayIndex(data, plans.todayISO());
             const w = windowBounds(data, today.dayIndex);
             return canvas.clientWidth / Math.max(1, w.to - w.from);

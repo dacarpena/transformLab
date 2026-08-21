@@ -1915,6 +1915,33 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   que hacen concordar el gasto, y 3 400 las que lo hacen discrepar sin que el
   peso deje de discrepar también.
 
+- [x] **E15-13 · El zoom anclaba en el día equivocado, sin decir nada.**
+  `analysis.js` llamaba a `instancia.scaleX?.()`, **un método que nunca ha
+  existido** en la factoría. El encadenamiento opcional convirtió lo que habría
+  sido un `TypeError` visible en degradación muda: se tomaba SIEMPRE el respaldo,
+  que interpola sobre `canvas.clientWidth` e ignora los ~40 px de los rótulos del
+  eje Y. La rueda hacía zoom sobre un día que no era el del cursor y el paneo se
+  movía menos que el dedo. Y el typedef tampoco lo cazaba, porque la llamada iba
+  precedida de un `/** @type {*} */`.
+
+  La factoría expone ahora `dayAtPixel(px)` y `pixelsPerDay()`, que preguntan a
+  la escala de Chart.js y al `chartArea` —quien sabe de verdad dónde empieza el
+  área de trazado—. El llamante los usa **sin `?.`**: si mañana la factoría deja
+  de exponerlos, tiene que ser un fallo de tipos, no un silencio.
+
+  **Tres guardas, porque una sola no bastaba.** La lista de lo que devuelve la
+  factoría queda fijada con `assert.deepEqual(Object.keys(...))` —eso es lo que
+  habría cazado `scaleX`—; un segundo test exige que el typedef `ChartInstance` y
+  esa lista digan lo MISMO, o un método nuevo entraría siendo invisible para
+  `tsc`; y un E2E compara `dayAtPixel` contra la escala real de Chart.js cerca
+  del borde izquierdo del área, que es donde el desplazamiento del eje pesa.
+
+  Ese E2E costó dos intentos, y la lección va aquí: el primero medía si el día
+  bajo el cursor sobrevivía al zoom, y **pasaba igual con el defecto puesto**.
+  `zoomAround` es autoconsistente —conserva el ancla que le den, sea el día
+  correcto o no—, así que medir eso no dice nada sobre si el ancla era el bueno.
+  Comprobado saboteando el arreglo: deriva idéntica, 0,206 días en los dos casos.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1998,8 +2025,9 @@ carrera de píxeles de `release.spec.js`, hermana de la de `csp.spec.js`.
 **899 unitarios y 230 E2E** (dos pasadas seguidas), typecheck limpio.
 
 **Estado de E15:** cerradas E15-0, 1, 1b, 2, 3, 3b, 4, 5, 6, 7, 8, 9, 10, 11 y 12.
-Quedan: **E15-13** (`dayAtPixel`/`pixelsPerDay` en vez del inexistente `scaleX`),
-**E15-14** (fuga de instancias en Analizar y `tokenCache`), **E15-15** (los cinco
+**2026-08-21 · E15-13.** Cerrada. **902 unitarios y 232 E2E**, typecheck limpio.
+
+Quedan: **E15-14** (fuga de instancias en Analizar y `tokenCache`), **E15-15** (los cinco
 módulos sin test unitario, empezando por `recalibrate.js`, que reescribe el
 perfil), **E15-16** (el último `schemaVersion` literal) y **E15-17** (los hitos en
 Proyección). Y luego M8 y M9.

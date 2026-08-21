@@ -454,3 +454,60 @@ test('ningún camino de fallo de la gráfica es mudo', () => {
     const analysis = readFileSync(new URL('../src/ui/views/analysis.js', import.meta.url), 'utf8');
     assert.match(analysis, /console\.error\('\[analysis\]/);
 });
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-13 · La factoría declara QUÉ es, y nadie puede llamar a lo que no hay
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('la superficie de la factoría está fijada: es lo que habría cazado `scaleX`', () => {
+    // `analysis.js` llamaba a `instancia.scaleX?.()` durante dos épicas. El
+    // método NUNCA ha existido, y el encadenamiento opcional convirtió un
+    // `TypeError` en degradación muda: el zoom anclaba en el día equivocado y el
+    // paneo resbalaba, sin un solo error en consola. El typedef tampoco lo
+    // cazaba, porque la llamada iba precedida de un `/** @type {*} */`.
+    //
+    // Una lista fijada es lo único que convierte «alguien se acordó de mirar»
+    // en «no compila en verde». Si esto se cae al añadir un método, se añade
+    // aquí Y al typedef `ChartInstance`, que es justo lo que se quiere forzar.
+    const instancia = createChart();
+    assert.deepEqual(Object.keys(instancia).sort(), [
+        'activeSeriesIndex',
+        'announce',
+        'announceMulti',
+        'cursorIndex',
+        'dayAtPixel',
+        'destroy',
+        'draw',
+        'drawMulti',
+        'drawSeries',
+        'focusDay',
+        'focusSeries',
+        'handleKey',
+        'pixelsPerDay',
+        'setWindow',
+        'toPng'
+    ]);
+});
+
+test('dayAtPixel y pixelsPerDay devuelven null sin gráfica, y no lanzan', () => {
+    // El respaldo del llamante depende de esto: entre montar el lienzo y
+    // dibujarlo hay un instante sin escala a la que preguntar.
+    const instancia = createChart();
+    assert.equal(instancia.dayAtPixel(120), null);
+    assert.equal(instancia.pixelsPerDay(), null);
+});
+
+test('todo lo que la factoría expone está declarado en el typedef ChartInstance', () => {
+    // La otra mitad: sin esto, un método nuevo entraría en la lista de arriba y
+    // seguiría siendo invisible para `tsc`, que es lo que dejó pasar `scaleX`.
+    const source = readFileSync(new URL('../src/ui/chart.js', import.meta.url), 'utf8');
+    const bloque = source.match(/@typedef \{Object\} ChartInstance([\s\S]*?)\n \*\//);
+    assert.ok(bloque, 'falta el typedef ChartInstance');
+    // El tipo puede llevar llaves DENTRO —`focusDay` recibe un `{from, to}`—,
+    // así que `[^}]*` se corta a la primera y da un falso negativo. Se admite un
+    // nivel de anidamiento, que es el que hay.
+    const declarados = [...bloque[1].matchAll(/@property \{(?:[^{}]|\{[^{}]*\})*\} (\w+)/g)]
+        .map((m) => m[1]).sort();
+    assert.deepEqual(declarados, Object.keys(createChart()).sort(),
+        'el typedef y lo que la factoría devuelve tienen que decir lo mismo');
+});

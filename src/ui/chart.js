@@ -528,6 +528,8 @@ export function seriesAnchors(projection, grain) {
  * @property {(readout: Readout, projection: Projection, index: number, range: {from: number, to: number}) => void} focusDay
  * @property {(options: *) => boolean} handleKey
  * @property {() => string | null} toPng
+ * @property {(px: number) => number | null} dayAtPixel
+ * @property {() => number | null} pixelsPerDay
  */
 
 /**
@@ -1447,8 +1449,46 @@ export function createChart() {
         return out.toDataURL('image/png');
     }
 
+    /**
+     * El día del plan que hay bajo un píxel del lienzo (E15-13).
+     *
+     * `analysis.js` llamaba a `instancia.scaleX?.()`, un método que **nunca ha
+     * existido** en esta factoría. El encadenamiento opcional lo convirtió en
+     * degradación muda: siempre se tomaba el respaldo, que interpola sobre
+     * `canvas.clientWidth` e ignora los ~40 px de los rótulos del eje Y. El zoom
+     * anclaba en el día equivocado y el paneo resbalaba, sin un solo error.
+     *
+     * Aquí se pregunta a la escala de Chart.js, que es quien sabe dónde empieza
+     * y acaba el área de trazado.
+     * @param {number} px coordenada X en píxeles CSS del lienzo
+     * @returns {number | null} `null` si todavía no hay gráfica
+     */
+    function dayAtPixel(px) {
+        const escala = chartInstance?.scales?.x;
+        if (!escala || typeof escala.getValueForPixel !== 'function') return null;
+        const valor = escala.getValueForPixel(px);
+        return Number.isFinite(valor) ? valor : null;
+    }
+
+    /**
+     * Cuántos píxeles ocupa un día. Sobre el ÁREA DE TRAZADO, no sobre el ancho
+     * del lienzo: la diferencia son los rótulos del eje, y es justo el error que
+     * hacía que el paneo se moviera un 10-15 % menos que el dedo.
+     * @returns {number | null}
+     */
+    function pixelsPerDay() {
+        const escala = chartInstance?.scales?.x;
+        const area = chartInstance?.chartArea;
+        if (!escala || !area) return null;
+        const dias = Number(escala.max) - Number(escala.min);
+        const ancho = area.right - area.left;
+        if (!Number.isFinite(dias) || dias <= 0 || !Number.isFinite(ancho)) return null;
+        return ancho / dias;
+    }
+
     return { draw, drawMulti, drawSeries, destroy, setWindow, announce, announceMulti,
-        focusSeries, activeSeriesIndex, cursorIndex, focusDay, handleKey, toPng };
+        focusSeries, activeSeriesIndex, cursorIndex, focusDay, handleKey, toPng,
+        dayAtPixel, pixelsPerDay };
 }
 
 /**
