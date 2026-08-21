@@ -41,9 +41,21 @@ las excepciones. La razón está escrita en `functions/_lib/log.js`, y la corta 
 que un id de foto es `ph_<fecha>`: registrarlo sería registrar en qué días
 alguien se hace fotos de progreso. Un registro no se puede des-escribir.
 
+Dos cosas que sorprenden la primera vez:
+
+- **`ms` sale muchas veces a 0.** No está roto: Cloudflare congela el reloj entre
+  operaciones de entrada/salida —es su mitigación de Spectre—, así que una
+  petición que devuelve sin tocar la base ni el bucket mide cero. El campo sirve
+  para ver lo que sí tarda.
+- **`tail` enseña además la URL completa y la IP.** Eso lo pone Cloudflare
+  alrededor de cada línea y no se puede quitar desde el código; lo que controla
+  `log.js` es lo que se ESCRIBE, que es lo que acabaría en cualquier destino de
+  registros persistente. El envoltorio de `tail` es efímero, pero conviene saberlo
+  antes de dejar uno abierto en una pantalla compartida.
+
 Consecuencia práctica: **no se puede diagnosticar «lo que le pasa a este
-usuario»** desde los registros. Se diagnostica el sistema. Si hace falta más,
-se reproduce en local con `npm run serve:api`.
+usuario»** desde los registros escritos. Se diagnostica el sistema. Si hace falta
+más, se reproduce en local con `npm run serve:api`.
 
 Eventos que no son `req` y qué significan:
 

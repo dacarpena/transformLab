@@ -34,6 +34,19 @@
  * El `userId` tampoco. Es opaco, pero permitiría reconstruir el historial de
  * actividad de una persona a partir de los registros, y el resto del sistema
  * está construido para que eso no se pueda hacer.
+ *
+ * ## Lo que esto NO controla, y hay que decirlo
+ *
+ * `wrangler pages deployment tail` no enseña solo estas líneas: envuelve cada
+ * una en el evento de Cloudflare, que trae **la URL completa y la IP del
+ * cliente**. Eso lo pone la plataforma y desde aquí no se puede quitar.
+ *
+ * La diferencia importa y no es cosmética. Ese envoltorio es efímero —existe
+ * mientras alguien tiene un `tail` abierto— mientras que lo que se escribe con
+ * `console` es lo que acabaría en cualquier destino de registros persistente que
+ * se conecte algún día. O sea: esto controla lo que se GUARDA; lo que se ve en
+ * vivo mirando por encima del hombro de la plataforma es otra cosa y hay que
+ * saberlo antes de dejar un `tail` abierto en una pantalla compartida.
  */
 
 /**
