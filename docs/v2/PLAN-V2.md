@@ -2925,13 +2925,41 @@ relleno a múltiplos de 256 B antes de cifrar.
   través de la Function** (una URL prefirmada obligaría a meter el host de R2 en
   `connect-src` y a firmar SigV4 con una dependencia de runtime prohibida), cuota
   por usuario y recolección de huérfanos.
-- [ ] **M9-6 · Salida y borrado.** `GET /api/export` cableado al panel de copias
-  que ya existe (RGPD art. 20) y `DELETE /api/account` con confirmación tecleada,
-  cascada en D1 y barrido de R2 dirigido por `deletion_jobs` —que **no** tiene
-  clave foránea a propósito, para sobrevivir al borrado del usuario (art. 17)—.
-- [ ] **M9-7 · Endurecimiento.** Límites de tasa (WAF por IP + `auth_attempts`
-  por cuenta con retroceso exponencial), acolchado de 120 ms en `/api/auth/*`
-  contra fugas por temporización, logs JSON estructurados y runbook.
+- [x] **M9-6 · Salida y borrado.** `DELETE /api/account`, con confirmación
+  tecleada porque es irreversible: con cifrado extremo a extremo, lo que se borra
+  del servidor no lo tiene nadie más. La cascada de `users` se lleva
+  credenciales, retos, sesiones, filas cifradas y versiones perdedoras, y el
+  código lo hace además explícito —depender de que la integridad referencial esté
+  activada es depender de una configuración—. La sesión se cierra en la misma
+  respuesta.
+
+  **Lo que NO borra, y es lo contrario de lo que hace la mayoría: los datos de
+  este dispositivo.** Aquí la copia local es la buena y la del servidor existe
+  para que pueda haber más de un dispositivo; cerrar la cuenta sin perder el
+  historial tiene que ser posible, o nadie la cerrará. Sí se borran la clave y la
+  memoria de la sincronía —cursor y sombra describen un servidor que ya no
+  existe, y dejarlos convertiría el alta siguiente en un lío de lápidas—.
+
+  **`GET /api/export` se descarta, y conviene decir por qué.** La portabilidad
+  (art. 20) ya está resuelta y mejor: el servidor guarda criptogramas que no
+  puede abrir, así que su «export» serían bytes ilegibles. La copia que sirve es
+  la que `backup.js` genera aquí, con los datos en claro y el esquema entero. Una
+  ruta más para entregar algo peor es superficie de ataque sin contrapartida.
+
+  El barrido de R2 y `deletion_jobs` se aplazan a M9-5, que es donde nacen los
+  objetos que habría que barrer.
+- [ ] **M9-7 · Endurecimiento.** Hecho ya lo que no podía esperar al despliegue:
+
+  - [x] **Techo por IP en `/api/auth/*/start`.** Es la única escritura sin
+    autenticar de toda la API, o sea la única puerta por la que alguien puede
+    hacer crecer la base sin tener cuenta, y no hace falta nada sofisticado:
+    `while true; do curl; done` llena el plan gratuito. Se cuentan los retos
+    VIVOS y no las peticiones —un contador por ventana exige una escritura por
+    petición, o sea que el limitador pagaría el coste del ataque—, quince por IP
+    truncada. **Verificado contra producción:** quince pasan, el dieciséis
+    devuelve 429, y la tabla se queda en quince filas con la IP a /24.
+  - [ ] Acolchado de 120 ms en `/api/auth/*` contra fugas por temporización.
+  - [ ] Logs JSON estructurados y runbook de `wrangler pages deployment tail`.
 
 #### El primer login desde un dispositivo que ya tiene datos
 
