@@ -10,6 +10,9 @@
     "type": "git",
     "url": "https://github.com/dacarpena/transformLab.git"
   },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "serve": "node tools/serve-csp.mjs 8080",
     "test": "node --test \"test/**/*.test.js\"",

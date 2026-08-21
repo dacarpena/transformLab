@@ -2160,9 +2160,58 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   publica `_handlers/` por su cuenta (`/_handlers/health` devuelve el shell de la
   SPA, no el manejador), que el estático no pasa por la Function, que el 403 y el
   415 salen de verdad, y que **no se emite ni una cabecera `Access-Control-*`**.
-- [ ] **M8-2 · D1.** Base creada con `--jurisdiction=eu`, `migrations/0001_init.sql`,
-  y `test/helpers/d1-fake.js` sobre `node:sqlite` (ya en Node 22: cero devDeps
-  nuevas) aplicando el DDL real y ejecutando las cadenas SQL reales.
+- [x] **M8-2 · El esquema, y un D1 que se puede ejercitar sin nube.**
+  `migrations/0001_init.sql` con las cuatro tablas de identidad —`users`,
+  `credentials`, `challenges`, `sessions`— y `test/helpers/d1-fake.js` sobre
+  `node:sqlite` (ya en Node: cero devDeps nuevas).
+
+  **Lo primero que hay que mirar del esquema es lo que NO tiene:** ni correo, ni
+  nombre de usuario, ni contraseña, ni hash de contraseña, ni nada que
+  identifique a una persona. La identidad es una clave pública. Un volcado
+  completo de esta base no dice quién es nadie, y hay un test que falla si algún
+  día aparece una columna que lo diga. Hasta la etiqueta del dispositivo —«el
+  iPhone»— va cifrada con la DK: es dato del usuario, y no hay excepciones
+  pequeñas.
+
+  Decisiones que quedan escritas EN EL DDL y no solo en el código: los ids son
+  opacos (un autoincremento cuenta cuántas cuentas hay y cuándo se creó cada
+  una); `challenges.user_id` es NULLABLE porque en el login con credenciales
+  descubribles todavía no se sabe quién responde —ése es justo el efecto que se
+  busca, que no haya campo «usuario» que enumerar—; `users.protected_at` nulo es
+  la regla dura, porque con cifrado extremo a extremo subir datos antes de que
+  haya vía de vuelta es fabricar una pérdida irreversible; y `sessions.family_id`
+  existe para que la detección de reuso pueda revocar la familia entera y no solo
+  el token que el atacante ya usó.
+
+  **El doble de D1 es más estricto que D1, nunca más laxo**, que es la única
+  regla que importa en un doble: un `undefined` en un `bind` lanza —el error más
+  frecuente al escribir consultas, y un doble permisivo lo convierte en un NULL
+  silencioso—, un booleano lanza, las claves foráneas se aplican, `STRICT` está
+  en todas las tablas y las filas se normalizan a prototipo normal. Y aplica
+  `0001_init.sql` **tal cual**, descubriendo las migraciones del disco en vez de
+  nombrarlas, así que no hay forma de añadir una y olvidarse de aplicarla en los
+  tests. Tiene su propio fichero de tests (11), porque un fallo aquí no rompería
+  un test: haría mentir a todos los que cuelguen de él, y a la vez.
+
+  El borrado de cuenta (RGPD art. 17) se prueba EJECUTÁNDOLO: se siembra una
+  cuenta completa, se borra la fila de `users` y se comprueba que **todas** las
+  tablas quedan a cero —y que la cuenta de al lado no se ha tocado—. Más una
+  guarda que cubre las tablas que aún no existen: toda referencia a `users(id)`
+  tiene que declarar `ON DELETE CASCADE` o `SET NULL`.
+
+  `engines` pasa a `>=22.13`, que es donde `node:sqlite` deja de necesitar
+  bandera. CI usa `node-version: 22`, que resuelve a la última 22.x.
+
+  **Lo único que falta de esta etapa es crear los recursos en la cuenta**, que
+  necesita permiso de Dani:
+
+  ```
+  npx wrangler d1 create transformlab --location=weur
+  npx wrangler r2 bucket create transformlab-photos --jurisdiction=eu
+  ```
+
+  Los enlaces de `wrangler.toml` siguen comentados hasta que exista el
+  `database_id`.
 - [ ] **M8-3 · WebAuthn.** Registro y login con credenciales descubribles, sin una
   sola dependencia, con vectores grabados en `node:test`.
 - [ ] **M8-4 · Sesiones y autorización por fila.** Rotación con detección de reuso,
