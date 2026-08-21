@@ -117,9 +117,14 @@ export async function wrapDataKey(kek, dk) {
  *
  * @param {CryptoKey} kek
  * @param {ArrayBuffer | Uint8Array} sobre
+ * @param {{ extractable?: boolean }} [opciones] `extractable: true` SOLO para
+ *   volver a envolver la clave con otra KEK —crear un kit de recuperación nuevo,
+ *   añadir un dispositivo—. La clave que salga así **no se guarda nunca**: se usa
+ *   y se suelta. Todo lo demás usa el valor por omisión, que es la propiedad que
+ *   hace que un XSS no pueda llevarse la clave.
  * @returns {Promise<CryptoKey | null>}
  */
-export async function unwrapDataKey(kek, sobre) {
+export async function unwrapDataKey(kek, sobre, opciones = {}) {
     const bytes = sobre instanceof Uint8Array ? sobre : new Uint8Array(sobre);
     if (bytes.length <= 1 + IV_BYTES) return null;
     if (bytes[0] !== VERSION) return null;
@@ -129,7 +134,8 @@ export async function unwrapDataKey(kek, sobre) {
             { name: 'AES-GCM', iv: copia(bytes.subarray(1, 1 + IV_BYTES)) },
             kek, copia(bytes.subarray(1 + IV_BYTES)));
         if (raw.byteLength !== 32) return null;
-        return await importDataKey(raw);
+        if (!opciones.extractable) return await importDataKey(raw);
+        return await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
     } catch {
         return null;
     }

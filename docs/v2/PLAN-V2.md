@@ -2428,8 +2428,58 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   llegaba a marcar la base (`keys-db` la abre perezosamente, así que
   `failNextWrite` no encontraba nada que marcar) y el de fila corrupta no
   corrompía nada. Los dos pasaban con y sin el código que probaban.
-- [ ] **M8-5c · La vista Cuenta y la pantalla del kit**, con i18n en los dos
-  diccionarios, teclado, 320 px y E2E.
+- [x] **M8-5c · El cliente: la única puerta de salida, y los flujos de la cuenta.**
+  `src/data/api.js` y `src/data/account.js`.
+
+  **Éste es el commit del primer `fetch` del proyecto.** Hasta aquí `src/` no
+  tenía ninguno: la aplicación no hablaba con nadie y eso se comprobaba de un
+  vistazo. La forma de no perder la propiedad es la misma que con `localStorage`:
+  **una sola puerta**, con un test que falla si alguien abre otra —incluidos
+  `XMLHttpRequest`, `sendBeacon`, `WebSocket` y `EventSource`, que son las
+  puertas que se olvidan—. `api.js` es, por tanto, el punto de auditoría de qué
+  sale del dispositivo, y cabe en una pantalla a propósito.
+
+  Su aduana no se conforma con `startsWith('/api/')`: `//evil.com` empieza por
+  `/` y el navegador lo resuelve como otro ORIGEN, y `/api/../evil` se normaliza
+  a algo que ya no es `/api/`. Se resuelve la URL y se comprueba el origen. Sin
+  esa regla, un dato de un backup importado que acabase en una ruta convertiría
+  el módulo en un exfiltrador. Además: `credentials: 'same-origin'`,
+  `cache: 'no-store'`, `redirect: 'error'` —la API no redirige nunca, así que una
+  redirección es una anomalía o un intermediario— y plazo, porque una petición
+  sin límite deja un botón girando para siempre en un metro sin cobertura. Y
+  **nunca lanza**: sin cuenta la aplicación funciona entera, así que un fallo de
+  red es un estado normal.
+
+  **La sal del PRF es FIJA**, y tiene que serlo: al entrar con credenciales
+  descubribles no se sabe qué passkey va a elegir el usuario hasta que la ha
+  elegido, así que no se puede consultar antes una sal por credencial sin meter
+  un viaje de ida y vuelta en mitad del diálogo del sistema. No debilita nada
+  —la entropía la pone el autenticador, no la sal— y `prf_salt` se guarda
+  igualmente para poder rotarla sin romper los sobres viejos.
+
+  **Un muñón que se quitó a tiempo.** La primera versión tenía un
+  `createRecoveryKit` que devolvía error SIEMPRE: documentaba una costura real
+  —envolver la clave exige extraerla, y la guardada no es extraíble a propósito—
+  sin resolverla. Es exactamente el defecto que E15 fue a cerrar, así que se
+  reemplazó por algo que funciona: `unwrapDataKey` acepta ahora
+  `{ extractable: true }` para el único caso legítimo —volver a envolver la clave
+  con otra KEK—, y `createRecoveryKitWithPasskey` la saca del sobre del PRF, la
+  usa y la suelta. Sin PRF no hay camino, y se dice con un error propio en vez de
+  fallar genéricamente: la salida de ese usuario es dar de alta una segunda
+  passkey, que también protege la cuenta y no necesita la clave.
+
+  28 tests nuevos. El que más vale es el que comprueba que **el código del kit no
+  viaja al servidor** —ni entero, ni un trozo— y el que comprueba que el kit
+  devuelto ABRE el sobre subido: enseñar un código, decir «guardado» y que el
+  servidor no lo tenga sería el peor fallo posible de esa pantalla.
+
+  Y una lección repetida: la primera versión de la guarda del `fetch` leía
+  `code` cuando el campo se llama `source`, y `regex.test(undefined)` prueba la
+  cadena «undefined» y pasa siempre. Se descubrió porque **se reintrodujo el
+  defecto a propósito** y el test siguió en verde.
+
+- [ ] **M8-5d · La vista Cuenta y la pantalla del kit**, con i18n en los dos
+  diccionarios, teclado, 320 px y E2E con el autenticador virtual de Chrome.
 
 #### Bitácora M8
 

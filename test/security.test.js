@@ -131,6 +131,38 @@ test('nadie toca localStorage fuera de src/data/storage.js', () => {
     assert.deepEqual(offenders, []);
 });
 
+test('nadie llama a fetch fuera de src/data/api.js (M8-5c)', () => {
+    // Hasta M8, `src/` no tenía ni un `fetch`: la aplicación no hablaba con
+    // nadie y eso se comprobaba de un vistazo. Con la cuenta opcional hay red,
+    // y la forma de no perder la propiedad es la misma que con `localStorage`:
+    // UNA sola puerta, que además es el punto de auditoría de qué sale del
+    // dispositivo.
+    //
+    // Sin esta guarda, la segunda llamada a red la escribiría cualquiera en
+    // cualquier vista, y nadie volvería a poder responder «¿a dónde manda datos
+    // esta aplicación?» sin leerla entera.
+    const culpables = FILES
+        .filter(({ path }) => path !== 'src/data/api.js')
+        // `source`, no `code`: es como se llama el campo aquí, y con el nombre
+        // equivocado `regex.test(undefined)` prueba la cadena «undefined» y el
+        // test pasa SIEMPRE. Pasó en la primera versión de esta guarda.
+        .filter(({ source }) => /(?<![.\w])fetch\s*\(|new\s+XMLHttpRequest|navigator\.sendBeacon|new\s+WebSocket|new\s+EventSource/
+            .test(source))
+        .map(({ path }) => path);
+    assert.deepEqual(culpables, [],
+        `hablan con la red por su cuenta: ${culpables.join(', ')}`);
+});
+
+test('src/data/api.js solo habla con el propio origen', () => {
+    // La aduana de `api.js` exige `/api/…`. Si algún día apareciera un host
+    // ajeno escrito ahí, la promesa de `connect-src 'self'` se habría deshecho
+    // y hay que rehacer el análisis, no actualizar el test.
+    const api = readFileSync(join(ROOT, 'src/data/api.js'), 'utf8');
+    const sinComentarios = api.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    assert.doesNotMatch(sinComentarios, /https?:\/\/(?!\/)/, 'hay una URL absoluta en api.js');
+    assert.match(sinComentarios, /startsWith\('\/api\/'\)/, 'api.js dejó de exigir que la ruta sea /api/');
+});
+
 test('nadie usa Math.random en src/ (el motor es determinista)', () => {
     const offenders = FILES
         .filter((f) => /Math\.random/.test(f.source))
