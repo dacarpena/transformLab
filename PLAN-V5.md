@@ -1049,6 +1049,33 @@ frente a los 11 ms de ahora, contra un umbral de 500.
 
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
+**Del análisis de M9-2** (2026-08-21). Prerrequisitos de M9-3, no ideas:
+
+- **Los ids de `pantry`, `recipes`, `nutrition` y `training.exercises` colisionan
+  entre dispositivos.** `freshId` es `<prefijo>_<longitud+1>_<slug>`, determinista
+  y sin azar: **reproducido**, dos dispositivos con la despensa vacía que añaden
+  «Arroz» generan los dos `pantry_1_Arroz`. Es el mismo defecto que M9-1 arregló
+  para los perfiles. Hasta que se remapeen a ids opacos, esas cuatro colecciones
+  están marcadas `local` en `sync-policy.js` y NO viajan. En `training` es lo más
+  grave: dos ejercicios distintos con el mismo id atribuyen las series al grupo
+  muscular equivocado — un dato falso presentado como verdadero.
+- **`pantry.quantity` es un acumulador, no un atributo.** Ninguna política por
+  fila da un valor correcto sin un log de movimientos o un contador PN. Hoy va
+  como documento, y el perdedor pierde lo que compró desde el último pull.
+- **`checkins[].id` no tiene `pattern`** mientras `training.sessions[].id` sí
+  (`SAFE_ID`). Un id importado con `:` o `|` no se puede componer en una clave.
+  Bump de esquema.
+- **`intakeLog.findByDate` se queda con el PRIMER registro del día** y
+  `expenditure.js` con el último. `sync-policy` declara el último, siguiendo al
+  motor; arreglar `findByDate` es aparte.
+- **`editedAtISO` se bumpea aunque no cambie nada** (`checkins.js:180`), así que
+  no sirve para resolver conflictos: premiaría el no-cambio sobre el cambio. M9-4
+  usa el reloj del servidor.
+- **`volumeLog` no tiene ni un consumidor** en todo `src/` fuera del esquema.
+  O se cablea o se quita.
+- **Mover `settings.reminder` y `settings.analysis` al namespace `ui.*`**, donde
+  estructuralmente pertenecen: son del dispositivo, no de la persona.
+
 **Del análisis de M9-1** (2026-08-21). Riesgos reales, medidos, que quedan fuera
 de la milestone:
 

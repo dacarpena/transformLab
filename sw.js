@@ -21,7 +21,7 @@
  * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-246e6c8c1df5';
+const CACHE_VERSION = 'tl-2f1aa0e2183f';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -107,6 +107,7 @@ const PRECACHE = [
     'src/data/profiles.js',
     'src/data/schema.js',
     'src/data/settings.js',
+    'src/data/sync-policy.js',
     'src/data/storage.js',
     'src/data/version.js',
     'src/data/training.js',

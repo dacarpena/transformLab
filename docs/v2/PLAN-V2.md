@@ -2657,16 +2657,66 @@ relleno a múltiplos de 256 B antes de cifrar.
   datos siguen ahí. Es cierto —copia y nunca borra— y es lo único que esa persona
   necesita saber en ese momento.
 
-- [ ] **M9-2 · `src/data/sync-policy.js`.** `split`/`join` y los merges declarados,
-  puro y probado con `node:test`. Su invariante:
-  `join(split(v)) ≡ validateCollection(name, v).value` para toda colección y todo
-  `v` válido.
+- [x] **M9-2 · `src/data/sync-policy.js`.** `split`/`join`, los merges declarados
+  y el invariante de ida y vuelta. Puro: sin red, sin reloj, sin DOM.
 
-  Por *item*: `checkins`, `intakeLog`, `steps`, `volumeLog`, `pantry`, `recipes`,
-  `photos`, `nutrition` y `training.sessions`. Como documento: `profile`,
-  `settings`, `preferences`, `supplementsPlan` y `training.routine`. Con merge
-  declarado: `plan` (unión de `history[]` por id + LWW en `current`/`params`) y
-  `achievements` (unión de ids: un logro desbloqueado no se re-bloquea).
+  **El reparto que traía el plan estaba mal en cinco de las quince**, y se vio
+  mapeando la forma exacta de cada colección antes de escribir nada (siete
+  lectores en paralelo y tres análisis adversariales). Lo que cambió, con lo que
+  cada cosa evita:
+
+  | Colección | El plan decía | Es | Por qué |
+  |---|---|---|---|
+  | `pantry` | por item | **documento** | `quantity` es un ACUMULADOR (`it.quantity + quantity`), no un atributo: dos dispositivos que añaden 500 g sobre 1000 dan 1500 con LWW — un estado que no existió en ninguna máquina. Y por item sería peor: los ids **colisionan** entre dispositivos |
+  | `volumeLog` | por item | **local** | no tiene NI UN consumidor en todo `src/` fuera del esquema. Ni escritor ni lector |
+  | `settings` | documento | **por campo** | `patch()` es `{...read(), ...changes}` y el escritor más frecuente guarda estado de la vista Analizar: como documento, **mover el zoom de una gráfica en el portátil le cambiaría el idioma al móvil** |
+  | `preferences` | documento | **por miembro** | `hardExclusions` son ALERGIAS, y los dos únicos escritores tocan campos que no tienen nada que ver con ellas. Como documento, cambiar «cuántas comidas al día» en el móvil publicaría el `hardExclusions` del móvil sobre el del portátil — y **no hay ninguna vista que las liste**, así que la pérdida sería invisible |
+  | `training`, `photos`, `nutrition`, `recipes` | sincronizan | **local, por ahora** | sus ids se generan con `<n>_<slug>` y colisionan entre dispositivos. En `training` eso no es pérdida: es un dato FALSO presentado como verdadero — las series se atribuirían al grupo muscular equivocado |
+
+  **Los ids que colisionan son un defecto de HOY, reproducido:** dos dispositivos
+  con la despensa vacía que añaden «Arroz» generan los dos `pantry_1_Arroz`. Es
+  exactamente lo que M9-1 acaba de arreglar para los perfiles, en otras cuatro
+  colecciones. Rekey → tarea previa a M9-3, anotada en el BACKLOG.
+
+  #### Las tres decisiones de diseño
+
+  **`keyPath` es un array, nunca una cadena.** Casi ningún `id` del esquema tiene
+  `pattern`: `pantry.id` puede ser `a.b:c/d`. Concatenar con un separador es el
+  defecto que `photos-remap.js` ya documenta haber sufrido.
+
+  **`join` conserva el orden de INSERCIÓN; `merge` impone el CANÓNICO.** Son dos
+  propiedades distintas y hacen falta las dos: rellenar una fecha pasada no debe
+  reordenar la lista de nadie, pero entre dispositivos el orden de inserción no
+  existe —cada lado trae sus ordinales y los dos empiezan en cero— y sin orden
+  canónico dos máquinas nunca convergerían. Lo destapó el test de
+  conmutatividad.
+
+  **`join` NUNCA devuelve un valor que el esquema rechace.** Es la regla más
+  importante del módulo, y no estaba en el plan. Las colecciones documento
+  degradan a su valor de fábrica cuando la validación falla —`preferences.get()`
+  a `empty()`, `settings.read()` a `defaults()`— y **el siguiente gesto normal
+  del usuario lo persiste**, porque los escritores son leer-mutar-escribir. Un
+  fallo de fusión se convertiría en pérdida definitiva de alergias o del perfil
+  entero. Las filas que no valen van a cuarentena y se informan; lo que desborda
+  una cota se recorta de forma determinista y también se informa.
+
+  #### Verificación
+
+  53 valores de prueba —vacía, uno, varios, sin opcionales, bordes y texto con
+  comillas, acentos graves, emoji y saltos de línea— sobre las quince
+  colecciones, todos válidos. 24 tests, y **cada invariante se verificó aplicando
+  su defecto a mano**: ordenar por clave en `join`, usar el `id` en `checkins`,
+  quitar la cuarentena, quitar el orden canónico de `merge`, concatenar la
+  `keyPath` y devolver el objeto crudo en vez del validado.
+
+  Dos de los tests **no discriminaban** y se arreglaron:
+
+  - el de la cuarentena ponía la fila mala al final, donde el recorte por cota la
+    quitaba de rebote: pasaba por la razón equivocada;
+  - el de «`join` no compacta los nulos» **no podía fallar**, porque `join`
+    devuelve el valor validado y el validador repone la clave. Un opcional
+    ausente y uno a `null` son la misma cosa para este esquema. Se fundió con el
+    que sí lo prueba, y el porqué quedó escrito para que no vuelva a añadirse.
 
 - [ ] **M9-3 · Pull, solo lectura.** `GET /api/sync?since=<seq>` y
   `GET /api/export`. Nada del usuario puede destruirse todavía. **Aquí se
