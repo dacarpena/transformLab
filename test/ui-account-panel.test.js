@@ -50,6 +50,10 @@ test('TODO código que el servidor emite lo sabe explicar el panel', () => {
         'route.notFound', 'internal', 'body.notJson', 'body.unreadable',
         'body.notObject', 'body.empty', 'account.gone',
         'challenge.noPendingUser',
+        // Solo lo produce un cliente mal escrito: `api.js` compone el cursor a
+        // partir del último `seq` que le dio el propio servidor, así que un
+        // `since` inválido no puede salir del camino normal.
+        'sync.badCursor',
         // Los de `webauthn.*` y `clientData.*` los devuelve el registro y son
         // fallos del protocolo: el panel enseña el genérico a propósito, porque
         // ninguno tiene una acción distinta para el usuario.

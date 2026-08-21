@@ -46,6 +46,13 @@ async function sembrarCuenta(/** @type {*} */ db, /** @type {string} */ uid = 'u
                                             created_at, last_seen_at, expires_at)
                       VALUES (?1,?2,?3,?4,?5,?6,?7)`)
         .bind(bytes(32).map((b) => b ^ 1), uid, 'cred_1', 'fam_1', 1_000, 1_000, 99_000).run();
+    // Y una fila de datos CIFRADOS, que es lo que de verdad hay que poder borrar
+    // (M9-3). Sin ella, el test del art. 17 comprobaba que se borra la
+    // identidad y no los datos.
+    await db.prepare(`INSERT INTO records
+            (user_id, profile_id, collection, item_tag, ciphertext, rev, seq, updated_at)
+            VALUES (?1, ?2, 'checkins', ?3, ?4, 1, 1, ?5)`)
+        .bind(uid, `perfil_${uid}`, bytes(16), bytes(64), 1_000).run();
 }
 
 /** Cuántas filas hay en cada tabla. */
@@ -61,6 +68,24 @@ async function censo(/** @type {*} */ db, /** @type {*} */ sqlite) {
 }
 
 /* ── La garantía de privacidad, en el propio DDL ─────────────────────────── */
+
+test('las filas de datos son BYTES: ni una columna en claro salvo la colección', () => {
+    // El servidor guarda `ciphertext` y no puede abrirlo. La etiqueta de fila es
+    // un HMAC, no el `dateISO`: guardarlo en claro habría sido más cómodo y
+    // habría convertido esta tabla en un diario de cuándo se pesa cada persona.
+    //
+    // `collection` SÍ va en claro, y es deliberado: el servidor lo necesita para
+    // validar contra el catálogo y para servir un pull. Revela qué módulos usa
+    // alguien, no qué hay dentro.
+    const tabla = (SQL.match(/CREATE TABLE records[\s\S]*?\)\s*STRICT/) ?? [''])[0];
+    assert.ok(tabla.length > 100, 'no se encontró la tabla de filas');
+    assert.match(tabla, /item_tag\s+BLOB/, 'la etiqueta de fila no es opaca');
+    assert.match(tabla, /ciphertext\s+BLOB/);
+    for (const enClaro of ['dateISO', 'date_iso', 'item_key', 'key_path', 'name', 'value']) {
+        assert.doesNotMatch(tabla, new RegExp(`\\b${enClaro}\\b`, 'i'),
+            `la tabla de filas guarda «${enClaro}» en claro`);
+    }
+});
 
 test('el esquema no tiene NINGUNA columna que identifique a una persona', () => {
     // Es la propiedad que hace que este diseño se pueda defender: la identidad
@@ -116,7 +141,7 @@ test('borrar la fila de users vacía la base entera (RGPD art. 17)', async () =>
     try {
         await sembrarCuenta(db);
         const antes = await censo(db, sqlite);
-        assert.deepEqual(antes, { challenges: 1, credentials: 1, sessions: 1, users: 1 });
+        assert.deepEqual(antes, { challenges: 1, credentials: 1, records: 1, sessions: 1, users: 1 });
 
         await db.prepare('DELETE FROM users WHERE id = ?1').bind('u_abc').run();
 
@@ -139,7 +164,8 @@ test('borrar UNA cuenta no toca la otra', async () => {
 
         await db.prepare('DELETE FROM users WHERE id = ?1').bind('u_uno').run();
 
-        assert.deepEqual(await censo(db, sqlite), { challenges: 0, credentials: 1, sessions: 0, users: 1 });
+        assert.deepEqual(await censo(db, sqlite),
+            { challenges: 0, credentials: 1, records: 0, sessions: 0, users: 1 });
         assert.equal(await db.prepare('SELECT user_id FROM credentials').first('user_id'), 'u_dos');
     } finally { close(); }
 });

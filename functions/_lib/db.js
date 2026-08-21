@@ -210,6 +210,52 @@ export function openUserScope(env, userId) {
         },
 
         /**
+         * El pull incremental: las filas que han cambiado desde `since` (M9-3).
+         *
+         * Ordenadas por `seq`, que es un contador de la CUENTA. El cliente
+         * guarda el último que vio y pide lo que haya después: sin relojes, sin
+         * ventanas de tiempo y sin depender de que los dos lados estén en hora.
+         *
+         * `limit + 1` a propósito: se pide una fila de más para saber si queda
+         * cola SIN hacer un `COUNT(*)` aparte, que sobre una tabla grande cuesta
+         * lo mismo que la consulta entera.
+         *
+         * Devuelve las lápidas igual que las filas vivas. Un borrado que no
+         * viaja es un borrado que el otro dispositivo deshace en el siguiente
+         * push.
+         *
+         * @param {{ since: number, limit: number }} cursor
+         */
+        async recordsSince({ since, limit }) {
+            const r = await q(`SELECT profile_id, collection, item_tag, ciphertext, rev, seq,
+                                      updated_at, deleted
+                                 FROM records
+                                WHERE user_id = ?1 AND seq > ?2
+                             ORDER BY seq
+                                LIMIT ?3`, since, limit + 1).all();
+            const filas = /** @type {*[]} */ (r.results);
+            const hayMas = filas.length > limit;
+            return { rows: hayMas ? filas.slice(0, limit) : filas, hasMore: hayMas };
+        },
+
+        /** El `seq` más alto que ha usado esta cuenta. */
+        async lastSeq() {
+            const u = /** @type {*} */ (await q('SELECT last_seq FROM users WHERE id = ?1').first());
+            return u?.last_seq ?? 0;
+        },
+
+        /**
+         * Cuántas filas y cuánto ocupan. Para la vista de Cuenta y para el
+         * runbook; no se usa en el camino de sincronizar.
+         */
+        async recordStats() {
+            const r = /** @type {*} */ (await q(`SELECT COUNT(*) AS n,
+                                                       COALESCE(SUM(LENGTH(ciphertext)), 0) AS bytes
+                                                  FROM records WHERE user_id = ?1`).first());
+            return { count: r?.n ?? 0, bytes: r?.bytes ?? 0 };
+        },
+
+        /**
          * Borra la cuenta (RGPD art. 17). El `ON DELETE CASCADE` se lleva
          * credenciales, retos y sesiones; el código lo hace explícito igualmente,
          * porque depender de que la integridad referencial esté activada es
@@ -218,6 +264,7 @@ export function openUserScope(env, userId) {
         async deleteAccount() {
             const db2 = env.DB;
             await db2.batch([
+                db2.prepare(scoped('DELETE FROM records WHERE user_id = ?1')).bind(userId),
                 db2.prepare(scoped('DELETE FROM sessions WHERE user_id = ?1')).bind(userId),
                 db2.prepare(scoped('DELETE FROM challenges WHERE user_id = ?1')).bind(userId),
                 db2.prepare(scoped('DELETE FROM credentials WHERE user_id = ?1')).bind(userId),

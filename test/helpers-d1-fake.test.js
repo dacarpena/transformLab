@@ -25,11 +25,12 @@ test('aplica todas las migraciones del repositorio, descubiertas del disco', () 
     const { migraciones, sqlite, close } = createD1();
     try {
         assert.ok(migraciones.includes('0001_init.sql'));
+        assert.ok(migraciones.includes('0002_records.sql'));
         assert.deepEqual([...migraciones].sort(), migraciones, 'se aplican en orden alfabético');
         const tablas = /** @type {*[]} */ (sqlite.prepare(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         ).all()).map((r) => r.name).sort();
-        assert.deepEqual(tablas, ['challenges', 'credentials', 'sessions', 'users']);
+        assert.deepEqual(tablas, ['challenges', 'credentials', 'records', 'sessions', 'users']);
     } finally { close(); }
 });
 

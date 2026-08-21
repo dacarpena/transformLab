@@ -2774,9 +2774,53 @@ relleno a múltiplos de 256 B antes de cifrar.
   Analizar desaparece. El E2E de migración dejó de fijar `tl.7.` como destino y
   lo deriva de `rootPrefix()`, para que sobreviva al siguiente salto.
 
-- [ ] **M9-3 · Pull, solo lectura.** `GET /api/sync?since=<seq>` y
-  `GET /api/export`. Nada del usuario puede destruirse todavía. **Aquí se
-  reescriben `CLAUDE.md` §1 y el `og:description`**, en este mismo commit.
+- [x] **M9-3a · El pull, lado servidor.** `migrations/0002_records.sql` y
+  `GET /api/sync?since=<seq>`.
+
+  **La etapa es de SOLO LECTURA, y hay un test que lo exige.** Recorre el
+  manifiesto —la fuente única de lo que existe— y falla si aparece una ruta de
+  `/api/sync` que no sea `GET`. La sincronización se estrena por la mitad que no
+  puede romper nada, así que el cliente que la consume se prueba contra datos
+  reales antes de que exista la mitad que sí puede.
+
+  **El servidor no puede leer ni una fila.** `ciphertext` se abre con una clave
+  que nunca sale del dispositivo, y la identidad de la fila es un HMAC
+  —`HMAC(HKDF(DK,'tl.idx.v1'), collection ‖ keyPath)` truncado a 16 bytes—, no el
+  `dateISO`. Determinista, así que los dos dispositivos calculan la misma
+  etiqueta; opaco, así que la tabla no es un diario de cuándo se pesa cada
+  persona. Hay un test que lo comprueba sobre la respuesta ENTERA: ni una fecha,
+  ni un campo del esquema.
+
+  **`?since=<seq>` y no `?since=<fecha>`.** Un cursor por fecha obligaría a los
+  dos lados a estar de acuerdo sobre la hora, y los relojes de los móviles están
+  mal: una fila escrita por un teléfono adelantado quedaría «en el futuro» y el
+  pull siguiente se la saltaría **para siempre**. `seq` es un contador de la
+  cuenta —no global— porque un autoincremento compartido revelaría a cada cuenta
+  cuánto escriben las demás y haría avanzar su cursor por tráfico ajeno.
+
+  Dos cosas que el diseño aprendió sobre la marcha:
+
+  - **Un blob de longitud cero se guarda como NULL en SQLite.** La primera
+    versión tenía `ciphertext NOT NULL` y cero bytes para las lápidas; saltaba la
+    restricción. El arreglo no fue rellenar con un byte de mentira: el esquema
+    ahora dice lo que pasa —una fila borrada **no tiene** criptograma— y una
+    `CHECK` lo exige en los dos sentidos. Sin ella caben dos estados imposibles y
+    los dos son silenciosos: una fila viva sin cuerpo, que el cliente descifra a
+    nada y descarta sin decir por qué, y una lápida con cuerpo.
+  - **El 401 va antes que el 400.** Un cursor imposible sin sesión responde
+    `auth.required`, no `sync.badCursor`: a un anónimo no se le cuenta ni el
+    formato del cursor.
+
+  Un cursor inválido se rechaza en vez de devolver vacío: un `NaN` haría que
+  `seq > ?` no cumpliera nada y el cliente creería estar al día.
+
+  16 tests, y el guardián de M8-5d cazó al vuelo el código de error nuevo sin
+  clasificar. Esquema aplicado en remoto (WEUR) y verificado contra workerd.
+
+- [ ] **M9-3b · El pull, lado cliente.** Descifrar, fusionar con
+  `sync-policy.join` y escribir en local; el cursor persistido; `GET /api/export`.
+  **Aquí se reescriben `CLAUDE.md` §1 y el `og:description`**, en el mismo commit
+  — es la primera petición que trae datos del usuario.
 - [ ] **M9-4 · Push.** Sombra por hash, cola de salida offline con *coalescing*
   por `(collection, itemKey)`, LWW por fila con reloj **del servidor** —los
   relojes de los móviles están mal— y el perdedor **guardado** en
