@@ -150,8 +150,18 @@ test('una serie sin datos NO desaparece: se queda diciendo por qué', async ({ p
     const vacia = page.locator('[data-legend-row][data-state="emptyWindow"]');
     await expect(vacia).toHaveCount(1);
     await expect(vacia).toContainText(/sin datos|Faltan/i);
-    // Sigue siendo una de las dos elegidas: no se ha quitado sola.
-    await expect(page.locator('[data-series-count]')).toContainText('2');
+
+    // Sigue siendo una de las dos elegidas: no se ha quitado sola. Lo dicen las
+    // DOS filas de leyenda, que es el invariante de verdad.
+    await expect(page.locator('[data-legend-row]')).toHaveCount(2);
+
+    // El contador decía «2» y esta línea lo daba por bueno, así que estaba
+    // afirmando el defecto como si fuera el invariante: contaba lo ELEGIDO
+    // mientras el lienzo dibujaba una sola línea (E15-4). Ahora dice las dos
+    // cosas por separado, y las dos son ciertas.
+    const contador = page.locator('[data-series-count]');
+    await expect(contador).toContainText('1');
+    await expect(contador).toContainText(/sin datos|no data/i);
 });
 
 test('el tope de ocho se explica antes de chocar, y la novena no se marca', async ({ page }) => {
@@ -943,4 +953,41 @@ test.describe('marcadores de hito', () => {
         const fuente = await ficha.locator('.mark-card__item .muted').first().textContent();
         expect(fuente ?? '').toMatch(/OMS|American Council on Exercise|check-ins/);
     });
+});
+
+test('el contador cuenta las series DIBUJADAS, y dice aparte cuántas están vacías (E15-4)', async ({ page }) => {
+    // Medido en producción: con `proj_muscle_kg`, `proj_fat_pct` y `meas_fat_pct`
+    // elegidas y CERO check-ins, la cabecera anunciaba «3 de 8 series» sobre un
+    // lienzo con dos líneas. El contador leía `selected.length`, es decir, lo
+    // elegido, no lo dibujado.
+    await page.goto('/');
+    await page.evaluate(() => {
+        const clave = Object.keys(localStorage).find((k) => k.endsWith('.settings'));
+        const s = JSON.parse(localStorage.getItem(clave ?? '') ?? '{}');
+        // Dos series del plan (siempre tienen puntos) y una medida sin datos:
+        // los check-ins sembrados registran cintura, nunca cadera.
+        s.analysis = {
+            seriesIds: ['proj_weight', 'meas_waist', 'meas_hip'],
+            window: 'all', grain: 'week', normalize: 'raw'
+        };
+        localStorage.setItem(clave ?? '', JSON.stringify(s));
+    });
+    await page.reload();
+    await goToAnalysis(page);
+
+    // La leyenda sigue teniendo TRES filas: la serie sin datos no desaparece,
+    // se queda diciendo por qué (invariante de E13-5, protegido más arriba).
+    await expect(page.locator('[data-legend-row]')).toHaveCount(3);
+    await expect(page.locator('[data-legend-row][data-state="emptyWindow"]')).toHaveCount(1);
+
+    // Pero el número dice la verdad: dos dibujadas, una vacía.
+    const contador = page.locator('[data-series-count]');
+    await expect(contador).toHaveText(/\b2\b/);
+    await expect(contador).not.toHaveText(/^3 /);
+    await expect(contador).toHaveText(/1/);
+
+    // Y el nombre accesible del lienzo cuenta lo MISMO, o el lector de pantalla
+    // y la pantalla estarían describiendo dos gráficas distintas.
+    const etiqueta = await page.locator('[data-view-id="analysis"] [data-canvas]').getAttribute('aria-label');
+    expect(etiqueta).toMatch(/\b2\b/);
 });

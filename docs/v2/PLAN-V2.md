@@ -1640,6 +1640,29 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   barra ya está pintada. La suite de Analizar pasa de 2 minutos a 23 segundos:
   el tiempo era esperas agotándose.
 
+- [x] **E15-4 · «3 de 8 series» sobre un lienzo con dos líneas.**
+  El contador de la cabecera leía `selected.length` —lo ELEGIDO—, mientras el
+  lienzo dibuja lo que tiene puntos. Medido en producción: con `proj_muscle_kg`,
+  `proj_fat_pct` y `meas_fat_pct` seleccionadas y cero check-ins, la vista
+  anunciaba tres series y pintaba dos.
+
+  Ahora se rehace desde `manifest.rendered` —la misma regla que ya gobierna la
+  leyenda— y dice las dos cosas por separado: «2 de 8 series · 1 sin datos». El
+  `aria-label` del lienzo sale del mismo sitio: si el rótulo visible y el nombre
+  accesible contaran distinto, quien usa lector de pantalla y quien mira estarían
+  describiendo dos gráficas.
+
+  **La leyenda no se toca**, y es deliberado: ya marca las vacías con su motivo y
+  su botón de «ampliar ventana», y hay un E2E desde E13-5 que exige que NO
+  desaparezcan. Esconderlas sería mentir por el otro lado. Lo que mentía era el
+  número. El contador de la BANDEJA del selector tampoco cambia: allí la pregunta
+  es «cuántas has marcado», no «cuántas se ven».
+
+  De paso, el test de aquel invariante afirmaba `[data-series-count]` = «2» como
+  prueba de que la serie seguía elegida: **estaba dando por bueno el defecto**.
+  Reescrito para afirmar el invariante de verdad —dos filas de leyenda— y de paso
+  las dos mitades honestas del contador.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1682,12 +1705,18 @@ E2E que comprueban el número exacto de producción (sin el suelo, el eje mide
 **852/852 unitarios, 208/208 E2E y typecheck limpio: la suite entera en verde,
 que no lo estaba al empezar la sesión.**
 
-Siguiente paso concreto: **E15-4**, el contador de series. Hoy `[data-series-count]`
-lee `selected.length`, así que una serie seleccionada con CERO puntos cuenta como
-serie: se anuncian «3 de 8 series» y se dibujan dos líneas. Debe contar las
-DIBUJADAS, leyendo `manifest.rendered` —la misma regla que ya gobierna la
-leyenda— y decir aparte cuántas están vacías. La leyenda NO se toca: ya las marca
-«sin datos» con su motivo, y hay un E2E que lo protege desde E13-5.
+**2026-08-21 · E15-4.** Cerrada. Contador y `aria-label` desde el manifiesto,
+clave `analysis.series.countEmpty` en los dos diccionarios, E2E que reproduce la
+cifra exacta de producción, y el test de E13-5 corregido para que deje de afirmar
+el defecto. 852/852 unitarios, **209/209 E2E**, typecheck limpio.
+
+Siguiente paso concreto: **E15-5**, `renderFallback`. Hoy hace `render()` sobre
+`[data-chart-host]`, que es el PADRE del `<canvas>`, así que un fallo transitorio
+—el vendor que no llega, una vista que se desmonta a medias— borra el lienzo del
+DOM y no vuelve nunca: los redibujados posteriores salen por `plan-chart.js:99`
+en silencio. El respaldo debe ir a un HERMANO `[data-chart-fallback]`, con
+`clearFallback` al volver, una acción «reintentar» antes que «recargar», y los
+cuatro fallos mudos pasando por `console.error`.
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa

@@ -955,6 +955,7 @@ export const es = {
     'analysis.intro': 'Superpón hasta cuatro series y compáralas en el mismo periodo.',
     'analysis.series.title': 'Series',
     'analysis.series.count': '{count} de {max} series',
+    'analysis.series.countEmpty': '· {count} sin datos',
     'analysis.series.choose': 'Elegir series…',
     'analysis.series.pickerTitle': 'Elegir series',
     'analysis.series.search': 'Buscar serie',

@@ -955,6 +955,7 @@ export const en = {
     'analysis.intro': 'Overlay up to four series and compare them over the same period.',
     'analysis.series.title': 'Series',
     'analysis.series.count': '{count} of {max} series',
+    'analysis.series.countEmpty': '· {count} with no data',
     'analysis.series.choose': 'Choose series…',
     'analysis.series.pickerTitle': 'Choose series',
     'analysis.series.search': 'Search series',

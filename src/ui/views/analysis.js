@@ -592,6 +592,32 @@ function pickerBody() {
     `;
 }
 
+/**
+ * El contador de la cabecera y el nombre accesible del lienzo, desde el
+ * manifiesto de lo que se DIBUJÓ.
+ *
+ * Las dos cifras salen del mismo sitio a propósito: si el rótulo visible y el
+ * `aria-label` contaran cosas distintas, quien usa lector de pantalla y quien
+ * mira la pantalla estarían viendo dos gráficas.
+ *
+ * El contador de la BANDEJA del selector es otra cosa y sigue contando lo
+ * elegido: allí la pregunta es «cuántas has marcado», no «cuántas se ven».
+ * @param {HTMLElement} container
+ */
+function renderSeriesCount(container) {
+    const rendered = manifest?.rendered ?? [];
+    const dibujadas = rendered.filter((s) => s.pointCount > 0).length;
+    const vacias = rendered.length - dibujadas;
+    const texto = t('analysis.series.count', { count: dibujadas, max: MAX_SERIES })
+        + (vacias > 0 ? ` ${t('analysis.series.countEmpty', { count: vacias })}` : '');
+
+    const host = container.querySelector('[data-series-count]');
+    if (host) host.textContent = texto;
+
+    container.querySelector('[data-canvas]')
+        ?.setAttribute('aria-label', t('analysis.chart.label', { count: dibujadas }));
+}
+
 /** La bandeja de elegidas. Se repinta SOLA al marcar, sin tocar la lista. */
 function trayBody() {
     return html`
@@ -682,6 +708,17 @@ async function redraw(/** @type {HTMLElement} */ container) {
         render(/** @type {HTMLElement} */ (legendHost),
             html`${(manifest.rendered ?? []).map(legendRow)}`);
     }
+
+    // Y el contador, por la MISMA regla (E15-4). Leía `selected.length`, así que
+    // una serie elegida con CERO puntos —una medida que el usuario todavía no ha
+    // registrado— contaba como serie: se anunciaban «3 de 8 series» sobre un
+    // lienzo con dos líneas. Medido en producción con `meas_fat_pct` y ningún
+    // check-in.
+    //
+    // La LEYENDA no se toca: ya marca las vacías con su motivo y su botón de
+    // «ampliar ventana», y hay un E2E desde E13-5 que exige que NO desaparezcan
+    // —esconderlas sería mentir por el otro lado—. Lo que mentía era el número.
+    renderSeriesCount(container);
 
     // La nota de procedencia también sale del manifiesto, y por eso se rellena
     // AQUÍ y no al construir el marcado: cuando se pinta la vista, el manifiesto
