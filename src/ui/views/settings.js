@@ -337,6 +337,11 @@ export function mount(container) {
     // UNA vez, sobre el contenedor estable: `draw` reconstruye el cuerpo entero
     // en cada repintado, y un oyente colgado del panel se perdería en el primero.
     accountPanel.mount(container);
+    // Cuando la sincronía trae un perfil que este dispositivo no conocía, la
+    // aplicación entera tiene que redibujarse: si no, el perfil recuperado está
+    // en el almacén y no aparece en ninguna lista. Es el mismo camino que
+    // crear o borrar un perfil a mano, y por eso reutiliza su aviso.
+    accountPanel.setOnProfilesAdopted(() => { if (onProfilesChanged) onProfilesChanged(); });
 
     // El permiso se pide DENTRO del clic: es el gesto que el navegador exige,
     // y pedirlo al cargar es la vía rápida a que lo bloqueen para siempre.

@@ -33,10 +33,12 @@ import assert from 'node:assert/strict';
 import { LocalStorageMock } from './helpers/local-storage-mock.js';
 import { installIndexedDbMock, uninstallIndexedDbMock } from './helpers/indexed-db-mock.js';
 import * as storage from '../src/data/storage.js';
+import * as profiles from '../src/data/profiles.js';
 import * as keysDb from '../src/data/keys-db.js';
 import * as sync from '../src/data/sync.js';
 import { importDataKey, deriveIndexKey, encryptBytes, itemTag } from '../src/data/crypto.js';
 import { SCHEMA_VERSION } from '../src/data/version.js';
+import { COLLECTIONS } from '../src/data/schema.js';
 import { NO_PROFILE } from '../src/data/ids.js';
 
 const ORIGEN = 'https://motifyer.com';
@@ -119,18 +121,26 @@ function servidorFalso() {
 /** @type {{ status?: number, error?: boolean, body?: string } | null} */ let averia;
 
 /**
- * Un dispositivo: su propio `localStorage`, con el índice de perfiles puesto.
+ * Un dispositivo: su propio `localStorage`.
+ *
+ * Con `virgen: true` no tiene índice de perfiles, que es lo que de verdad es un
+ * teléfono recién estrenado: ni datos, ni nombres, ni saber que ese perfil
+ * existe.
+ *
  * @param {string} _nombre
+ * @param {{ virgen?: boolean }} [opciones]
  */
-function dispositivo(_nombre) {
+function dispositivo(_nombre, opciones = {}) {
     const store = new LocalStorageMock();
     const antes = /** @type {*} */ (globalThis).localStorage;
     /** @type {*} */ (globalThis).localStorage = store;
-    storage.setGlobal('profiles', {
-        schemaVersion: SCHEMA_VERSION,
-        activeProfileId: PERFIL,
-        profiles: [{ id: PERFIL, name: 'Ana', createdAtISO: '2026-05-01T08:00:00.000Z' }]
-    });
+    if (!opciones.virgen) {
+        storage.setGlobal('profiles', {
+            schemaVersion: SCHEMA_VERSION,
+            activeProfileId: PERFIL,
+            profiles: [{ id: PERFIL, name: 'Ana', createdAtISO: '2026-05-01T08:00:00.000Z' }]
+        });
+    }
     /** @type {*} */ (globalThis).localStorage = antes;
 
     return {
@@ -715,5 +725,136 @@ test('el pull escribe en VARIOS perfiles sin mover el activo', async () => {
         assert.equal(
             /** @type {*} */ (storage.getForProfile(OTRO, 'checkins').value).items[0].dateISO,
             '2026-06-01');
+    });
+});
+
+/* ══ El teléfono nuevo ══════════════════════════════════════════════════════ */
+
+/** Un perfil de usuario válido, del propio catálogo del esquema. */
+const perfilDe = (/** @type {string} */ nombre) => ({
+    ...COLLECTIONS.profile.makeDefault(),
+    name: nombre,
+    createdAtISO: '2026-05-01T08:00:00.000Z'
+});
+
+test('un teléfono recién estrenado se lo trae todo Y SABE QUE ESTÁ AHÍ', async () => {
+    // El recorrido que justifica la sincronía entera. Lo que estuvo roto: el
+    // índice de perfiles es local y no viaja, así que el dispositivo nuevo se
+    // descargaba la cuenta completa y no enseñaba nada — los datos en el
+    // almacén y ninguna vista sabiendo que ese perfil existía.
+    const a = dispositivo('A');
+    await a.en(async () => {
+        storage.setForProfile(PERFIL, 'profile', perfilDe('Ana'));
+        ponerCheckins([checkin('2026-05-01'), checkin('2026-05-08')]);
+        const r = await sync.push(USER);
+        assert.equal(r.ok, true, r.error);
+    });
+
+    const nuevo = dispositivo('nuevo', { virgen: true });
+    await nuevo.en(async () => {
+        assert.deepEqual(profiles.list().value, [], 'el dispositivo no estaba virgen');
+
+        const r = await sync.pull(USER);
+        assert.equal(r.ok, true, r.error);
+        assert.equal(r.adopted, 1, 'el perfil no se inscribió en el índice');
+
+        const lista = /** @type {*} */ (profiles.list().value);
+        assert.equal(lista.length, 1);
+        assert.equal(lista[0].id, PERFIL);
+        assert.equal(lista[0].name, 'Ana', 'el nombre no salió del perfil descargado');
+        // Y queda ACTIVO: si no, la aplicación arrancaría sin perfil y pediría
+        // crear uno encima de los datos que se acaban de bajar.
+        assert.equal(/** @type {*} */ (profiles.getActive().value), PERFIL);
+        assert.deepEqual(leerCheckins().map((/** @type {*} */ i) => i.dateISO),
+            ['2026-05-01', '2026-05-08']);
+    });
+});
+
+test('una cuenta ENTERA cabe en un dispositivo virgen, colecciones mixtas incluidas', async () => {
+    // El caso que rompía, y no era evidente: `settings` es MIXTA —los ajustes de
+    // módulos viajan, el recordatorio no, porque es de este aparato—. Recompuesta
+    // solo con lo que llega del servidor no valida, `join` hace bien en no
+    // devolverla, y el pull entero se declaraba fallido: el teléfono nuevo se
+    // quedaba sin NADA por culpa de una colección.
+    const a = dispositivo('A');
+    await a.en(async () => {
+        for (const nombre of Object.keys(COLLECTIONS)) {
+            storage.setForProfile(PERFIL, nombre, COLLECTIONS[nombre].makeDefault());
+        }
+        storage.setForProfile(PERFIL, 'profile', perfilDe('Ana'));
+        const r = await sync.push(USER);
+        assert.equal(r.ok, true, r.error);
+    });
+
+    const nuevo = dispositivo('nuevo', { virgen: true });
+    await nuevo.en(async () => {
+        const r = await sync.pull(USER);
+        assert.equal(r.ok, true, r.error);
+        assert.equal(r.adopted, 1);
+
+        // Y TODA colección escrita valida: si alguna no lo hiciera, el siguiente
+        // gesto del usuario persistiría un valor degradado.
+        for (const nombre of Object.keys(COLLECTIONS)) {
+            assert.ok(sync.localIsValid(PERFIL, nombre),
+                `la colección «${nombre}» se escribió inválida`);
+        }
+
+        // Lo que viaja llegó, y lo que no viaja arrancó de fábrica.
+        const ajustes = /** @type {*} */ (storage.getForProfile(PERFIL, 'settings').value);
+        assert.ok(ajustes !== null, 'no se escribieron los ajustes');
+        assert.deepEqual(ajustes.reminder, COLLECTIONS.settings.makeDefault().reminder,
+            'la parte local de los ajustes no arrancó de fábrica');
+    });
+});
+
+test('un perfil cuyo nombre aún no ha llegado no se bautiza a lo loco', async () => {
+    // El pull pagina, y dentro de una página el orden no está garantizado. Antes
+    // que inventar un «Perfil 2» —un literal visible fuera de i18n y una
+    // etiqueta que nadie reconoce—, se deja para la vuelta siguiente.
+    const a = dispositivo('A');
+    await a.en(async () => { ponerCheckins([checkin('2026-05-01')]); await sync.push(USER); });
+
+    const nuevo = dispositivo('nuevo', { virgen: true });
+    await nuevo.en(async () => {
+        const r = await sync.pull(USER);
+        assert.equal(r.applied, 1, 'no llegó el check-in');
+        assert.equal(r.adopted, 0, 'inscribió un perfil sin saber cómo se llama');
+        assert.deepEqual(profiles.list().value, []);
+    });
+
+    // Cuando llega el perfil, se inscribe.
+    await a.en(async () => {
+        storage.setForProfile(PERFIL, 'profile', perfilDe('Ana'));
+        await sync.push(USER);
+    });
+    await nuevo.en(async () => {
+        const r = await sync.pull(USER);
+        assert.equal(r.adopted, 1);
+        assert.equal(/** @type {*} */ (profiles.list().value)[0].name, 'Ana');
+    });
+});
+
+test('un nombre repetido no cuesta el perfil entero: se desambigua', async () => {
+    const a = dispositivo('A');
+    await a.en(async () => {
+        storage.setForProfile(PERFIL, 'profile', perfilDe('Ana'));
+        await sync.push(USER);
+    });
+
+    // El dispositivo receptor ya tiene un perfil suyo llamado igual, con OTRO id.
+    const otro = dispositivo('otro', { virgen: true });
+    await otro.en(async () => {
+        storage.setGlobal('profiles', {
+            schemaVersion: SCHEMA_VERSION, activeProfileId: 'zz9xy1234567890abcdefg',
+            profiles: [{ id: 'zz9xy1234567890abcdefg', name: 'Ana', createdAtISO: '2026-05-01T08:00:00.000Z' }]
+        });
+        const r = await sync.pull(USER);
+        assert.equal(r.adopted, 1, 'un nombre repetido dejó el perfil sin inscribir');
+
+        const lista = /** @type {*} */ (profiles.list().value);
+        assert.equal(lista.length, 2);
+        assert.equal(lista.find((/** @type {*} */ p) => p.id === PERFIL).name, 'Ana (2)');
+        // Y el que estaba mirando NO cambia: sincronizar no te mueve de sitio.
+        assert.equal(/** @type {*} */ (profiles.getActive().value), 'zz9xy1234567890abcdefg');
     });
 });

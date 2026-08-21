@@ -3,7 +3,7 @@
 /**
  * La cuenta, con un autenticador de verdad (M8-5d).
  *
- * Corre contra el servidor 8790, que monta las **Pages Functions reales** en
+ * Corre contra el servidor 8793, que monta las **Pages Functions reales** en
  * proceso con el D1 de `node:sqlite` detrás, y usa el **autenticador virtual de
  * Chrome** por CDP: la implementación real de CTAP2 del navegador. O sea, todo
  * el camino —panel, `account.js`, `api.js`, middleware, enrutador, manejadores,

@@ -53,6 +53,7 @@ import * as account from '../data/account.js';
 import * as modal from './components/modal.js';
 import * as toast from './components/toast.js';
 import { longDate } from './dates.js';
+import * as syncLoop from './sync-loop.js';
 
 /**
  * @typedef {{ estado: 'sinSoporte' | 'sinCuenta' | 'cargando' | 'error'
@@ -69,6 +70,9 @@ let raiz = null;
 /** @type {(() => void) | null} */
 let onChanged = null;
 
+/** Cuántas adopciones de perfil se han atendido ya. Ver el oyente de `mount`. */
+let adopcionesAtendidas = 0;
+
 /**
  * La huella de «este dispositivo ha tenido cuenta alguna vez».
  *
@@ -78,17 +82,27 @@ let onChanged = null;
 export const SEEN_KEY = 'ui.accountSeen';
 
 /** ¿Merece la pena preguntarle al servidor? */
+export function hasAccountHere() {
+    return haHabidoCuenta();
+}
+
 function haHabidoCuenta() {
     const r = storage.get(SEEN_KEY);
     return Boolean(r.ok && r.value);
 }
 
 /**
- * Avisa cuando el estado de la cuenta cambia, para que Ajustes se repinte
- * entera si le hace falta.
+ * Avisa cuando la sincronía inscribe un perfil que este dispositivo no conocía.
+ *
+ * Es una señal ESTRECHA a propósito, y la anterior —«el estado de la cuenta ha
+ * cambiado»— no valía para esto por dos razones: no la llamaba nadie, así que el
+ * perfil recuperado se quedaba en el almacén sin aparecer en ninguna lista; y
+ * quien la atendiera repintaría la aplicación en cada refresco del panel, y como
+ * abrir Ajustes refresca el panel, eso es una rueda.
+ *
  * @param {() => void} fn
  */
-export function setOnChanged(fn) {
+export function setOnProfilesAdopted(fn) {
     onChanged = fn;
 }
 
@@ -158,6 +172,7 @@ export function mount(container) {
     on(container, 'click', '[data-account-logout]', async () => {
         const userId = vista.datos?.userId;
         if (!userId) return;
+        syncLoop.stop();
         await account.logout(userId);
         storage.remove(SEEN_KEY);
         await refrescar();
@@ -175,6 +190,7 @@ export function mount(container) {
             confirmKey: 'account.logoutAll',
             danger: true,
             onConfirm: async () => {
+                syncLoop.stop();
                 await account.logoutEverywhere(userId);
                 storage.remove(SEEN_KEY);
                 await refrescar();
@@ -201,6 +217,50 @@ export function mount(container) {
     });
 
     on(container, 'click', '[data-account-retry]', () => { void refrescar(); });
+
+    on(container, 'click', '[data-account-sync]', async () => {
+        await conBoton('[data-account-sync]', async () => {
+            const r = await syncLoop.syncNow();
+            if (r.state === 'error' && r.error) toast.error(claveDeError(r.error));
+        });
+    });
+
+    on(container, 'click', '[data-account-sync-confirm]', () => {
+        // La parada por borrado masivo NO se levanta con un clic suelto: lo que
+        // se confirma es que se van a borrar datos en todos los dispositivos, y
+        // el diálogo lo dice con ese número delante.
+        const cuantas = syncLoop.status().last?.tombstones ?? 0;
+        modal.confirm({
+            titleKey: 'account.sync.blocked.title',
+            messageKey: 'account.sync.blocked.confirm',
+            params: { n: cuantas },
+            confirmKey: 'account.sync.blocked.accept',
+            danger: true,
+            onConfirm: async () => { await syncLoop.syncNow({ allowMassDelete: true }); }
+        });
+    });
+
+    // El bucle repinta este panel cuando cambia de estado. Es la única forma de
+    // que «sincronizando…» signifique algo: sin esto habría que abrir y cerrar
+    // Ajustes para ver en qué anda.
+    syncLoop.onChange(() => {
+        pintar();
+        // Un perfil que este dispositivo no conocía acaba de aparecer: la
+        // aplicación entera tiene que volver a dibujarse, o los datos estarían
+        // en el almacén y ninguna vista los enseñaría. Es el recorrido del
+        // teléfono nuevo, y sin esto termina en una pantalla vacía.
+        //
+        // UNA VEZ POR ADOPCIÓN, y por eso se compara un acumulador en vez de
+        // mirar el último informe: `onChange` salta con cada cambio de estado
+        // —«sincronizando», «al día», «pendiente»— y el informe conserva su
+        // `adopted`. Avisando en todos, repintar escribía en el almacén, el
+        // almacén marcaba cambios, el bucle volvía a sincronizar y no paraba.
+        const total = syncLoop.status().adoptedTotal;
+        if (total > adopcionesAtendidas) {
+            adopcionesAtendidas = total;
+            onChanged?.();
+        }
+    });
 
     void refrescar();
 }
@@ -239,6 +299,7 @@ export async function refrescar() {
         // La sesión caducó o se cerró desde otro sitio. Se borra la huella para
         // no volver a preguntar en cada apertura de Ajustes.
         storage.remove(SEEN_KEY);
+        syncLoop.stop();
         vista = { estado: 'sinCuenta', datos: null };
         return pintar();
     }
@@ -255,8 +316,12 @@ export async function refrescar() {
         estado: detalle.protected ? 'lista' : 'sinProteger',
         datos: detalle
     };
+    // La regla dura, también aquí: **una cuenta sin vía de vuelta no sube nada**.
+    // Con cifrado extremo a extremo, subir antes de que exista el kit es
+    // fabricar una pérdida irreversible el día que se pierda el dispositivo.
+    if (detalle.protected) syncLoop.start(sesion.userId);
+    else syncLoop.stop();
     pintar();
-    onChanged?.();
 }
 
 /* ── Pintado ─────────────────────────────────────────────────────────────── */
@@ -348,10 +413,49 @@ function cuerpoDe(v) {
             ? html`<p class="muted">${t('account.device.lastHint')}</p>`
             : ''}
 
+        ${v.estado === 'lista' ? bloqueDeSincronia() : ''}
+
         <div class="btn-row">
             <button type="button" class="btn" data-account-logout>${t('account.logout')}</button>
             <button type="button" class="btn" data-account-logout-all>${t('account.logoutAll')}</button>
         </div>
+    `;
+}
+
+/**
+ * Qué está haciendo la sincronía, en una frase.
+ *
+ * Se enseña SIEMPRE, también cuando no pasa nada: una función que mueve los
+ * datos de alguien entre dispositivos y no dice cuándo lo hizo por última vez
+ * obliga a confiar a ciegas. «Al día · hace un rato» es información; el silencio
+ * es lo mismo que estar roto.
+ */
+function bloqueDeSincronia() {
+    const s = syncLoop.status();
+    const cuando = s.lastAt === null
+        ? t('account.sync.never')
+        : longDate(new Date(s.lastAt).toISOString());
+
+    return html`
+        <h3 class="card__title">${t('account.sync.title')}</h3>
+        <p class="${s.state === 'error' || s.state === 'blocked' ? 'notice notice--warning' : 'secondary'}"
+           data-account-sync-state="${s.state}"
+           data-account-sync-error="${s.error ?? ''}" role="status">
+            ${t(`account.sync.state.${s.state}`)}
+            ${s.state === 'error' && s.error ? html`<span class="muted"> · ${t(claveDeError(s.error))}</span>` : ''}
+            ${s.state === 'idle' ? html`<span class="muted"> · ${cuando}</span>` : ''}
+        </p>
+        ${s.state === 'blocked' ? html`
+            <div class="btn-row">
+                <button type="button" class="btn btn--primary"
+                        data-account-sync-confirm>${t('account.sync.blocked.review')}</button>
+            </div>
+        ` : html`
+            <div class="btn-row">
+                <button type="button" class="btn" data-account-sync
+                        ${s.state === 'syncing' ? 'disabled' : ''}>${t('account.sync.now')}</button>
+            </div>
+        `}
     `;
 }
 

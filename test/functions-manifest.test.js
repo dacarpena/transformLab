@@ -18,7 +18,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
 import { isICloudDuplicate } from './helpers/tree.js';
 import { ROUTES } from '../functions/_manifest.js';
 
@@ -176,4 +176,65 @@ test('nada de functions/_lib/ está escrito y sin cablear', () => {
 /** Quita comentarios de bloque y de línea, para no leer lo que solo se explica. */
 function sinComentarios(/** @type {string} */ code) {
     return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+test('lo que el servidor importa de `src/` es PURO, y por eso Pages lo puede empaquetar', () => {
+    // El catálogo de colecciones se importa de `src/data/sync-policy.js` en vez
+    // de teclearse en el servidor: una lista repetida es una lista que se queda
+    // vieja, y la que se quedaría vieja sería la del servidor, que es la que
+    // nadie mira.
+    //
+    // Eso solo funciona mientras la cadena de imports siga siendo pura. El día
+    // que `schema.js` importe `storage.js`, el Worker arrastraría `localStorage`
+    // y REVENTARÍA AL DESPLEGAR, no aquí. Este test lo adelanta.
+    const raiz = fileURLToPath(new URL('..', import.meta.url));
+    /** @type {Set<string>} */ const vistos = new Set();
+    /** @type {string[]} */ const pendientes = [];
+
+    for (const fichero of ficherosDe(join(raiz, 'functions'))) {
+        for (const rel of importsDe(readFileSync(fichero, 'utf8'))) {
+            if (rel.includes('/src/')) pendientes.push(resolve(dirname(fichero), rel));
+        }
+    }
+    assert.ok(pendientes.length > 0, '¿ya no se importa nada de src/? Actualiza este test');
+
+    const PROHIBIDOS = ['localStorage', 'indexedDB', 'document', 'window', 'navigator'];
+    while (pendientes.length > 0) {
+        const fichero = /** @type {string} */ (pendientes.pop());
+        if (vistos.has(fichero)) continue;
+        vistos.add(fichero);
+
+        const fuente = readFileSync(fichero, 'utf8');
+        // Sin el DOM ni el almacén: en un Worker no existen, y una referencia
+        // suelta en el módulo tumba el arranque entero.
+        const sinComentarios = fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        for (const prohibido of PROHIBIDOS) {
+            // Como REFERENCIA, no como nombre de propiedad: `schema.js` declara
+            // un campo que se llama `window` —la ventana de la gráfica— y eso no
+            // tiene nada que ver con la del navegador. Un guardián que confunda
+            // las dos cosas obliga a renombrar datos del usuario para callarlo.
+            const referencia = new RegExp(`(?<![.\\w'"\`])${prohibido}\\b(?!\\s*:)`);
+            assert.ok(!referencia.test(sinComentarios),
+                `${fichero.slice(raiz.length)} usa «${prohibido}» y lo importa el servidor`);
+        }
+        for (const rel of importsDe(fuente)) {
+            if (rel.startsWith('.')) pendientes.push(resolve(dirname(fichero), rel));
+        }
+    }
+});
+
+/** Los `import` relativos de un fuente. */
+function importsDe(/** @type {string} */ fuente) {
+    return [...fuente.matchAll(/^import\s[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
+}
+
+/** Todos los `.js` de un árbol. */
+function ficherosDe(/** @type {string} */ dir) {
+    /** @type {string[]} */ const out = [];
+    for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entrada.name);
+        if (entrada.isDirectory()) out.push(...ficherosDe(p));
+        else if (entrada.name.endsWith('.js')) out.push(p);
+    }
+    return out;
 }

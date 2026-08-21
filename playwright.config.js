@@ -15,7 +15,12 @@ import { defineConfig, devices } from '@playwright/test';
  * el servidor lo lee, así que la política que se prueba es literalmente la que
  * despliega Cloudflare Pages, no una copia que se desincroniza.
  *
- * **8790 · con `/api/*`.** El E2E de la cuenta necesita la API viva, y este
+ * **8793 · con `/api/*`.** (Era 8790 hasta que otro proyecto de esta misma
+ * máquina levantó ahí su `wrangler dev`: con `reuseExistingServer`, Playwright
+ * daba el puerto por bueno y los tests corrían contra OTRA aplicación, colgados
+ * sin decir por qué. Un puerto de test es una dependencia compartida de la
+ * máquina, no del repositorio.)
+ * El E2E de la cuenta necesita la API viva, y este
  * servidor monta las Pages Functions REALES en su propio proceso con el D1 de
  * `node:sqlite` detrás (`--api`). Se accede por `localhost` y no por la IP: el
  * `rpId` de WebAuthn sale del `hostname`, y una IP no es un `rpId` válido — el
@@ -43,13 +48,15 @@ export default defineConfig({
         {
             name: 'chromium',
             use: { ...devices['Desktop Chrome'] },
-            // La cuenta va en su propio proyecto: necesita otro origen.
-            testIgnore: /account\.spec\.js/
+            // La cuenta y la sincronía van en su propio proyecto: necesitan otro
+            // origen —el que tiene `/api/*` vivo—. Aquí no lo tienen, y correrlas
+            // igualmente da fallos que no dicen nada sobre el código.
+            testIgnore: /(account|sync)\.spec\.js/
         },
         {
             name: 'account',
-            testMatch: /account\.spec\.js/,
-            use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:8790' }
+            testMatch: /(account|sync)\.spec\.js/,
+            use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:8793' }
         }
     ],
     webServer: [
@@ -60,8 +67,8 @@ export default defineConfig({
             timeout: 30000
         },
         {
-            command: 'node tools/serve-csp.mjs 8790 --api',
-            url: 'http://localhost:8790/api/health',
+            command: 'node tools/serve-csp.mjs 8793 --api',
+            url: 'http://localhost:8793/api/health',
             reuseExistingServer: !process.env.CI,
             timeout: 30000
         },

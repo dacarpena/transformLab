@@ -21,7 +21,7 @@
  * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-e99dd4ac1c5c';
+const CACHE_VERSION = 'tl-2e9b40525e01';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -130,6 +130,7 @@ const PRECACHE = [
     'src/ui/plan-state.js',
     'src/ui/spark.js',
     'src/ui/pwa.js',
+    'src/ui/sync-loop.js',
     'src/ui/reminder.js',
     'src/ui/account-panel.js',
     'src/ui/recalibrate.js',

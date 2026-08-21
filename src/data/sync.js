@@ -52,7 +52,7 @@ import * as profiles from './profiles.js';
 import * as keysDb from './keys-db.js';
 import { decryptBytes, encryptBytes, itemTag } from './crypto.js';
 import { isReservedProfileId } from './ids.js';
-import { validateCollection } from './schema.js';
+import { validateCollection, COLLECTIONS } from './schema.js';
 import {
     split, join, mergeRow, collections as syncCollections, scopeOf
 } from './sync-policy.js';
@@ -195,6 +195,8 @@ function estable(v) {
  * @property {number} merged filas editadas en los dos sitios y fusionadas
  * @property {number} kept filas locales que ganaron a una lápida ajena
  * @property {number} undecryptable filas que no se pudieron abrir
+ * @property {number} adopted perfiles que este dispositivo no conocía y ha
+ *   inscrito en su índice
  * @property {number} cursor el cursor tras el pull
  * @property {boolean} hasMore si el servidor tiene más
  */
@@ -212,7 +214,7 @@ export async function pull(userId) {
     /** @type {PullReport} */
     const report = {
         ok: false, fetched: 0, applied: 0, removed: 0, merged: 0, kept: 0,
-        undecryptable: 0, cursor: readCursor(userId), hasMore: false
+        undecryptable: 0, adopted: 0, cursor: readCursor(userId), hasMore: false
     };
 
     const llaves = await abrirLlaves(userId);
@@ -240,6 +242,11 @@ export async function pull(userId) {
             report.kept += aplicado.kept;
             report.undecryptable += aplicado.undecryptable;
             falloAlEscribir = aplicado.failed > 0;
+
+            // Los perfiles que han llegado se inscriben en el índice local. Sin
+            // esto, un dispositivo nuevo se descarga la cuenta entera y no
+            // enseña nada: los datos están y ninguna vista sabe que existen.
+            report.adopted += inscribirPerfiles(aplicado.perfiles);
         }
 
         // La sombra se guarda ANTES que el cursor, y no al revés. Si se pierde
@@ -281,6 +288,7 @@ export async function pull(userId) {
  */
 async function aplicar(llaves, filas, sombra) {
     let applied = 0, removed = 0, merged = 0, kept = 0, undecryptable = 0, failed = 0;
+    /** @type {Set<string>} */ const perfiles = new Set();
 
     // Se agrupa por (perfil, colección) porque `join` recompone una colección
     // entera: aplicar fila a fila obligaría a leer y escribir el almacén una vez
@@ -304,7 +312,7 @@ async function aplicar(llaves, filas, sombra) {
 
         const partidoLocal = actual.value !== null ? split(collection, actual.value) : null;
         if (partidoLocal !== null && !partidoLocal.ok) { failed += delGrupo.length; continue; }
-        const filasLocales = partidoLocal !== null ? partidoLocal.rows : [];
+        const filasLocales = partidoLocal !== null ? partidoLocal.rows : partesLocalesPorDefecto(collection);
 
         // El orden se conserva: `join` reconstruye por ordinal, y reordenar aquí
         // movería de sitio listas que el usuario ya ha visto.
@@ -421,9 +429,72 @@ async function aplicar(llaves, filas, sombra) {
         // avanzar sobre esto, porque la sombra que se acaba de mutar describe un
         // estado que no llegó a escribirse. Repetir la página lo rehace.
         if (!escrito.ok) failed += 1;
+        else perfiles.add(profileId);
     }
 
-    return { applied, removed, merged, kept, undecryptable, failed };
+    return { applied, removed, merged, kept, undecryptable, failed, perfiles };
+}
+
+/**
+ * Las partes que NO viajan de una colección, con su valor de fábrica.
+ *
+ * Hacen falta cuando aquí no existe todavía esa colección, y es el recorrido del
+ * teléfono nuevo. `settings` es mixta: los ajustes de módulos viajan y el
+ * recordatorio no, porque es de este aparato. Recomponerla solo con lo que llega
+ * del servidor produce un valor incompleto que el esquema rechaza —y `join`
+ * hace bien en no devolverlo—, así que el pull entero se declaraba fallido y no
+ * escribía nada. Con esto, lo que no viaja arranca de fábrica y lo que viaja
+ * viene del servidor, que es exactamente lo que significa «esta parte es de este
+ * dispositivo».
+ *
+ * Solo las locales: si se sembraran también las que viajan, la fila remota
+ * encontraría una local con su misma clave y se resolvería como una edición
+ * concurrente contra un valor de fábrica que nadie escribió nunca.
+ *
+ * @param {string} collection
+ * @returns {*[]}
+ */
+function partesLocalesPorDefecto(collection) {
+    const fabrica = COLLECTIONS[collection];
+    if (!fabrica) return [];
+    const partido = split(collection, fabrica.makeDefault());
+    if (!partido.ok) return [];
+    return partido.rows.filter((f) => f.scope === 'local');
+}
+
+/**
+ * Inscribe en el índice local los perfiles que ha traído el pull.
+ *
+ * **El nombre sale del propio perfil descargado**, nunca de uno inventado aquí:
+ * un «Perfil 2» de relleno sería un literal visible fuera de i18n y, peor, una
+ * etiqueta que nadie reconocería. Si la colección `profile` de ese id todavía no
+ * ha llegado —el pull pagina, y el orden dentro de una página no está
+ * garantizado—, se deja para la vuelta siguiente en vez de bautizarlo mal.
+ *
+ * @param {Set<string>} ids
+ * @returns {number} cuántos se inscribieron
+ */
+function inscribirPerfiles(ids) {
+    let n = 0;
+    for (const id of ids) {
+        if (isReservedProfileId(id)) continue;
+        const guardado = storage.getForProfile(id, 'profile');
+        if (!guardado.ok || guardado.value === null) continue;
+        const perfil = /** @type {*} */ (guardado.value);
+        if (typeof perfil.name !== 'string' || perfil.name.trim() === '') continue;
+
+        const r = profiles.adopt({
+            id, name: perfil.name,
+            // La fecha sale del propio dato descargado. La capa de datos no lee
+            // el reloj —es la regla del proyecto—, y aquí ni siquiera hace
+            // falta: lo único que se muestra de ella es el orden.
+            createdAtISO: typeof perfil.createdAtISO === 'string'
+                ? perfil.createdAtISO
+                : '1970-01-01T00:00:00.000Z'
+        });
+        if (r.ok) n += 1;
+    }
+    return n;
 }
 
 /* == El push ================================================================ */

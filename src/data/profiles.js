@@ -220,6 +220,61 @@ export function create(name, meta) {
 }
 
 /**
+ * Inscribe en el índice un perfil que YA tiene datos aquí.
+ *
+ * Es lo que necesita un dispositivo nuevo tras sincronizar: el pull escribe
+ * `tl.8.<id>.checkins` y todo lo demás, pero el índice de perfiles es local y no
+ * viaja —lleva los nombres, que son datos personales, y su forma es de este
+ * dispositivo—. Sin esto, un teléfono recién estrenado se descargaba la cuenta
+ * entera y **no enseñaba nada**: los datos estaban en el almacén y ninguna vista
+ * sabía que ese perfil existía.
+ *
+ * Se distingue de `create` en las dos cosas que importan aquí: **no siembra**
+ * las colecciones con valores por defecto —pisaría justo lo que acaba de
+ * llegar— y **no cambia el namespace activo**, salvo que no hubiera ninguno.
+ *
+ * Un nombre repetido no es motivo para rechazar: quedarse sin acceso a un perfil
+ * entero porque otro se llama igual sería mucho peor que un «(2)» detrás.
+ *
+ * @param {{ id: string, name: string, createdAtISO: string }} perfil
+ * @returns {ProfilesResult<ProfileSummary>}
+ */
+export function adopt(perfil) {
+    if (perfil === null || typeof perfil !== 'object') {
+        return { ok: false, error: 'profiles.metaInvalid' };
+    }
+    const index = readIndex();
+    if (!index.ok) return index;
+
+    const yaEsta = index.value.profiles.find((p) => p.id === perfil.id);
+    if (yaEsta) return { ok: true, value: { ...yaEsta } };
+
+    if (index.value.profiles.length >= MAX_PROFILES) {
+        return { ok: false, error: 'profiles.limitReached' };
+    }
+    const base = sanitizeText(perfil.name, 60);
+    if (base === '') return { ok: false, error: 'profiles.nameEmpty' };
+
+    let cleanName = base;
+    for (let n = 2; index.value.profiles.some((p) => p.name === cleanName); n++) {
+        cleanName = sanitizeText(`${base} (${n})`, 60);
+    }
+
+    /** @type {ProfileSummary} */
+    const summary = { id: perfil.id, name: cleanName, createdAtISO: perfil.createdAtISO };
+    const written = writeIndex({
+        ...index.value,
+        // Si no había perfil activo —el caso del dispositivo nuevo— este pasa a
+        // serlo. Si lo había, no se toca: sincronizar no cambia lo que estás
+        // mirando.
+        activeProfileId: index.value.activeProfileId || perfil.id,
+        profiles: [...index.value.profiles, summary]
+    });
+    if (!written.ok) return written;
+    return { ok: true, value: { ...summary } };
+}
+
+/**
  * Renombra un perfil.
  * @param {string} profileId
  * @param {string} newName

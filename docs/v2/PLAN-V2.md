@@ -2510,7 +2510,7 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   grupo. No se puede confirmar sin marcar la casilla, y si la subida falla el
   diálogo **no se cierra**: perdería el único ejemplar que existe.
 
-  Seis E2E con el **autenticador virtual de Chrome** contra el servidor 8790,
+  Seis E2E con el **autenticador virtual de Chrome** contra el servidor 8793,
   que monta las Pages Functions reales en proceso con el D1 de `node:sqlite`
   detrás. El que vale por todos: crear cuenta, guardar el kit, **borrar
   `tl-keys` de IndexedDB y las cookies** —perder el dispositivo—, entrar otra vez
@@ -2862,11 +2862,65 @@ relleno a múltiplos de 256 B antes de cifrar.
   —invariante con test—, con cuenta el servidor guarda bytes que no puede abrir,
   y hay una sola puerta de salida auditable. Y lo que el servidor sí aprende se
   escribe en vez de disimularse.
-- [ ] **M9-4 · Push.** Sombra por hash, cola de salida offline con *coalescing*
-  por `(collection, itemKey)`, LWW por fila con reloj **del servidor** —los
-  relojes de los móviles están mal— y el perdedor **guardado** en
-  `record_conflict` en vez de tirado. `POST /api/adopt` para el primer alta desde
-  un dispositivo con datos, reusando `backup.exportProfiles`.
+- [x] **M9-4 · Push.** `POST /api/sync`, `src/data/sync.js` y `src/ui/sync-loop.js`.
+
+  **La garantía de M9-3 se reformula, porque era cierta y estaba a medias.**
+  «No piso nada» dejaba la sincronía coja: un borrado no viajaba, y las dos
+  copias divergían para siempre. Lo que se sostiene de verdad es que **una
+  edición local no se pierde en silencio**, y cumplirlo pide una pieza más: la
+  **sombra**, que guarda por fila la huella de cómo estaba la última vez que se
+  habló con el servidor.
+
+  Con eso se separan dos cosas que antes se confundían. Si la fila local no ha
+  cambiado desde entonces, lo que llega es más nuevo y entra —borrado incluido, y
+  no se pierde nada porque lo local era una copia vieja—. Si sí ha cambiado, los
+  dos han editado sin verse y se fusiona con `mergeRow`; y si lo que llega es una
+  lápida, **gana la edición viva**, que el push siguiente resucita. Resucitar un
+  dato se ve y se corrige; perderlo, no.
+
+  **Dónde estaba la convergencia**: en guardar en la sombra la huella de la fila
+  REMOTA, no la de la fusión. Con la de la fusión, la fusión se queda en el
+  dispositivo y los dos se mandan la misma fila para siempre. Hay un test que
+  oscila si se cambia esa línea, y otro que exige que dos sincronías seguidas no
+  suban nada.
+
+  **El perdedor no se tira.** Gana quien escribe, con el reloj del servidor, pero
+  la versión que pierde se copia a `record_conflicts` **antes** de que la pisen y
+  **en la misma transacción**: hacerlo en dos pasos deja que el push del otro
+  dispositivo se cuele entre medias y archive la equivocada. La tabla no tiene
+  clave foránea a `records` —un conflicto sobrevive a su fila— y sí cascada por
+  `users`, con test.
+
+  **La guarda que no borra.** Un almacén que se vacía solo es indistinguible de
+  «he borrado todo» si únicamente se mira lo que falta, y son dos mil lápidas
+  destruyendo los datos en todos los dispositivos a la vez. Un push que borre más
+  de lo que conserva se para y lo dice; confirmándolo sí se ejecuta. Una
+  colección ilegible tampoco se convierte en lápidas.
+
+  #### Tres fallos reales que salieron aquí
+
+  1. **La subida no llegaba nunca.** El latido mira cada tres segundos si hay
+     algo pendiente, y reiniciaba la espera de cinco segundos en cada mirada: la
+     empujaba más allá una y otra vez. «¿Queda algo por subir?» y «¿ha cambiado
+     algo desde el latido anterior?» son preguntas distintas, y confundirlas
+     dejaba la sincronía muda con la pestaña abierta. Lo cazó el test del
+     retroceso, que medía un bucle que no existía.
+  2. **El teléfono nuevo no enseñaba nada.** El índice de perfiles es local y no
+     viaja —lleva los nombres—, así que un dispositivo recién estrenado se
+     descargaba la cuenta entera y mostraba una pantalla vacía: los datos en el
+     almacén y ninguna vista sabiendo que ese perfil existía. `profiles.adopt`
+     lo inscribe con el nombre que trae el propio perfil descargado, nunca con
+     uno inventado.
+  3. **`deriveIndexKey` no podía derivar.** La clave guardada es no extraíble a
+     propósito. Se calcula ahora en los tres momentos en que la clave está en
+     crudo y se guarda aparte; un test estático exige que solo exista un
+     `keys.put` en `account.js`, porque los tres caminos tienen que pasar por él
+     o uno se olvidará.
+
+  Lo que **no** se hizo, y se anota: `POST /api/adopt`. El caso que iba a cubrir
+  —primer alta desde un dispositivo con datos— lo resuelve el push tal cual, que
+  sube lo que haya aquí; y el inverso lo resuelve `profiles.adopt`. Una ruta más
+  para lo mismo era superficie de ataque sin contrapartida.
 - [ ] **M9-5 · Fotos en R2, cifradas.** Compresión en el cliente, subida **a
   través de la Function** (una URL prefirmada obligaría a meter el host de R2 en
   `connect-src` y a firmar SigV4 con una dependencia de runtime prohibida), cuota

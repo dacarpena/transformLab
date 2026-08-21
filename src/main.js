@@ -27,6 +27,7 @@ import { VIEWS, EAGER_VIEW_ID } from './ui/views/_manifest.js';
 import * as recalibrate from './ui/recalibrate.js';
 import { coordinate, collectOffers } from './core/recalibration.js';
 import * as pwa from './ui/pwa.js';
+import * as syncLoop from './ui/sync-loop.js';
 import * as reminder from './ui/reminder.js';
 import * as toast from './ui/components/toast.js';
 import { error as errorState } from './ui/components/state.js';
@@ -423,6 +424,32 @@ async function boot() {
     // 6 · offline, al final y sin bloquear: si el registro falla, la
     // aplicación ya está en pie y el usuario no pierde nada.
     pwa.register();
+
+    // 7 · la sincronía, si hay cuenta. También al final y también sin bloquear:
+    // la aplicación funciona entera sin cuenta, y arrancar el bucle antes de que
+    // haya algo pintado solo retrasaría lo que el usuario está esperando ver.
+    void arrancarSincronia();
+}
+
+/**
+ * Arranca el bucle de sincronía si esta persona tiene cuenta y sesión.
+ *
+ * Va aquí y no en el panel de Ajustes por una razón concreta: sincronizar tiene
+ * que pasar aunque nadie abra Ajustes. El panel es la ventana al estado del
+ * bucle, no su interruptor.
+ *
+ * **Sin cuenta no sale ni un byte, y eso empieza por no preguntar.** Si en este
+ * navegador no ha habido nunca una cuenta, esta función termina sin tocar la red
+ * —el mismo interruptor que usa el panel—, y es lo que hace que la promesa de
+ * «funciona entero sin cuenta» sea comprobable en vez de prometida.
+ */
+async function arrancarSincronia() {
+    const { hasAccountHere } = await import('./ui/account-panel.js');
+    if (!hasAccountHere()) return;
+    const account = await import('./data/account.js');
+    const sesion = await account.session();
+    if (!sesion?.authenticated) return;
+    syncLoop.start(sesion.userId);
 }
 
 boot();
