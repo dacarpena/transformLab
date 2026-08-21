@@ -213,6 +213,37 @@ export function getForProfile(profileId, key) {
 }
 
 /**
+ * Escribe en el namespace de OTRO perfil, sin cambiar el activo (M9-3).
+ *
+ * Es la hermana de `getForProfile`, y existe por la misma razón: el alternativo
+ * era `setActiveProfile(otro)` → escribir → `setActiveProfile(vuelta)`, y ese
+ * baile con E/S en medio es literalmente el que causó la fuga de check-ins entre
+ * perfiles de M7 — `activeProfileId` es un `let` de módulo, así que cualquier
+ * cosa que ocurra entre los dos cambios escribe en el perfil equivocado. El pull
+ * escribe en varios perfiles seguidos, así que sin esta función el defecto
+ * volvería por construcción.
+ *
+ * Valida como `set`: nada corrupto sale de aquí.
+ *
+ * @param {string} profileId
+ * @param {string} key clave corta (sin prefijo)
+ * @param {unknown} value
+ * @returns {StorageResult<unknown>}
+ */
+export function setForProfile(profileId, key, value) {
+    if (typeof profileId !== 'string' || profileId.trim() === '' || profileId.includes('.')) {
+        return { ok: false, error: `profileId inválido: ${JSON.stringify(profileId)}` };
+    }
+    try {
+        backend().setItem(`${ROOT_PREFIX}${profileId}.${key}`, JSON.stringify(value));
+        revisionCounter++;
+        return { ok: true, value };
+    } catch (err) {
+        return { ok: false, error: message(err) };
+    }
+}
+
+/**
  * Bytes aproximados ocupados por claves de la app, a 2 bytes por unidad
  * UTF-16 (C5). Sin argumento cuenta todo (`tl.*`); con `profileId` cuenta
  * solo el namespace de ese perfil.

@@ -200,6 +200,61 @@ export async function deriveRecoveryKek(recoveryCode, salt) {
         material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 
+/**
+ * La clave con la que se calculan las ETIQUETAS de fila (M9-3).
+ *
+ * Derivada de la DK con HKDF y un `info` propio, para que no sea la misma clave
+ * que cifra: si lo fuera, quien consiguiera una etiqueta tendría una pista sobre
+ * el material que abre los datos. Separar usos de una misma clave maestra es
+ * para lo que existe el `info` de HKDF.
+ *
+ * @param {CryptoKey} dk debe ser extraíble
+ * @returns {Promise<CryptoKey>}
+ */
+export async function deriveIndexKey(dk) {
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', dk));
+    const material = await crypto.subtle.importKey('raw', copia(raw), 'HKDF', false, ['deriveKey']);
+    raw.fill(0);
+    return crypto.subtle.deriveKey(
+        {
+            name: 'HKDF', hash: 'SHA-256',
+            salt: new Uint8Array(0),
+            info: new TextEncoder().encode(`tl.idx.v${VERSION}`)
+        },
+        material, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+}
+
+/** Bytes de la etiqueta de fila. */
+export const ITEM_TAG_BYTES = 16;
+
+/**
+ * La etiqueta OPACA de una fila: `HMAC(K_idx, collection ‖ keyPath)`.
+ *
+ * Tiene que cumplir dos cosas a la vez, y por eso es un HMAC y no un hash a
+ * secas ni el propio `keyPath`:
+ *
+ * - **Determinista**, para que dos dispositivos calculen la misma etiqueta para
+ *   la misma fila y la fusión las encuentre. Un identificador aleatorio no
+ *   serviría: cada dispositivo crearía una fila distinta para el mismo dato.
+ * - **Opaca sin la clave**, para que el servidor no aprenda de qué día es un
+ *   check-in. Un `SHA-256(dateISO)` a secas no bastaría: el espacio de fechas es
+ *   diminuto y se recorre entero en un segundo.
+ *
+ * Los segmentos se serializan con `JSON.stringify`, que es inyectivo: unirlos
+ * con un separador haría que `['a:b','c']` y `['a','b:c']` dieran la misma
+ * etiqueta, y son filas distintas.
+ *
+ * @param {CryptoKey} indexKey
+ * @param {string} collection
+ * @param {readonly string[]} keyPath
+ * @returns {Promise<Uint8Array>} 16 bytes
+ */
+export async function itemTag(indexKey, collection, keyPath) {
+    const entrada = new TextEncoder().encode(JSON.stringify([collection, keyPath]));
+    const mac = new Uint8Array(await crypto.subtle.sign('HMAC', indexKey, copia(entrada)));
+    return mac.slice(0, ITEM_TAG_BYTES);
+}
+
 /* ── Cifrar y descifrar datos ────────────────────────────────────────────── */
 
 /**

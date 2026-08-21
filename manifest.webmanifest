@@ -1,7 +1,7 @@
 {
   "name": "TransformLab",
   "short_name": "TransformLab",
-  "description": "Seguimiento de transformación corporal con proyección recalibrable. Tus datos no salen del navegador.",
+  "description": "Seguimiento de transformación corporal con proyección recalibrable. Funciona sin cuenta; si la creas, se sincroniza cifrada de extremo a extremo.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

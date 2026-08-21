@@ -4,7 +4,15 @@ Lee este fichero completo al inicio de cada sesión. Es la fuente de verdad sobr
 
 ## 1. Qué es este proyecto
 
-TransformLab es una plataforma de **seguimiento de transformación corporal con proyección recalibrable**: el usuario define un objetivo, la app genera un plan por fases (definición / recomposición / volumen / mantenimiento) con proyección diaria y banda de escenarios, y los check-ins semanales reales se comparan contra esa proyección; cuando divergen, la app **ofrece** recalibrar (nunca lo hace en silencio). Todo vive en el navegador: cero llamadas de red con datos del usuario, cero backend.
+TransformLab es una plataforma de **seguimiento de transformación corporal con proyección recalibrable**: el usuario define un objetivo, la app genera un plan por fases (definición / recomposición / volumen / mantenimiento) con proyección diaria y banda de escenarios, y los check-ins semanales reales se comparan contra esa proyección; cuando divergen, la app **ofrece** recalibrar (nunca lo hace en silencio). Todo funciona en el navegador **sin cuenta**, y ésa es la forma vigente de la promesa fundacional.
+
+**Hasta M8 la promesa era «cero llamadas de red con datos del usuario, cero backend».** Ya no es literalmente cierta, y el cambio se anota aquí porque merece constar. Desde M9-3 existe una **sincronía opcional**, y lo que queda en pie es más fino pero sigue siendo fuerte:
+
+- **Sin cuenta no sale nada.** Es un invariante con test, no una intención: `test/e2e/account.spec.js` recorre la aplicación entera y afirma que no se hace ni una petición a `/api/`.
+- **Con cuenta, el servidor guarda bytes que no puede abrir.** Cifrado extremo a extremo: la clave se genera en el dispositivo y no sale de él. Ni la identidad de una fila viaja en claro — es un HMAC, no el `dateISO`.
+- **Una sola puerta de salida**, `src/data/api.js`, con guardián en `test/security.test.js`. Es el punto de auditoría de qué sale del dispositivo, y cabe en una pantalla.
+
+Lo que el servidor sí aprende, porque no se puede evitar y no se va a disimular: que usas la aplicación y cuándo, tu IP truncada, cuántos perfiles tienes, qué colecciones usas y cuántos items tiene cada una.
 
 Estrategia elegida: **reconstrucción dirigida (v5) en este mismo repo**. No es un greenfield libre ni una remediación incremental de la v4.0:
 

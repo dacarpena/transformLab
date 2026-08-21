@@ -2817,10 +2817,51 @@ relleno a múltiplos de 256 B antes de cifrar.
   16 tests, y el guardián de M8-5d cazó al vuelo el código de error nuevo sin
   clasificar. Esquema aplicado en remoto (WEUR) y verificado contra workerd.
 
-- [ ] **M9-3b · El pull, lado cliente.** Descifrar, fusionar con
-  `sync-policy.join` y escribir en local; el cursor persistido; `GET /api/export`.
-  **Aquí se reescriben `CLAUDE.md` §1 y el `og:description`**, en el mismo commit
-  — es la primera petición que trae datos del usuario.
+- [x] **M9-3b · El pull, lado cliente.** `src/data/sync.js`.
+
+  **La garantía de la etapa: el pull no pisa JAMÁS un valor local.** Aplica una
+  fila remota solo si su clave no existe aquí; una lápida ajena no borra nada.
+  Lo que se queda sin aplicar se cuenta y se devuelve, para que M9-4 lo resuelva
+  con el reloj del servidor. Eso hace que estrenar la sincronía no pueda costarle
+  a nadie un dato suyo, y resuelve entero el caso que importa: un dispositivo
+  nuevo que entra con su passkey y se lo trae todo, porque no tiene nada que
+  pisar.
+
+  **Un defecto real que encontró su propio test.** El comentario decía que el
+  cursor se guarda «después de aplicar», y el código lo movía igual cuando la
+  escritura fallaba por cuota: esas filas no se volvían a pedir NUNCA. El test
+  que llena el almacén a mitad del pull lo puso en rojo. Ahora el cursor solo
+  avanza si todo se escribió, y reintentar la misma página es seguro porque
+  aplicar es idempotente.
+
+  **El servidor es un tercero, y lo que manda pasa el mismo control que un
+  backup.** Una colección marcada `local` —`volumeLog`, por ejemplo— se ignora
+  aunque llegue perfectamente cifrada: **qué se sincroniza lo decide este
+  dispositivo**, no lo que venga por la red. Y el `additionalData` ata cada
+  criptograma a su fila: una movida a otra colección no descifra, así que nadie
+  puede barajar filas en el servidor sin romper el tag.
+
+  `setForProfile` es nuevo en `storage.js`, y existe por una razón concreta: el
+  pull escribe en varios perfiles seguidos, y hacerlo con `setActiveProfile` de
+  ida y vuelta es literalmente el camino que causó la fuga de check-ins de M7.
+
+  20 tests, cada invariante verificado aplicando su defecto a mano. Dos no
+  discriminaban y se arreglaron: el del cursor solo importa cuando la escritura
+  falla, y el del filtro de forma necesitaba una fila peligrosa DE VERDAD — una
+  colección local cifrada correctamente, que solo caza el filtro de ámbito.
+
+  #### Y aquí la promesa fundacional cambia
+
+  `CLAUDE.md` §1 decía «cero llamadas de red con datos del usuario, cero
+  backend». Ya no es literalmente cierto, y se reescribe en este mismo commit —
+  junto al `og:description`, la descripción del manifiesto, el comentario de
+  `index.html` y, lo que más importa, **el aviso de privacidad que el usuario
+  lee en Ajustes**, que decía «tus datos no salen de este navegador».
+
+  Lo que queda en pie es más fino y sigue siendo fuerte: sin cuenta no sale nada
+  —invariante con test—, con cuenta el servidor guarda bytes que no puede abrir,
+  y hay una sola puerta de salida auditable. Y lo que el servidor sí aprende se
+  escribe en vez de disimularse.
 - [ ] **M9-4 · Push.** Sombra por hash, cola de salida offline con *coalescing*
   por `(collection, itemKey)`, LWW por fila con reloj **del servidor** —los
   relojes de los móviles están mal— y el perdedor **guardado** en
