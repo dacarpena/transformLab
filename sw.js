@@ -21,7 +21,7 @@
  * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-2e9b40525e01';
+const CACHE_VERSION = 'tl-caac73469615';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo

@@ -21,6 +21,7 @@ import { onRequest as enrutador } from '../functions/api/[[path]].js';
 import { decode, encode } from '../functions/_lib/base64url.js';
 import { sha256Bytes, CHALLENGE_TTL_MS } from '../functions/_lib/webauthn.js';
 import { COOKIE_NAME } from '../functions/_lib/sessions.js';
+import { MAX_CHALLENGES_PER_IP } from '../functions/_lib/db.js';
 
 const V = JSON.parse(readFileSync(new URL('./fixtures/webauthn-vectors.json', import.meta.url), 'utf8'));
 const ORIGEN = V.origin;
@@ -356,6 +357,54 @@ test('las rutas de auth solo aceptan POST', async () => {
         for (const ruta of ['/api/auth/register/start', '/api/auth/login/start']) {
             const r = await llamar(ruta, { method: 'GET', env: { DB: db } });
             assert.equal(r.status, 405, `${ruta} atendió un GET`);
+        }
+    } finally { close(); }
+});
+
+
+/* ── El techo por IP ─────────────────────────────────────────────────────── */
+
+test('auth_acotada: una IP no puede pedir retos sin fin', async () => {
+    // Es la única escritura sin autenticar de toda la API, o sea la única puerta
+    // por la que alguien puede hacer crecer la base sin tener cuenta. Sin techo,
+    // `while true; do curl; done` llena el plan gratuito.
+    const h = createD1();
+    const env = /** @type {*} */ ({ DB: h.db });
+    const close = h.close;
+    try {
+        let ultimo = 0;
+        for (let i = 0; i < MAX_CHALLENGES_PER_IP + 5; i++) {
+            const r = await llamar('/api/auth/register/start',
+                { env, headers: { 'CF-Connecting-IP': '203.0.113.7' } });
+            ultimo = r.status;
+            if (i < MAX_CHALLENGES_PER_IP) {
+                assert.equal(r.status, 200, `el intento ${i + 1} se rechazó dentro del techo`);
+            }
+        }
+        assert.equal(ultimo, 429, 'no hay techo: se pueden pedir retos sin fin');
+
+        // Y la tabla queda acotada por construcción, que es lo que se protege.
+        const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM challenges').first();
+        assert.equal(n.n, MAX_CHALLENGES_PER_IP);
+
+        // Otra IP no paga el techo de la primera: un NAT no puede dejar fuera a
+        // toda la red que hay detrás de otro.
+        const otra = await llamar('/api/auth/register/start',
+            { env, headers: { 'CF-Connecting-IP': '198.51.100.9' } });
+        assert.equal(otra.status, 200, 'el techo de una IP dejó fuera a otra');
+    } finally { close(); }
+});
+
+test('sin IP no se limita: agrupar a todo el mundo sería peor', async () => {
+    // No todos los despliegues mandan `CF-Connecting-IP`. Inventar una clave
+    // común dejaría a los usuarios legítimos fuera unos a otros.
+    const h = createD1();
+    const env = /** @type {*} */ ({ DB: h.db });
+    const close = h.close;
+    try {
+        for (let i = 0; i < MAX_CHALLENGES_PER_IP + 3; i++) {
+            const r = await llamar('/api/auth/register/start', { env });
+            assert.equal(r.status, 200, `el intento ${i + 1} se limitó sin haber IP`);
         }
     } finally { close(); }
 });

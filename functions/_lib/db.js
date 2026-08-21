@@ -443,17 +443,46 @@ export function openUserScope(env, userId) {
  */
 
 /**
+ * Retos vivos que se le permiten a una IP a la vez.
+ *
+ * Quince, no tres: una casa con NAT, una oficina o una red móvil comparten IP
+ * truncada, y un límite estrecho dejaría fuera a gente que no ha hecho nada. Y
+ * no quinientos: lo que se acota es el crecimiento de la tabla, y quince filas
+ * de cinco minutos por cada /24 es un techo que no se nota.
+ */
+export const MAX_CHALLENGES_PER_IP = 15;
+
+/**
  * Emite un reto de WebAuthn. Global porque en el login todavía no hay usuario:
  * las credenciales son descubribles.
  *
+ * **Es la única escritura sin autenticar de toda la API**, así que lleva su
+ * propio techo por IP. Se cuentan los retos VIVOS y no las peticiones: un
+ * contador por ventana exigiría una escritura por petición, o sea que el
+ * limitador pagaría el coste del ataque. Contar lo que ya existe acota la tabla
+ * por construcción y cuesta un `COUNT(*)` sobre un índice.
+ *
+ * Devuelve `false` cuando el techo está alcanzado; quien llama decide qué
+ * contar. Sin IP no se limita: inventar una clave común agruparía a todo el
+ * mundo y los usuarios legítimos se dejarían fuera unos a otros.
+ *
  * @param {Env} env
- * @param {{ hash: Uint8Array, purpose: string, userId: string | null, pendingUserId: string | null, now: number, ttlMs: number }} reto
+ * @param {{ hash: Uint8Array, purpose: string, userId: string | null, pendingUserId: string | null, ip?: string | null, now: number, ttlMs: number }} reto
+ * @returns {Promise<boolean>}
  */
-export async function createChallenge(env, { hash, purpose, userId, pendingUserId, now, ttlMs }) {
+export async function createChallenge(env, { hash, purpose, userId, pendingUserId, ip = null, now, ttlMs }) {
+    const desde = truncateIp(ip);
+    if (desde !== null) {
+        const r = /** @type {*} */ (await env.DB.prepare(
+            'SELECT COUNT(*) AS n FROM challenges WHERE ip_trunc = ?1 AND expires_at > ?2')
+            .bind(desde, now).first());
+        if ((r?.n ?? 0) >= MAX_CHALLENGES_PER_IP) return false;
+    }
     await env.DB.prepare(
-        `INSERT INTO challenges (hash, purpose, user_id, pending_user_id, created_at, expires_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
-        .bind(hash, purpose, userId, pendingUserId, now, now + ttlMs).run();
+        `INSERT INTO challenges (hash, purpose, user_id, pending_user_id, created_at, expires_at, ip_trunc)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`)
+        .bind(hash, purpose, userId, pendingUserId, now, now + ttlMs, desde).run();
+    return true;
 }
 
 /**

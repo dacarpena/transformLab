@@ -54,6 +54,7 @@ import * as modal from './components/modal.js';
 import * as toast from './components/toast.js';
 import { longDate } from './dates.js';
 import * as syncLoop from './sync-loop.js';
+import * as sync from '../data/sync.js';
 
 /**
  * @typedef {{ estado: 'sinSoporte' | 'sinCuenta' | 'cargando' | 'error'
@@ -217,6 +218,35 @@ export function mount(container) {
     });
 
     on(container, 'click', '[data-account-retry]', () => { void refrescar(); });
+
+    on(container, 'click', '[data-account-close]', () => {
+        const userId = vista.datos?.userId;
+        if (!userId) return;
+        modal.confirm({
+            titleKey: 'account.close',
+            messageKey: 'account.closeConfirm',
+            confirmKey: 'account.close',
+            danger: true,
+            // Tecleado, porque es irreversible y no se puede deshacer desde
+            // ningún sitio: con cifrado extremo a extremo, lo que se borra del
+            // servidor no lo tiene nadie más.
+            confirmText: t('account.closeWord'),
+            onConfirm: async () => {
+                const r = await account.deleteAccount(userId);
+                if (!r.ok) return toast.error(claveDeError(r.error));
+                syncLoop.stop();
+                storage.remove(SEEN_KEY);
+                // El cursor y la sombra describen un servidor que ya no existe.
+                // Dejarlos convertiría el alta siguiente en un lío de lápidas:
+                // la sombra recordaría filas que nadie tiene y el primer push
+                // pediría borrarlas.
+                storage.removeRaw(sync.cursorKey(userId));
+                storage.removeRaw(sync.shadowKey(userId));
+                await refrescar();
+                toast.success('account.closed');
+            }
+        });
+    });
 
     on(container, 'click', '[data-account-sync]', async () => {
         await conBoton('[data-account-sync]', async () => {
@@ -419,6 +449,11 @@ function cuerpoDe(v) {
             <button type="button" class="btn" data-account-logout>${t('account.logout')}</button>
             <button type="button" class="btn" data-account-logout-all>${t('account.logoutAll')}</button>
         </div>
+
+        <div class="btn-row">
+            <button type="button" class="btn btn--danger" data-account-close>${t('account.close')}</button>
+        </div>
+        <p class="muted">${t('account.closeHint')}</p>
     `;
 }
 
@@ -675,6 +710,7 @@ export const ERROR_KEYS = Object.freeze([
     'account.locked',
     'api.offline', 'api.timeout', 'api.badResponse', 'api.badPath', 'api.unknown',
     'credential.last', 'credential.notFound', 'auth.required', 'auth.failed',
+    'auth.tooMany',
     'challenge.invalid', 'body.tooLarge', 'body.malformed',
     // La sincronía (M9-4). `sync.massDelete` no es un fallo: es la guarda que
     // se planta cuando un push iba a borrar más de lo que conserva, y su texto

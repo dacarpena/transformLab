@@ -25,6 +25,7 @@
  */
 
 import { json, fail, readJson } from '../_lib/http.js';
+import { clearCookie } from '../_lib/sessions.js';
 import { fromB64u } from '../_lib/webauthn.js';
 import { encode } from '../_lib/base64url.js';
 
@@ -184,4 +185,27 @@ function sobre(valor) {
     const bytes = fromB64u(valor);
     if (!bytes || bytes.length === 0 || bytes.length > MAX_WRAPPED) return null;
     return bytes;
+}
+
+/**
+ * `DELETE /api/account` — el derecho al olvido (RGPD art. 17).
+ *
+ * Borra la cuenta entera: credenciales, retos, sesiones, filas cifradas y las
+ * versiones perdedoras archivadas. La cascada de `users` se lo lleva todo, y
+ * `deleteAccount` lo hace además explícito, porque depender de que la integridad
+ * referencial esté activada es depender de una configuración.
+ *
+ * **Lo que NO borra: los datos del dispositivo.** Es lo contrario de lo que hace
+ * la mayoría, y es deliberado: aquí la copia local es la buena y la del servidor
+ * es la que existe para que haya más de un dispositivo. Cerrar la cuenta tiene
+ * que poder hacerse sin perder el historial de nadie, o nadie la cerrará.
+ *
+ * La sesión se cierra en la misma respuesta: seguir mandando una cookie de una
+ * cuenta que ya no existe convierte la siguiente petición en un 401 confuso.
+ *
+ * @param {EventContext} ctx
+ */
+export async function remove(ctx) {
+    await alcance(ctx).deleteAccount();
+    return json({ deleted: true }, { headers: { 'Set-Cookie': clearCookie() } });
 }

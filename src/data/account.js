@@ -490,6 +490,26 @@ export async function logoutEverywhere(userId) {
 }
 
 /**
+ * Cierra la cuenta y borra del servidor todo lo que había en ella (RGPD art. 17).
+ *
+ * **Lo de este dispositivo no se toca.** Aquí la copia local es la buena, y la
+ * del servidor existe para que pueda haber más de un dispositivo; cerrar la
+ * cuenta sin perder el historial tiene que ser posible, o nadie la cerrará. Lo
+ * que sí se borra en local es la CLAVE —sin cuenta no hay nada que descifrar— y
+ * la memoria de la sincronía: el cursor y la sombra describen un servidor que
+ * ya no existe, y dejarlos convertiría un alta futura en un lío de lápidas.
+ *
+ * @param {string} userId
+ * @returns {Promise<Ok<{ deleted: true }> | Err>}
+ */
+export async function deleteAccount(userId) {
+    const r = await request('/api/account', { method: 'DELETE' });
+    if (!r.ok) return err(r.error);
+    await keys.remove(userId);
+    return { ok: /** @type {true} */ (true), value: { deleted: /** @type {true} */ (true) } };
+}
+
+/**
  * Da de baja una passkey.
  * @param {string} credentialId
  */

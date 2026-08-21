@@ -19,7 +19,7 @@
 import { onRequest as health } from './_handlers/health.js';
 import { registerStart, registerFinish, loginStart, loginFinish } from './_handlers/auth.js';
 import { current, logout, logoutAll } from './_handlers/session.js';
-import { overview, keys, saveKeys, removeCredential } from './_handlers/account.js';
+import { overview, keys, saveKeys, removeCredential, remove as removeAccount } from './_handlers/account.js';
 import { pull, push, conflicts, stats } from './_handlers/sync.js';
 
 /** @type {readonly import('./_lib/router.js').Route[]} */
@@ -45,6 +45,7 @@ export const ROUTES = Object.freeze([
     { method: 'POST', path: '/api/account/keys', handler: saveKeys, auth: true },
     { method: 'DELETE', path: '/api/account/credentials/:id', handler: removeCredential, auth: true },
     { method: 'GET', path: '/api/account/records', handler: stats, auth: true },
+    { method: 'DELETE', path: '/api/account', handler: removeAccount, auth: true },
 
     // La sincronización. En M9-3 solo se LEE: no hay ningún camino por el que
     // una petición pueda destruir un dato del usuario todavía.

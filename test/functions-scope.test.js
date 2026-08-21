@@ -109,7 +109,8 @@ test('4· db.js exporta exactamente lo previsto, y lo global está declarado', (
         closeSession: 'el token ES la prueba de propiedad, no hace falta acotar',
         sweepExpired: 'barrido de caducados, sin dueño'
     };
-    const OTRAS = ['openUserScope', 'ROTATE_AFTER_MS', 'ROTATION_GRACE_MS', 'scoped'];
+    const OTRAS = ['openUserScope', 'ROTATE_AFTER_MS', 'ROTATION_GRACE_MS', 'scoped',
+        'MAX_CHALLENGES_PER_IP'];
 
     assert.deepEqual(
         Object.keys(db).sort(),

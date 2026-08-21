@@ -328,3 +328,65 @@ test('sin sesión, ninguna ruta de cuenta contesta', async () => {
         }
     } finally { close(); }
 });
+
+
+/* ── El derecho al olvido (RGPD art. 17) ─────────────────────────────────── */
+
+test('cerrar la cuenta borra TODO lo del servidor, y cierra la sesión', async () => {
+    const { env, db, token, close } = await conCuenta();
+    try {
+        // Se le mete de todo a la cuenta, para que el borrado tenga qué borrar.
+        await db.prepare(`INSERT INTO records
+                (user_id, profile_id, collection, item_tag, ciphertext, rev, seq, updated_at)
+                VALUES ('u_ana', 'p', 'checkins', ?1, ?2, 1, 1, 1)`)
+            .bind(new Uint8Array(16).fill(1), new Uint8Array(64)).run();
+        await db.prepare(`INSERT INTO record_conflicts
+                (user_id, profile_id, collection, item_tag, ciphertext, rev, updated_at, detected_at)
+                VALUES ('u_ana', 'p', 'checkins', ?1, ?2, 1, 1, 1)`)
+            .bind(new Uint8Array(16).fill(1), new Uint8Array(64)).run();
+
+        const r = await llamar('/api/account', { env, token, method: 'DELETE' });
+        assert.equal(r.status, 200);
+        assert.deepEqual(await cuerpo(r), { deleted: true });
+
+        // La sesión se cierra en la MISMA respuesta: seguir mandando la cookie
+        // de una cuenta que ya no existe convierte lo siguiente en un 401 raro.
+        assert.match(r.headers.get('Set-Cookie') ?? '', /Max-Age=0/);
+
+        for (const tabla of ['users', 'credentials', 'sessions', 'challenges', 'records', 'record_conflicts']) {
+            const n = /** @type {*} */ (await db.prepare(`SELECT COUNT(*) AS n FROM ${tabla}`).first());
+            assert.equal(n.n, 0, `quedan ${n.n} filas en ${tabla} tras cerrar la cuenta`);
+        }
+    } finally { close(); }
+});
+
+test('cerrar una cuenta no roza la otra', async () => {
+    const { env, db, token, close } = await conCuenta();
+    try {
+        const ahora = Date.now();
+        await createAccount(env, {
+            userId: 'u_beto', credentialId: 'c_beto', publicKey: new Uint8Array(91),
+            algorithm: -7, signCount: 0, now: ahora
+        });
+        await db.prepare(`INSERT INTO records
+                (user_id, profile_id, collection, item_tag, ciphertext, rev, seq, updated_at)
+                VALUES ('u_beto', 'p', 'checkins', ?1, ?2, 1, 1, 1)`)
+            .bind(new Uint8Array(16).fill(2), new Uint8Array(64)).run();
+
+        await llamar('/api/account', { env, token, method: 'DELETE' });
+
+        const u = /** @type {*} */ (await db.prepare('SELECT id FROM users').all());
+        assert.deepEqual(u.results.map((/** @type {*} */ x) => x.id), ['u_beto']);
+        const f = /** @type {*} */ (await db.prepare('SELECT COUNT(*) AS n FROM records').first());
+        assert.equal(f.n, 1, 'se llevó por delante las filas de otra cuenta');
+    } finally { close(); }
+});
+
+test('sin sesión no se puede cerrar ninguna cuenta', async () => {
+    const { env, db, close } = await conCuenta();
+    try {
+        assert.equal((await llamar('/api/account', { env, method: 'DELETE' })).status, 401);
+        const n = /** @type {*} */ (await db.prepare('SELECT COUNT(*) AS n FROM users').first());
+        assert.equal(n.n, 1);
+    } finally { close(); }
+});

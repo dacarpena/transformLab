@@ -62,10 +62,15 @@ export async function registerStart(ctx) {
     // dentro de la credencial y es lo que vuelve como `userHandle` en el login.
     const userId = newUserId();
 
-    await createChallenge(ctx.env, {
+    // El techo por IP. Es la única escritura sin autenticar de la API, así que
+    // es la única puerta por la que alguien puede hacer crecer la base sin tener
+    // cuenta. `429` y no un error genérico: dice qué pasa y que se puede
+    // reintentar, y no revela nada de nadie.
+    if (!await createChallenge(ctx.env, {
         hash: await sha256Bytes(reto), purpose: 'register',
-        userId: null, pendingUserId: userId, now: ahora, ttlMs: CHALLENGE_TTL_MS
-    });
+        userId: null, pendingUserId: userId, ip: ipDe(ctx.request),
+        now: ahora, ttlMs: CHALLENGE_TTL_MS
+    })) return fail(429, 'auth.tooMany');
 
     return json({
         challenge: encode(reto),
@@ -141,10 +146,11 @@ export async function loginStart(ctx) {
     const ahora = Date.now();
     const reto = newChallenge();
 
-    await createChallenge(ctx.env, {
+    if (!await createChallenge(ctx.env, {
         hash: await sha256Bytes(reto), purpose: 'login',
-        userId: null, pendingUserId: null, now: ahora, ttlMs: CHALLENGE_TTL_MS
-    });
+        userId: null, pendingUserId: null, ip: ipDe(ctx.request),
+        now: ahora, ttlMs: CHALLENGE_TTL_MS
+    })) return fail(429, 'auth.tooMany');
 
     // El barrido de caducados va colgado de AQUÍ, y no de cada petición, por
     // tres razones: el plan gratuito no tiene cron; un barrido por petición
