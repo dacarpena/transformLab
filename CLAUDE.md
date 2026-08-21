@@ -62,7 +62,7 @@ test/
   e2e/smoke.spec.js         Playwright — recorrido de humo
 ```
 
-Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (p. ej. `tl.5.p1.checkins`). Índice de perfiles en `tl.5.profiles`. Nunca una clave plana nueva fuera de este esquema.
+Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (hoy `tl.6.p1.checkins`; la versión sale de `src/data/version.js`, que es su fuente única — nunca se teclea). Índice de perfiles en `tl.<v>.profiles`. Nunca una clave plana nueva fuera de este esquema.
 
 ## 4. Invariantes del motor (no negociables)
 

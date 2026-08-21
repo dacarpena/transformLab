@@ -1,10 +1,12 @@
 // @ts-check
 
 /**
- * Esquema v5: forma de todo lo que se persiste, y validadores de forma.
+ * Esquema de persistencia: forma de todo lo que se guarda, y validadores de
+ * forma. La versión vigente es `SCHEMA_VERSION` (`src/data/version.js`), su
+ * fuente única; aquí no se teclea un número que se desviaría.
  *
  * Contrato (CLAUDE.md §3, decisión C1):
- * - `schemaVersion: 5` en todo objeto raíz.
+ * - `schemaVersion` en todo objeto raíz.
  * - Los validadores NUNCA lanzan: devuelven `{ok:true, value}` con una COPIA
  *   saneada, o `{ok:false, errors}` con códigos i18n-ready.
  * - El valor devuelto contiene SOLO claves conocidas. Las desconocidas se

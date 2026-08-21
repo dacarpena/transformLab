@@ -27,9 +27,9 @@ Sin dependencias de runtime que instalar: Chart.js va vendorizado en `vendor/`. 
 (`typescript`, `@playwright/test`) solo hacen falta para los tests.
 
 ```bash
-npm test             # 453 tests unitarios (node:test) — motor y datos, sin navegador
+npm test             # tests unitarios (node:test) — motor y datos, sin navegador
 npm run typecheck    # tsc --noEmit sobre TODO src/
-npm run e2e          # 82 tests Playwright, bajo la CSP de producción
+npm run e2e          # tests Playwright, bajo la CSP de producción
 npm run sw:bump      # sube CACHE_VERSION tras tocar algo precacheado
 ```
 
@@ -37,13 +37,13 @@ npm run sw:bump      # sube CACHE_VERSION tras tocar algo precacheado
 
 ```
 index.html                  carga css/ y src/main.js (type="module")
-sw.js                       service worker: precache de 64 entradas, la app abre sin red
+sw.js                       service worker: precache de 102 entradas, la app abre sin red
 vendor/chart.umd.min.js     Chart.js fijado y servido en local (CSP 'self' + offline)
 css/tokens.css              ÚNICA fuente de color, espaciado, tipografía y radios
 src/core/                   el motor: puro, sin DOM, importable desde Node
 src/data/                   almacén, esquema, migración v4→v5, backups, multiperfil, fotos
 src/i18n/                   es / en; ningún literal visible vive fuera de aquí
-src/ui/                     router, componentes y las once vistas
+src/ui/                     router, componentes y las dieciséis vistas
 src/ui/views/_manifest.js   fuente única de qué vistas hay: main.js y los tests beben de aquí
 test/                       unitarios (node:test) + e2e (Playwright)
 docs/                       auditoría HISTÓRICA de la v3.1/v4.0 — no describe este código
@@ -80,7 +80,7 @@ hundió la v4.0. El motor habla solo de músculo esquelético y la traducción v
 
 | | |
 |---|---|
-| Tests | **453** unitarios + **82** E2E, en CI a cada push |
+| Tests | Unitarios (`node:test`) + E2E (Playwright), en CI a cada push. Las cifras no se copian aquí: se desvían, y `test/docs-truth.test.js` lo impide |
 | Tipos | `// @ts-check` + JSDoc, `tsc --noEmit` limpio sobre **todo** `src/` |
 | Motor | 7 invariantes con nombre (identidad, conservación, límites, determinismo, cierre de plan, coherencia energética, escenarios) |
 | Accesibilidad | AA como objetivo; teclado, focus-trap, contraste y reflujo a 320 px verificados en navegador |
