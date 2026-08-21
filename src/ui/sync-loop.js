@@ -58,6 +58,16 @@ const TICK_MS = 3_000;
 /** Cada cuánto se baja sin que aquí haya cambiado nada. */
 const PULL_EVERY_MS = 60_000;
 
+/**
+ * Cada cuánto se recogen las fotos huérfanas.
+ *
+ * Una vez por hora, no en cada sincronía: es una petición de listado más un
+ * borrado por objeto sobrante, y lo que arregla —un objeto cuya subida terminó y
+ * cuyo puntero no llegó— es raro y no urgente. Barrerlo cada minuto sería gastar
+ * cuota de peticiones para no encontrar nada.
+ */
+const SWEEP_EVERY_MS = 3_600_000;
+
 /** La primera espera tras un fallo, y el tope al que se dobla. */
 const BACKOFF_MIN_MS = 30_000;
 const BACKOFF_MAX_MS = 300_000;
@@ -90,6 +100,7 @@ let espera_fallo = 0;
 let noAntesDe = 0;
 let primerCambio = 0;
 let revisionUltimoLatido = -1;
+let ultimoBarrido = 0;
 /** @type {(() => void) | null} */ let alCambiar = null;
 
 /**
@@ -110,6 +121,17 @@ let estado = { state: 'off', lastAt: null, error: null, adoptedTotal: 0, last: n
 
 /** El estado actual, para que el panel lo pinte. @returns {Estado} */
 export const status = () => ({ ...estado });
+
+/**
+ * La cuenta que este dispositivo está sincronizando, o `null`.
+ *
+ * Lo necesita la galería: una foto solo sube si hay sesión, y preguntárselo al
+ * servidor cada vez que se guarda una sería una petición por foto para averiguar
+ * algo que este módulo ya sabe.
+ *
+ * @returns {string | null}
+ */
+export const currentUserId = () => userId;
 
 /** @param {(() => void) | null} fn */
 export function onChange(fn) { alCambiar = fn; }
@@ -138,6 +160,10 @@ export function start(id, deps = {}) {
     espera_fallo = 0;
     noAntesDe = 0;
     primerCambio = 0;
+    // La PRIMERA sincronía tras entrar no barre. Es justo el momento en que los
+    // punteros aún no han llegado, y barrer entonces borraría las fotos que se
+    // venía a recuperar.
+    ultimoBarrido = Date.now();
     cambiar({ state: 'idle', error: null });
     escuchar();
     arrancar();
@@ -292,6 +318,16 @@ async function ejecutar(opciones = {}) {
             // revisión antes, esas escrituras quedarían como «cambios sin subir»
             // y el bucle no pararía nunca de sincronizar.
             revisionVista = storage.revision();
+
+            // El barrido va DESPUÉS de una sincronía buena y nunca antes: si los
+            // punteros que acaban de bajar no estuvieran escritos todavía, sus
+            // objetos parecerían huérfanos y se borrarían las fotos de otro
+            // dispositivo. Y va en segundo plano: que falle no estropea una
+            // sincronía que sí salió bien.
+            if (Date.now() - ultimoBarrido >= SWEEP_EVERY_MS) {
+                ultimoBarrido = Date.now();
+                void sync.sweepOrphans(userId).catch(() => {});
+            }
         } else if (r.error === 'sync.massDelete') {
             // Parada dura. Ver la cabecera: reintentarlo solo lo empeoraría.
             cambiar({ state: 'blocked', error: r.error, last: resumen });
@@ -368,5 +404,6 @@ export function resetForTests() {
     noAntesDe = 0;
     primerCambio = 0;
     revisionUltimoLatido = -1;
+    ultimoBarrido = 0;
     ejecutarPasada = (id, opciones) => sync.sync(id, opciones);
 }

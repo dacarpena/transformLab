@@ -19,6 +19,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { isICloudDuplicate } from './helpers/tree.js';
+import { claveDeError } from '../src/ui/account-errors.js';
 import { ERROR_KEYS, renderSection } from '../src/ui/account-panel.js';
 import { es } from '../src/i18n/es.js';
 import { en } from '../src/i18n/en.js';
@@ -123,4 +124,11 @@ test('el panel no lleva ni un literal visible fuera de i18n', () => {
 test('ningún manejador inline: los pone `on()` por delegación', () => {
     const fuente = readFileSync(join(ROOT, 'src/ui/account-panel.js'), 'utf8');
     assert.doesNotMatch(fuente, /\son[a-z]+=["']/, 'hay un manejador inline en una plantilla');
+});
+
+test('un código que la interfaz no conoce cae en el genérico, nunca en crudo', () => {
+    // Enseñar `body.malformed` a una persona es un literal visible fuera de i18n
+    // y encima no le dice nada.
+    assert.equal(claveDeError('inventado.por.nadie'), 'account.error.generic');
+    assert.equal(claveDeError('photos.quota'), 'account.error.photos.quota');
 });

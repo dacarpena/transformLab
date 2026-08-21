@@ -380,6 +380,44 @@ export function openUserScope(env, userId) {
             return { results, conflicts, lastSeq: fin };
         },
 
+        /**
+         * Reserva —o devuelve— bytes de la cuota de fotos, atómicamente.
+         *
+         * `UPDATE … WHERE … AND photo_bytes + ?2 <= ?3` es lo que lo hace
+         * atómico: la comprobación y la escritura son la misma sentencia, así
+         * que dos subidas simultáneas no pueden pasar las dos por un hueco que
+         * solo daba para una. Leer y luego escribir sí lo permitiría, y con
+         * fotos de megas eso es cuota real que se escapa.
+         *
+         * `MAX(0, …)` en la devolución: un contador que se va por debajo de cero
+         * regala cuota, y de ahí no se vuelve.
+         *
+         * @param {{ delta: number, limit: number }} peticion
+         * @returns {Promise<{ ok: boolean, used: number }>}
+         */
+        async reservePhotoBytes({ delta, limit }) {
+            if (delta >= 0) {
+                const r = /** @type {*} */ (await q(
+                    `UPDATE users SET photo_bytes = photo_bytes + ?2
+                      WHERE id = ?1 AND photo_bytes + ?2 <= ?3
+                  RETURNING photo_bytes`, delta, limit).all());
+                const fila = r.results?.[0];
+                if (fila) return { ok: true, used: fila.photo_bytes };
+                return { ok: false, used: await this.photoBytes() };
+            }
+            const r = /** @type {*} */ (await q(
+                `UPDATE users SET photo_bytes = MAX(0, photo_bytes + ?2)
+                  WHERE id = ?1
+              RETURNING photo_bytes`, delta).all());
+            return { ok: true, used: r.results?.[0]?.photo_bytes ?? 0 };
+        },
+
+        /** Cuánto ocupan las fotos de esta cuenta, según el contador. */
+        async photoBytes() {
+            const u = /** @type {*} */ (await q('SELECT photo_bytes FROM users WHERE id = ?1').first());
+            return u?.photo_bytes ?? 0;
+        },
+
         /** Cuántas versiones perdedoras hay guardadas. */
         async conflictCount() {
             const r = /** @type {*} */ (await q(

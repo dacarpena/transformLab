@@ -11,8 +11,8 @@
  */
 
 /**
- * @typedef {{ id: string, profileId: string, dateISO: string, blob: Blob, note: string, bytes: number }} PhotoRecord
- * @typedef {{ id: string, profileId: string, dateISO: string, note: string, bytes: number }} PhotoMeta
+ * @typedef {{ id: string, profileId: string, dateISO: string, blob: Blob, note: string, bytes: number, contentType: string }} PhotoRecord
+ * @typedef {{ id: string, profileId: string, dateISO: string, note: string, bytes: number, contentType: string }} PhotoMeta
  */
 
 /**
@@ -174,7 +174,7 @@ function isNonEmptyString(v) {
  * determinista y reintentable (y para que el metadato de localStorage y el
  * blob compartan clave sin depender del reloj).
  * @param {string} profileId
- * @param {{ id: string, dateISO: string, blob: Blob, note?: string }} photo
+ * @param {{ id: string, dateISO: string, blob: Blob, note?: string, contentType?: string }} photo
  * @returns {Promise<PhotoResult<PhotoMeta>>}
  */
 export async function add(profileId, photo) {
@@ -195,7 +195,15 @@ export async function add(profileId, photo) {
         dateISO: photo.dateISO,
         blob,
         note: typeof photo.note === 'string' ? photo.note.slice(0, 300) : '',
-        bytes: blob.size
+        bytes: blob.size,
+        // El tipo se guarda porque el `Blob` que baja de R2 no lo trae: allí son
+        // bytes cifrados y el servidor no puede saber qué hay dentro. Sin esto,
+        // la foto que vuelve de otro dispositivo no sabría decirle al navegador
+        // que es una imagen. Se cae al del propio blob cuando lo hay, que es el
+        // caso de las fotos guardadas antes de M9-5.
+        contentType: typeof photo.contentType === 'string' && photo.contentType !== ''
+            ? photo.contentType
+            : (blob.type || 'application/octet-stream')
     };
     const written = await withStore('readwrite', (store) => store.put(record));
     if (!written.ok) return written;

@@ -39,11 +39,18 @@
  * no significaría nada. Y no se sincronizan: son la memoria de esta máquina
  * sobre lo que ya ha visto.
  *
+ * ## Las fotos van medio por aquí (M9-5)
+ *
+ * El PUNTERO de cada foto es una fila más y viaja como todo lo demás. El BLOB no:
+ * son cientos de kilobytes y va a R2 por su propio camino, en `photos-remote.js`.
+ * Lo único que la sincronía añade es `sweepOrphans`, que recoge los objetos que
+ * se quedaron sin puntero.
+ *
  * ## Lo que este módulo NO hace
  *
- * Fotos (M9-5) ni decidir cuándo sincronizar: eso lo lleva quien llame. Y no
- * toca `storage.js` más que por sus funciones públicas — la capa de datos sigue
- * siendo síncrona y ninguno de sus 125 llamantes se entera de que hay una red.
+ * Decidir cuándo sincronizar: eso lo lleva quien llame. Y no toca `storage.js`
+ * más que por sus funciones públicas — la capa de datos sigue siendo síncrona y
+ * ninguno de sus 125 llamantes se entera de que hay una red.
  */
 
 import { request } from './api.js';
@@ -52,6 +59,7 @@ import * as profiles from './profiles.js';
 import * as keysDb from './keys-db.js';
 import { decryptBytes, encryptBytes, itemTag } from './crypto.js';
 import { isReservedProfileId } from './ids.js';
+import * as photosRemote from './photos-remote.js';
 import { validateCollection, COLLECTIONS } from './schema.js';
 import {
     split, join, mergeRow, collections as syncCollections, scopeOf
@@ -666,6 +674,55 @@ export async function sync(userId, opciones = {}) {
     if (!bajada.ok) return { ok: false, error: bajada.error, pull: bajada, push: null };
     const subida = await push(userId, opciones);
     return { ok: subida.ok, error: subida.error, pull: bajada, push: subida };
+}
+
+/* == Las fotos huérfanas ==================================================== */
+
+/**
+ * Borra del servidor los objetos de foto que ya no tienen puntero.
+ *
+ * Hacen falta porque subir una foto son dos pasos —el blob y luego el puntero— y
+ * el segundo puede no llegar: se cierra la pestaña, se acaba la batería, falla
+ * la escritura. Ese objeto no lo reclama nadie y se queda ocupando cuota para
+ * siempre.
+ *
+ * **Quién decide qué sobra es este dispositivo, y con mucho cuidado.** El
+ * servidor no puede: los punteros están cifrados. Las tres reglas que acotan la
+ * decisión viven en `photosRemote.orphans`, que es pura y se prueba aparte;
+ * aquí solo se le da lo que sabe este aparato.
+ *
+ * @param {string} userId
+ * @returns {Promise<{ ok: boolean, error?: string, deleted: number, kept: number }>}
+ */
+export async function sweepOrphans(userId) {
+    const inventario = await photosRemote.inventory();
+    if (!inventario.ok) return { ok: false, error: inventario.error, deleted: 0, kept: 0 };
+
+    const indice = profiles.readIndex();
+    // Sin índice no se sabe qué perfiles hay aquí, y sin eso todo parece
+    // huérfano. Es la misma degradación de siempre: hacia «no borres».
+    if (!indice.ok) return { ok: false, error: 'sync.noProfiles', deleted: 0, kept: 0 };
+
+    /** @type {Map<string, Set<string>>} */ const punteros = new Map();
+    for (const p of indice.value.profiles) {
+        if (isReservedProfileId(p.id)) continue;
+        const guardado = storage.getForProfile(p.id, 'photos');
+        // Una colección ilegible NO es una colección vacía. Ese perfil se deja
+        // fuera del mapa, y quedar fuera significa «no juzgues sus fotos».
+        if (!guardado.ok) continue;
+        const valor = /** @type {*} */ (guardado.value);
+        const items = valor === null ? [] : valor.items;
+        if (!Array.isArray(items)) continue;
+        punteros.set(p.id, new Set(items.map((/** @type {*} */ it) => String(it?.id))));
+    }
+
+    const sobran = photosRemote.orphans(inventario.value, punteros);
+    let deleted = 0;
+    for (const o of sobran) {
+        const r = await photosRemote.remove(o.profileId, o.photoId);
+        if (r.ok) deleted += 1;
+    }
+    return { ok: true, deleted, kept: inventario.value.objects.length - deleted };
 }
 
 /* == Criptografía de una fila =============================================== */

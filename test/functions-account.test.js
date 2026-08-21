@@ -22,6 +22,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createD1 } from './helpers/d1-fake.js';
+import { createR2 } from './helpers/r2-fake.js';
 import { onRequest as middleware } from '../functions/_middleware.js';
 import { onRequest as enrutador } from '../functions/api/[[path]].js';
 import { createAccount, addCredential, openSession, openUserScope } from '../functions/_lib/db.js';
@@ -37,7 +38,7 @@ const ORIGEN = 'https://motifyer.com';
 /** Una cuenta con una passkey y una sesión abierta ahora. */
 async function conCuenta({ credenciales = 1 } = {}) {
     const h = createD1();
-    const env = /** @type {*} */ ({ DB: h.db });
+    const env = /** @type {*} */ ({ DB: h.db, PHOTOS: createR2().bucket });
     const ahora = Date.now();
     await createAccount(env, {
         userId: 'u_ana', credentialId: 'c_1', publicKey: new Uint8Array(91),
@@ -347,7 +348,7 @@ test('cerrar la cuenta borra TODO lo del servidor, y cierra la sesión', async (
 
         const r = await llamar('/api/account', { env, token, method: 'DELETE' });
         assert.equal(r.status, 200);
-        assert.deepEqual(await cuerpo(r), { deleted: true });
+        assert.deepEqual(await cuerpo(r), { deleted: true, photos: 0 });
 
         // La sesión se cierra en la MISMA respuesta: seguir mandando la cookie
         // de una cuenta que ya no existe convierte lo siguiente en un 401 raro.

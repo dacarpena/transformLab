@@ -62,13 +62,17 @@ const WITH_API = process.argv.includes('--api');
 let apiHandler = null;
 
 if (WITH_API) {
-    const [{ onRequest: middleware }, { onRequest: enrutador }, { createD1 }] = await Promise.all([
+    const [{ onRequest: middleware }, { onRequest: enrutador }, { createD1 }, { createR2 }] = await Promise.all([
         import('../functions/_middleware.js'),
         import('../functions/api/[[path]].js'),
-        import('../test/helpers/d1-fake.js')
+        import('../test/helpers/d1-fake.js'),
+        import('../test/helpers/r2-fake.js')
     ]);
     const { db } = createD1();
-    const env = { DB: db, PHOTOS: null };
+    // R2 también, desde M9-5: sin el enlace, las rutas de fotos revientan con un
+    // «cannot read properties of null» que no dice nada de lo que pasa.
+    const { bucket } = createR2();
+    const env = { DB: db, PHOTOS: bucket };
 
     apiHandler = async (req, res) => {
         const cuerpo = await new Promise((resolve) => {

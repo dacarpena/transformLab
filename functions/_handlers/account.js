@@ -206,6 +206,52 @@ function sobre(valor) {
  * @param {EventContext} ctx
  */
 export async function remove(ctx) {
-    await alcance(ctx).deleteAccount();
-    return json({ deleted: true }, { headers: { 'Set-Cookie': clearCookie() } });
+    const scope = alcance(ctx);
+
+    // R2 PRIMERO, y este orden importa. Las fotos se localizan por el prefijo
+    // `u/<userId>/`, que sale de la sesión y no de la base; pero si la cuenta ya
+    // no estuviera y el barrido fallara a la mitad, no quedaría nada que
+    // dijera que esos objetos existieron. Borrando primero, lo peor que puede
+    // pasar es que la cuenta siga un rato con sus fotos ya fuera, y el usuario
+    // reintente.
+    const barrido = await barrerFotos(ctx);
+    if (!barrido.ok) return fail(502, 'account.photosNotDeleted');
+
+    await scope.deleteAccount();
+    return json({ deleted: true, photos: barrido.borradas },
+        { headers: { 'Set-Cookie': clearCookie() } });
+}
+
+/**
+ * Borra todos los objetos de esta cuenta en R2.
+ *
+ * En lotes, porque `list` pagina y porque borrar mil claves en una llamada no es
+ * una operación que R2 garantice. Si alguna página falla, se dice: dar por
+ * borrada una cuenta cuyas fotos siguen ahí es exactamente lo que el artículo 17
+ * prohíbe, y es de las cosas que nadie descubre hasta que las descubre alguien de
+ * fuera.
+ *
+ * @param {EventContext} ctx
+ * @returns {Promise<{ ok: boolean, borradas: number }>}
+ */
+async function barrerFotos(ctx) {
+    const prefijo = `u/${alcance(ctx).userId}/`;
+    let borradas = 0;
+    try {
+        for (let vuelta = 0; vuelta < 200; vuelta++) {
+            // SIN cursor: cada vuelta vuelve a pedir la primera página, que ya no
+            // contiene lo que acaba de borrarse. Paginar con cursor mientras se
+            // borra es leer una lista que cambia bajo los pies, y deja huecos.
+            const pagina = await ctx.env.PHOTOS.list({ prefix: prefijo });
+            if (pagina.objects.length === 0) return { ok: true, borradas };
+            await ctx.env.PHOTOS.delete(pagina.objects.map((/** @type {*} */ o) => o.key));
+            borradas += pagina.objects.length;
+        }
+        // Doscientas vueltas con el techo de cuota que hay es imposible; si se
+        // llega aquí, algo no está borrando y NO se puede decir que sí.
+        return { ok: false, borradas };
+    } catch (error) {
+        console.error('account.sweepPhotos', error);
+        return { ok: false, borradas };
+    }
 }

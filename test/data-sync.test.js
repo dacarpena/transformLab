@@ -684,12 +684,18 @@ test('el push sube TODAS las colecciones que viajan, y ninguna local', async () 
     await a.en(async () => {
         ponerCheckins([checkin('2026-05-01')]);
         storage.setForProfile(PERFIL, 'volumeLog', { schemaVersion: SCHEMA_VERSION, entries: [] });
+        storage.setForProfile(PERFIL, 'photos', {
+            schemaVersion: SCHEMA_VERSION,
+            items: [{ id: 'ph_1', dateISO: '2026-05-01', note: '', contentType: 'image/webp', bytes: 1234 }]
+        });
         await sync.push(USER);
     });
     const subidas = new Set([...servidor.filas.values()].map((f) => f.collection));
     assert.ok(subidas.has('checkins'));
     assert.ok(!subidas.has('volumeLog'), 'se subió una colección declarada local');
-    assert.ok(!subidas.has('photos'), 'se subieron las fotos, que son M9-5');
+    // Los PUNTEROS de las fotos sí viajan desde M9-5. Los blobs no: van a R2 por
+    // su propio camino, y una fila de D1 no es sitio para cientos de kilobytes.
+    assert.ok(subidas.has('photos'), 'los punteros de las fotos ya no viajan');
 });
 
 test('el pull escribe en VARIOS perfiles sin mover el activo', async () => {
@@ -857,4 +863,102 @@ test('un nombre repetido no cuesta el perfil entero: se desambigua', async () =>
         // Y el que estaba mirando NO cambia: sincronizar no te mueve de sitio.
         assert.equal(/** @type {*} */ (profiles.getActive().value), 'zz9xy1234567890abcdefg');
     });
+});
+
+/* ══ Las fotos huérfanas ════════════════════════════════════════════════════ */
+
+test('el barrido borra lo que no tiene puntero, y NADA más', async () => {
+    // Un objeto cuya subida terminó y cuyo puntero no llegó a guardarse no lo
+    // reclama nadie: ocupa cuota para siempre y no se ve en ninguna galería.
+    const a = dispositivo('A');
+    /** @type {*[]} */ const borradas = [];
+    /** @type {*[]} */ const objetos = [
+        { profileId: PERFIL, photoId: 'ph_viva', bytes: 100 },
+        { profileId: PERFIL, photoId: 'ph_huerfana', bytes: 100 },
+        { profileId: 'zz9xy1234567890abcdefg', photoId: 'ph_ajena', bytes: 100 }
+    ];
+    globalThis.fetch = /** @type {*} */ (async (url, init) => {
+        const u = new URL(url, ORIGEN);
+        if (u.pathname === '/api/photos') {
+            return new Response(JSON.stringify({ objects: objetos, complete: true, used: 300, limit: 1000 }));
+        }
+        if (init?.method === 'DELETE') {
+            borradas.push(u.pathname.split('/').pop());
+            return new Response('{"deleted":true}');
+        }
+        return new Response(JSON.stringify(servidor.responder(url, init)));
+    });
+
+    await a.en(async () => {
+        storage.setForProfile(PERFIL, 'photos', {
+            schemaVersion: SCHEMA_VERSION,
+            items: [{ id: 'ph_viva', dateISO: '2026-05-01', note: '' }]
+        });
+        const r = await sync.sweepOrphans(USER);
+        assert.equal(r.ok, true, r.error);
+        assert.equal(r.deleted, 1);
+    });
+
+    // La viva se queda; la ajena —de un perfil que este dispositivo no tiene—
+    // tampoco se toca, o estrenar la aplicación borraría las fotos de todos los
+    // perfiles que ese aparato no conociera.
+    assert.deepEqual(borradas, ['ph_huerfana']);
+});
+
+test('sin índice de perfiles, el barrido no borra nada', async () => {
+    const a = dispositivo('A');
+    /** @type {*[]} */ const borradas = [];
+    globalThis.fetch = /** @type {*} */ (async (url, init) => {
+        const u = new URL(url, ORIGEN);
+        if (u.pathname === '/api/photos') {
+            return new Response(JSON.stringify({
+                objects: [{ profileId: PERFIL, photoId: 'ph_1', bytes: 100 }],
+                complete: true, used: 100, limit: 1000
+            }));
+        }
+        if (init?.method === 'DELETE') { borradas.push(u.pathname); return new Response('{"deleted":true}'); }
+        return new Response(JSON.stringify(servidor.responder(url, init)));
+    });
+
+    await a.en(async () => {
+        storage.setGlobal('profiles', { esto: 'no es un índice' });
+        const r = await sync.sweepOrphans(USER);
+        assert.equal(r.ok, false);
+        assert.equal(r.error, 'sync.noProfiles');
+    });
+    assert.deepEqual(borradas, []);
+});
+
+test('una colección de fotos ILEGIBLE deja su perfil fuera del juicio', async () => {
+    // No poder leer los punteros de un perfil no es que ese perfil no tenga
+    // fotos. Confundirlo borraría todas las suyas.
+    const a = dispositivo('A');
+    /** @type {*[]} */ const borradas = [];
+    globalThis.fetch = /** @type {*} */ (async (url, init) => {
+        const u = new URL(url, ORIGEN);
+        if (u.pathname === '/api/photos') {
+            return new Response(JSON.stringify({
+                objects: [{ profileId: PERFIL, photoId: 'ph_1', bytes: 100 }],
+                complete: true, used: 100, limit: 1000
+            }));
+        }
+        if (init?.method === 'DELETE') { borradas.push(u.pathname); return new Response('{"deleted":true}'); }
+        return new Response(JSON.stringify(servidor.responder(url, init)));
+    });
+
+    await a.en(async () => {
+        // Las DOS formas de no poder leerlos, porque son ramas distintas: un
+        // valor que el almacén no devuelve, y uno que devuelve sin la lista.
+        storage.setRaw(`tl.${SCHEMA_VERSION}.${PERFIL}.photos`, '{ esto no es json');
+        assert.equal(storage.getForProfile(PERFIL, 'photos').ok, false, '¿ya no falla al leer?');
+        let r = await sync.sweepOrphans(USER);
+        assert.equal(r.ok, true, r.error);
+        assert.equal(r.deleted, 0, 'borró fotos de un perfil cuyos punteros no pudo LEER');
+
+        storage.setForProfile(PERFIL, 'photos', { schemaVersion: SCHEMA_VERSION, items: 'no es una lista' });
+        r = await sync.sweepOrphans(USER);
+        assert.equal(r.ok, true, r.error);
+        assert.equal(r.deleted, 0, 'borró fotos de un perfil cuyos punteros no eran una lista');
+    });
+    assert.deepEqual(borradas, []);
 });

@@ -2921,10 +2921,61 @@ relleno a múltiplos de 256 B antes de cifrar.
   —primer alta desde un dispositivo con datos— lo resuelve el push tal cual, que
   sube lo que haya aquí; y el inverso lo resuelve `profiles.adopt`. Una ruta más
   para lo mismo era superficie de ataque sin contrapartida.
-- [ ] **M9-5 · Fotos en R2, cifradas.** Compresión en el cliente, subida **a
-  través de la Function** (una URL prefirmada obligaría a meter el host de R2 en
-  `connect-src` y a firmar SigV4 con una dependencia de runtime prohibida), cuota
-  por usuario y recolección de huérfanos.
+- [x] **M9-5 · Fotos en R2, cifradas.** `functions/_handlers/photos.js`,
+  `src/data/photos-remote.js`, `src/ui/image-compress.js`.
+
+  **Se comprime siempre, haya cuenta o no.** Una foto de un móvil moderno son
+  entre tres y ocho megas; a 1600 px y WebP de calidad 0,82 quedan en doscientos
+  kilobytes —veinte o treinta veces menos, y a la distancia a la que se mira una
+  foto de progreso no se distingue—. Sin eso, veinte fotos llenan IndexedDB y
+  ninguna cabría en una red móvil el día que se cree una cuenta.
+
+  Y pasar por un lienzo tira el EXIF entero, **coordenadas GPS incluidas**. En
+  una foto de una persona en su casa eso no es un efecto secundario aceptable: es
+  el efecto que se busca. Lo único que hay que rescatar antes es la orientación,
+  o las verticales salen tumbadas.
+
+  **La subida pasa por la Function**, no por una URL prefirmada: eso obligaría a
+  meter el host de R2 en `connect-src` —la directiva que hoy hace imposible que
+  esta aplicación hable con nadie— y a firmar SigV4 con `aws4fetch`, que es
+  dependencia de runtime. Se paga con ancho de banda del Worker al subir; la
+  bajada de R2 no cuesta egreso y los borrados tampoco.
+
+  **La clave lleva el usuario primero** (`u/<userId>/p/<perfil>/<foto>`), y no es
+  estético: con el usuario delante, un fallo en el id de perfil no puede cruzar
+  cuentas, y `list({prefix})` da el inventario exacto de una cuenta, que es lo que
+  necesitan el barrido de huérfanos y el borrado de cuenta. Ninguno de los tres
+  tramos se construye con lo que mande el cliente sin comprobarlo.
+
+  **La cuota es atómica.** `UPDATE … WHERE photo_bytes + ?2 <= ?3` hace que
+  comprobar y escribir sean la misma sentencia: dos subidas simultáneas no pueden
+  pasar las dos por un hueco que solo daba para una. Se cuenta el tamaño NETO
+  —resubir la misma foto no cuenta dos veces— y si R2 falla, la reserva se
+  devuelve: sin eso, cada fallo le comería a alguien un trozo de cuota para
+  siempre.
+
+  **Los huérfanos.** Subir una foto son dos pasos —el blob y luego el puntero— y
+  el segundo puede no llegar. Ese objeto no lo reclama nadie. Quién decide qué
+  sobra es el cliente, porque el servidor no puede leer los punteros, y la
+  decisión vive en una función PURA con tres reglas que existen cada una por un
+  caso: un inventario incompleto no borra nada, un perfil que este dispositivo no
+  conoce no se juzga, y solo se borra lo que no tiene puntero.
+
+  **Y cerrar la cuenta barre R2 antes de tocar D1.** Si el barrido falla, la
+  cuenta NO se da por cerrada: decir que se borró una cuenta cuyas fotos siguen
+  ahí es exactamente lo que el artículo 17 prohíbe, y de las cosas que nadie
+  descubre hasta que las descubre alguien de fuera.
+
+  De paso se cierra la ficha del BACKLOG del `continue` mudo de `views/photos.js`:
+  una foto con puntero y sin imagen ya no desaparece en silencio, se cuenta y se
+  dice. Desde M9-5 tiene además un caso legítimo y frecuente —el móvil nuevo—, y
+  confundirlo con «esta foto se perdió» sería alarmar por nada.
+
+  **Lo que se decide NO hacer: las miniaturas.** El plan las pedía como segundo
+  objeto cifrado. Con la imagen ya recortada a 1600 px y la galería bajando de
+  una en una y solo lo que pide, el ahorro no compensa duplicar objetos, cuota,
+  barrido y modos de fallo. Queda anotado en el BACKLOG por si el gasto de datos
+  resulta ser real.
 - [x] **M9-6 · Salida y borrado.** `DELETE /api/account`, con confirmación
   tecleada porque es irreversible: con cifrado extremo a extremo, lo que se borra
   del servidor no lo tiene nadie más. La cascada de `users` se lleva

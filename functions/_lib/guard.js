@@ -31,14 +31,35 @@
 import { fail } from './http.js';
 
 /**
- * Los métodos que la API acepta. `PUT` y `PATCH` no están: la sincronización
- * empuja con `POST` y el borrado usa `DELETE`. Aceptar métodos que nadie sirve
- * solo amplía la superficie.
+ * Los métodos que la API acepta. `PATCH` no está: nadie lo sirve, y aceptar
+ * métodos que nadie sirve solo amplía la superficie.
+ *
+ * `PUT` entró con las fotos (M9-5), y entró por lo que significa: subir una foto
+ * es poner un objeto entero en una clave conocida, y repetirlo deja el mismo
+ * resultado. Un `POST` para eso obligaría a inventar una semántica de reintento
+ * que `PUT` ya trae puesta —y los reintentos, con megas de por medio y una red
+ * móvil, no son el caso raro—.
  */
-const METHODS = Object.freeze(['GET', 'HEAD', 'POST', 'DELETE']);
+const METHODS = Object.freeze(['GET', 'HEAD', 'POST', 'PUT', 'DELETE']);
 
 /** Los métodos que NO cambian nada y por tanto no necesitan la defensa de CSRF. */
 const SAFE = Object.freeze(['GET', 'HEAD']);
+
+/**
+ * Los tipos de contenido admitidos en una petición con efectos.
+ *
+ * Esta lista ES una de las tres capas contra CSRF, y por eso importa cuáles son
+ * y no cuántos: un `<form>` de otro origen solo puede producir tres tipos
+ * —`application/x-www-form-urlencoded`, `multipart/form-data` y `text/plain`— y
+ * **ninguno de los dos de aquí está entre ellos**. Cualquier otra forma de
+ * mandar estos tipos desde fuera necesita `fetch` con cabecera propia, o sea un
+ * preflight, y a un preflight esta API nunca contesta.
+ *
+ * `application/octet-stream` entró con las fotos: son bytes cifrados, y meterlos
+ * en JSON como base64 les añadiría un tercio de tamaño a lo más pesado que
+ * manda esta aplicación.
+ */
+const TIPOS = Object.freeze(['application/json', 'application/octet-stream']);
 
 /**
  * @param {Request} request
@@ -72,7 +93,7 @@ export function checkRequest(request, { origin }) {
     // `application/json; charset=utf-8`. Comparar la cadena entera rechazaría
     // clientes correctos.
     const tipo = (request.headers.get('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
-    if (tipo !== 'application/json') {
+    if (!TIPOS.includes(tipo)) {
         return fail(415, 'contentType.required');
     }
 

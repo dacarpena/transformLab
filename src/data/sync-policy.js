@@ -157,10 +157,14 @@ const POLICY = {
     },
 
     photos: {
-        note: 'La fila es un PUNTERO, no el dato: el blob vive en IndexedDB. Una fila '
-            + 'sin blob desaparece de la galería con un `continue`, que es lo que §D9 '
-            + 'prohíbe. Se ata a M9-5, donde el blob se paga una sola vez.',
-        parts: [{ kind: 'list', field: 'items', scope: 'local', key: (it) => [String(it.id)] }]
+        note: 'La fila es un PUNTERO, no el dato: el blob vive en IndexedDB y, desde '
+            + 'M9-5, también en R2. Viaja el puntero —id, fecha, nota, tipo y tamaño— '
+            + 'y el blob va aparte, porque son cientos de kilobytes y una fila de D1 '
+            + 'no es sitio para eso. La consecuencia hay que mirarla de frente: el '
+            + 'puntero puede llegar antes que el blob, y entonces la galería enseña un '
+            + 'hueco. Se resuelve bajándolo cuando la vista lo pida, y NO con el '
+            + '`continue` mudo que tenía antes, que es justo lo que §D9 prohíbe.',
+        parts: [{ kind: 'list', field: 'items', scope: 'sync', key: (it) => [String(it.id)] }]
     },
 
     training: {

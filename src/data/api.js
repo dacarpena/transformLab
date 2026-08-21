@@ -35,10 +35,44 @@
 const TIMEOUT_MS = 10_000;
 
 /**
+ * El plazo de las peticiones con bytes.
+ *
+ * Sesenta segundos y no diez: una foto de doscientos kilobytes por una red móvil
+ * mala tarda más que un JSON de dos, y cortarla a los diez sería no poder subir
+ * fotos precisamente donde se hacen.
+ */
+const BINARY_TIMEOUT_MS = 60_000;
+
+/**
  * @template T
  * @typedef {{ ok: true, status: number, value: T }
  *         | { ok: false, status: number, error: string }} ApiResult
  */
+
+/**
+ * La ADUANA, y es de las dos puertas.
+ *
+ * `startsWith('/api/')` no basta: `//evil.com` empieza por `/` y el navegador lo
+ * resuelve como otro ORIGEN, y `/api/../..//evil.com` se normaliza a algo que ya
+ * no es `/api/`. Por eso se resuelve la URL y se comprueba lo resuelto, no lo
+ * escrito.
+ *
+ * Vive en una función porque hay dos formas de salir de aquí —JSON y bytes— y
+ * una aduana duplicada es una aduana que se queda a medias en una de las dos.
+ *
+ * @param {string} path
+ * @returns {{ ok: true, url: URL } | { ok: false, error: string }}
+ */
+function comprobarRuta(path) {
+    if (typeof path !== 'string' || !path.startsWith('/api/') || path.startsWith('//')) {
+        return { ok: false, error: 'api.badPath' };
+    }
+    const url = new URL(path, location.origin);
+    if (url.origin !== location.origin || !url.pathname.startsWith('/api/')) {
+        return { ok: false, error: 'api.badPath' };
+    }
+    return { ok: true, url };
+}
 
 /**
  * Una petición a la API propia.
@@ -48,16 +82,9 @@ const TIMEOUT_MS = 10_000;
  * @returns {Promise<ApiResult<*>>}
  */
 export async function request(path, options = {}) {
-    // La aduana. Va antes que nada, y `startsWith('/api/')` no basta: `//evil.com`
-    // empieza por `/` y el navegador lo resuelve como otro ORIGEN, y
-    // `/api/../..//evil.com` se normaliza a algo que ya no es `/api/`.
-    if (typeof path !== 'string' || !path.startsWith('/api/') || path.startsWith('//')) {
-        return { ok: false, status: 0, error: 'api.badPath' };
-    }
-    const resuelta = new URL(path, location.origin);
-    if (resuelta.origin !== location.origin || !resuelta.pathname.startsWith('/api/')) {
-        return { ok: false, status: 0, error: 'api.badPath' };
-    }
+    const aduana = comprobarRuta(path);
+    if (!aduana.ok) return { ok: false, status: 0, error: aduana.error };
+    const resuelta = aduana.url;
 
     const method = options.method ?? 'GET';
     const control = new AbortController();
@@ -114,6 +141,83 @@ export async function request(path, options = {}) {
     }
 
     return { ok: true, status: respuesta.status, value: datos };
+}
+
+/**
+ * Como `request`, pero con BYTES: para las fotos, que son lo único de esta
+ * aplicación que no cabe razonablemente en JSON.
+ *
+ * Comparte la aduana entera —el mismo control de ruta, el mismo `same-origin`,
+ * el mismo `no-store`, el mismo `redirect: 'error'`— porque **esta sigue siendo
+ * la única puerta de salida** y partirla en dos sería partir también el sitio
+ * donde se audita qué sale del dispositivo. Lo único que cambia es la forma del
+ * cuerpo.
+ *
+ * El plazo es más largo: una foto de doscientos kilobytes por una red móvil mala
+ * tarda más que un JSON de dos, y cortarla a los diez segundos sería no poder
+ * subir fotos precisamente donde se hacen.
+ *
+ * @param {string} path
+ * @param {{ method?: string, body?: Uint8Array, timeoutMs?: number, signal?: AbortSignal }} [options]
+ * @returns {Promise<{ ok: true, status: number, value: unknown } | { ok: false, status: number, error: string }>}
+ */
+export async function requestBinary(path, options = {}) {
+    const aduana = comprobarRuta(path);
+    if (!aduana.ok) return { ok: false, status: 0, error: aduana.error };
+
+    const method = options.method ?? 'GET';
+    const control = new AbortController();
+    const plazo = setTimeout(() => control.abort(), options.timeoutMs ?? BINARY_TIMEOUT_MS);
+    options.signal?.addEventListener('abort', () => control.abort(), { once: true });
+
+    /** @type {Record<string, string>} */ const headers = {};
+    // `application/octet-stream` es uno de los DOS tipos que el servidor acepta
+    // en una petición con efectos, y sigue cumpliendo la capa de CSRF: no es
+    // ninguno de los tres que un `<form>` de otro origen puede producir.
+    if (method !== 'GET') headers['Content-Type'] = 'application/octet-stream';
+
+    let respuesta;
+    try {
+        respuesta = await fetch(aduana.url.pathname + aduana.url.search, {
+            method,
+            headers,
+            credentials: 'same-origin',
+            cache: 'no-store',
+            redirect: 'error',
+            body: method === 'GET' ? undefined : /** @type {BodyInit} */ (/** @type {*} */ (options.body)),
+            signal: control.signal
+        });
+    } catch {
+        clearTimeout(plazo);
+        return { ok: false, status: 0, error: control.signal.aborted ? 'api.timeout' : 'api.offline' };
+    }
+    clearTimeout(plazo);
+
+    if (!respuesta.ok) {
+        // Los errores SÍ vienen en JSON, también aquí: el cuerpo binario es el
+        // camino feliz, y un fallo tiene que poder explicarse con su código.
+        let codigo = 'api.unknown';
+        try {
+            const datos = JSON.parse(await respuesta.text());
+            if (typeof datos?.error === 'string') codigo = datos.error;
+        } catch { /* un intermediario que no habla JSON: se queda el genérico */ }
+        return { ok: false, status: respuesta.status, error: codigo };
+    }
+
+    // Un GET devuelve los bytes; un PUT o un DELETE devuelven el JSON de siempre.
+    if (method === 'GET') {
+        try {
+            return { ok: true, status: respuesta.status, value: new Uint8Array(await respuesta.arrayBuffer()) };
+        } catch {
+            return { ok: false, status: respuesta.status, error: 'api.badResponse' };
+        }
+    }
+    try {
+        const texto = await respuesta.text();
+        return { ok: true, status: respuesta.status, value: texto ? JSON.parse(texto) : null };
+    } catch {
+        return { ok: false, status: respuesta.status, error: 'api.badResponse' };
+    }
 }
 
 /**

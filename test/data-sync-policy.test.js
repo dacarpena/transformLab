@@ -65,7 +65,7 @@ test('ambito_declarado: qué viaja y qué no está decidido, campo por campo', (
             intakeLog: 'sync',
             nutrition: 'sync',       // desde la v8: ids opacos
             pantry: 'sync',
-            photos: 'local',         // la fila es un puntero; el blob va en M9-5
+            photos: 'sync',          // desde M9-5: viaja el puntero, el blob va a R2
             plan: 'sync',            // solo `history`
             preferences: 'sync',
             profile: 'sync',

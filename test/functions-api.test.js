@@ -48,11 +48,15 @@ const cuerpo = async (/** @type {Response} */ r) => JSON.parse(await r.text());
 const POST_OK = { Origin: ORIGEN, 'Content-Type': 'application/json' };
 
 test('la lista de métodos aceptados es la que se decidió, y no crece sola', () => {
-    // `PUT` y `PATCH` no están porque nadie los sirve: la sincronización empuja
-    // con `POST` y el borrado usa `DELETE`. `OPTIONS` tampoco, y ése es el
+    // `PATCH` no está porque nadie lo sirve. `OPTIONS` tampoco, y ése es el
     // importante: contestar un preflight es habilitar CORS, y esta API es del
-    // mismo origen. Aceptar métodos que nadie atiende solo amplía la superficie.
-    assert.deepEqual([...ALLOWED_METHODS], ['GET', 'HEAD', 'POST', 'DELETE']);
+    // mismo origen.
+    //
+    // `PUT` entró con las fotos (M9-5) y entró por lo que significa: subir una
+    // foto es poner un objeto entero en una clave conocida, y repetirlo deja el
+    // mismo resultado. Con megas de por medio y una red móvil, los reintentos no
+    // son el caso raro, y `PUT` ya trae esa semántica puesta.
+    assert.deepEqual([...ALLOWED_METHODS], ['GET', 'HEAD', 'POST', 'PUT', 'DELETE']);
 });
 
 /* ── El endpoint ─────────────────────────────────────────────────────────── */

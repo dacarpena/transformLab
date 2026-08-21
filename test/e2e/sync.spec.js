@@ -289,6 +289,102 @@ test('lo que hay en el servidor son BYTES: ni una fecha, ni un peso, ni un nombr
     expect([...tamanos], 'el relleno a 256 bytes no se está aplicando').toEqual([0]);
 });
 
+/* ── Las fotos (M9-5) ────────────────────────────────────────────────────── */
+
+/** Sube una foto de verdad por el input de la galería. */
+async function subirFoto(page, nombre = 'progreso.png') {
+    await irA(page, 'photos');
+    await expect(page.locator('[data-file]')).toBeAttached({ timeout: 20000 });
+    // Un PNG real y pequeño, generado aquí: el compresor tiene que poder
+    // decodificarlo de verdad, así que no vale un fichero inventado.
+    const png = await page.evaluate(async () => {
+        const c = document.createElement('canvas');
+        c.width = 300; c.height = 400;
+        const g = /** @type {*} */ (c.getContext('2d'));
+        g.fillStyle = '#3aa'; g.fillRect(0, 0, 300, 400);
+        g.fillStyle = '#f60'; g.fillRect(40, 60, 120, 200);
+        const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        return [...buf];
+    });
+    await page.setInputFiles('[data-file]', {
+        name: nombre, mimeType: 'image/png', buffer: Buffer.from(png)
+    });
+}
+
+test('una foto se comprime, se cifra y aparece en el otro dispositivo', async ({ page, context }) => {
+    await conAutenticador(page);
+    await conPerfil(page, 'Ana');
+    await irAAjustes(page);
+    const codigo = await conCuenta(page);
+
+    await subirFoto(page);
+    // La galería la enseña, y el almacén local guarda la COMPRIMIDA.
+    await expect(page.locator('.photo-grid img, [data-photo-id] img').first())
+        .toBeVisible({ timeout: 30000 });
+
+    const local = await page.evaluate(async () => {
+        const db = await new Promise((res, rej) => {
+            const r = indexedDB.open('tl-photos');
+            r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        });
+        const filas = await new Promise((res) => {
+            const req = db.transaction('photos').objectStore('photos').getAll();
+            req.onsuccess = () => res(req.result);
+            req.onerror = () => res([]);
+        });
+        return filas.map((f) => ({ bytes: f.bytes, contentType: f.contentType }));
+    });
+    expect(local.length).toBe(1);
+    expect(local[0].contentType, 'no se recodificó: el PNG se guardó tal cual')
+        .toMatch(/^image\/(webp|jpeg)$/);
+
+    await irAAjustes(page);
+    await sincronizar(page);
+
+    // Lo que hay en R2 son BYTES: se pide por la API y no se parece a un PNG.
+    const crudo = await page.evaluate(async () => {
+        const inv = await (await fetch('/api/photos', { credentials: 'same-origin' })).json();
+        const o = inv.objects[0];
+        const r = await fetch(`/api/photos/${o.photoId}?profile=${o.profileId}`, { credentials: 'same-origin' });
+        const b = new Uint8Array(await r.arrayBuffer());
+        return { total: inv.objects.length, tipo: r.headers.get('Content-Type'), cabecera: [...b.slice(0, 8)] };
+    });
+    expect(crudo.total).toBe(1);
+    expect(crudo.tipo).toBe('application/octet-stream');
+    // Ni firma PNG (137 80 78 71) ni RIFF de WebP: está cifrado.
+    expect(crudo.cabecera.slice(0, 4)).not.toEqual([137, 80, 78, 71]);
+    expect(crudo.cabecera.slice(0, 4)).not.toEqual([82, 73, 70, 70]);
+
+    // — móvil nuevo —
+    await page.evaluate(() => new Promise((resolve) => {
+        localStorage.clear();
+        let quedan = 2;
+        const listo = () => { if (--quedan === 0) resolve(null); };
+        for (const nombre of ['tl-keys', 'tl-photos']) {
+            const req = indexedDB.deleteDatabase(nombre);
+            req.onsuccess = listo; req.onerror = listo; req.onblocked = listo;
+        }
+    }));
+    await context.clearCookies();
+    await page.reload();
+
+    await expect(page.locator('[data-signin-go]')).toBeVisible({ timeout: 20000 });
+    await page.locator('[data-signin-go]').click();
+    const dialogo = page.locator('[role="dialog"]');
+    await expect(dialogo.locator('[data-unlock-code]')).toBeVisible({ timeout: 20000 });
+    await dialogo.locator('[data-unlock-code]').fill(codigo.toLowerCase().replace(/-/g, ''));
+    await dialogo.locator('[data-unlock-go]').click();
+    await expect(page.locator('#today-title')).toBeVisible({ timeout: 30000 });
+
+    // Y la foto vuelve: el puntero llegó por la sincronía y el blob se baja de
+    // R2 cuando la galería lo pide.
+    await irA(page, 'photos');
+    await expect(page.locator('.photo-grid img, [data-photo-id] img').first())
+        .toBeVisible({ timeout: 30000 });
+    await expect(page.locator('[data-photos-missing]')).toHaveCount(0);
+});
+
 /* ── Sin cuenta, cero red ────────────────────────────────────────────────── */
 
 test('sin cuenta no se llama NUNCA a la API, ni siquiera para preguntar', async ({ page }) => {

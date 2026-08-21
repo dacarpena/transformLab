@@ -21,6 +21,7 @@ import { registerStart, registerFinish, loginStart, loginFinish } from './_handl
 import { current, logout, logoutAll } from './_handlers/session.js';
 import { overview, keys, saveKeys, removeCredential, remove as removeAccount } from './_handlers/account.js';
 import { pull, push, conflicts, stats } from './_handlers/sync.js';
+import { upload, download, remove as removePhoto, inventory } from './_handlers/photos.js';
 
 /** @type {readonly import('./_lib/router.js').Route[]} */
 export const ROUTES = Object.freeze([
@@ -51,5 +52,12 @@ export const ROUTES = Object.freeze([
     // una petición pueda destruir un dato del usuario todavía.
     { method: 'GET', path: '/api/sync', handler: pull, auth: true },
     { method: 'POST', path: '/api/sync', handler: push, auth: true },
-    { method: 'GET', path: '/api/sync/conflicts', handler: conflicts, auth: true }
+    { method: 'GET', path: '/api/sync/conflicts', handler: conflicts, auth: true },
+
+    // Las fotos (M9-5). Van a R2 y no a D1: son objetos opacos de cientos de
+    // kilobytes, que es exactamente lo que una base relacional no debe guardar.
+    { method: 'GET', path: '/api/photos', handler: inventory, auth: true },
+    { method: 'PUT', path: '/api/photos/:id', handler: upload, auth: true },
+    { method: 'GET', path: '/api/photos/:id', handler: download, auth: true },
+    { method: 'DELETE', path: '/api/photos/:id', handler: removePhoto, auth: true }
 ]);

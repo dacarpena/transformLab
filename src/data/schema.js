@@ -455,12 +455,24 @@ export const validateNutrition = rootValidator({
     }), { maxItems: 500 })
 });
 
-/** Metadatos de fotos (los blobs viven en IndexedDB, tensión 1 del plan). */
+/**
+ * Metadatos de fotos. El blob NO está aquí: vive en IndexedDB, y desde M9-5
+ * también en R2 si hay cuenta.
+ *
+ * `contentType` y `bytes` son opcionales y llegaron con M9-5. Son lo que necesita
+ * OTRO dispositivo para bajarse la foto: sin el tipo, el blob que baja no sabe
+ * decirle al navegador que es una imagen; sin el tamaño, la galería no puede
+ * avisar de lo que va a descargar. Opcionales porque las fotos que ya existían
+ * no los tienen, y una migración que inventara valores estaría mintiendo sobre
+ * datos que sí se pueden averiguar leyendo el blob.
+ */
 export const validatePhotos = rootValidator({
     items: arrayOf(objectOf({
         id: str({ maxLength: 60 }),
         dateISO: isoDate,
-        note: opt(str({ maxLength: 300, allowEmpty: true }))
+        note: opt(str({ maxLength: 300, allowEmpty: true })),
+        contentType: opt(str({ maxLength: 60 })),
+        bytes: opt(num({ min: 0, max: 100_000_000 }))
     }), { maxItems: 2000 })
 });
 

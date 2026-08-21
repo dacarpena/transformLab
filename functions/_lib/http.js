@@ -80,6 +80,31 @@ export function fail(status, code, init = {}) {
 }
 
 /**
+ * Una respuesta de BYTES. Existe para las fotos, y existe para que el guardián
+ * «ningún manejador construye una Response a mano» siga siendo cierto: un
+ * criptograma de 200 KB no cabe en `json()`, pero eso no es motivo para que un
+ * manejador se salte los ayudantes y se lleve por delante la única regla que
+ * garantiza que todas las respuestas tienen la misma forma.
+ *
+ * `application/octet-stream` y no un tipo de imagen, porque no lo es: son bytes
+ * cifrados. Declararlos `image/webp` haría que un navegador intentara pintarlos
+ * y que un intermediario creyera que puede recomprimirlos.
+ *
+ * @param {ReadableStream | ArrayBuffer} cuerpo
+ * @param {number} bytes
+ * @returns {Response}
+ */
+export function binary(cuerpo, bytes) {
+    return new Response(cuerpo, {
+        headers: {
+            ...API_HEADERS,
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': String(bytes)
+        }
+    });
+}
+
+/**
  * Lee el cuerpo como JSON, sin lanzar nunca.
  *
  * @param {Request} request
