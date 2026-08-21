@@ -1131,6 +1131,17 @@ button.timeline__event:hover {
     flex-wrap: wrap;
 }
 
+/* La puerta de entrada del asistente: una línea, no una tarjeta.
+   Va en la cabecera y encima del formulario, así que tiene que ocupar poco y
+   no competir con «Siguiente», que es lo que hace la mayoría de la gente. */
+.signin-line {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: var(--space-3);
+}
+
 .steps__dot {
     width: 8px;
     height: 8px;

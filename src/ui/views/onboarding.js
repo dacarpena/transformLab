@@ -634,6 +634,19 @@ function draw(container) {
                     ${STEPS.map((_, i) => html`<span class="steps__dot ${i <= stepIndex ? 'steps__dot--done' : ''}"></span>`)}
                     <span>${t(`onboarding.step.${step}`)}</span>
                 </div>
+
+                <!-- La puerta de entrada va AQUÍ, encima del formulario y sin
+                     tener que bajar la pantalla. Quien ya tiene cuenta no viene
+                     a rellenar nada: viene a recuperar lo suyo, y hacerle
+                     recorrer seis campos antes de ofrecérselo es pedirle que
+                     adivine que la opción existe. -->
+                ${stepIndex === 0 && accountPanel.canSignIn() ? html`
+                    <p class="signin-line" data-signin>
+                        <span class="secondary">${t('onboarding.haveAccount')}</span>
+                        <button type="button" class="btn btn--sm" data-signin-go>${t('onboarding.signIn')}</button>
+                    </p>
+                    <p class="muted">${t('onboarding.haveAccountHint')}</p>
+                ` : ''}
             </header>
 
             <form class="card" data-form novalidate>
@@ -647,16 +660,6 @@ function draw(container) {
                     </button>
                 </div>
             </form>
-
-            ${stepIndex === 0 && accountPanel.canSignIn() ? html`
-                <div class="card" data-signin>
-                    <p class="secondary">${t('onboarding.haveAccount')}</p>
-                    <div class="btn-row">
-                        <button type="button" class="btn" data-signin-go>${t('account.login')}</button>
-                    </div>
-                    <p class="muted">${t('onboarding.haveAccountHint')}</p>
-                </div>
-            ` : ''}
 
             <aside class="card preview" data-preview aria-live="polite"></aside>
 

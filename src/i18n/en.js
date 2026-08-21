@@ -63,6 +63,7 @@ export const en = {
     // Onboarding
     'onboarding.title': 'Let’s build your plan',
     'onboarding.haveAccount': 'Already have an account?',
+    'onboarding.signIn': 'Sign in',
     'onboarding.haveAccountHint': 'Sign in with your passkey and get your data on this device. If you do not have an account, just carry on with the wizard \u2014 the app works fully without one.',
     'onboarding.stepOf': 'Step {current} of {total}',
     'onboarding.step.profile': 'About you',

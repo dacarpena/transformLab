@@ -63,6 +63,7 @@ export const es = {
     // Onboarding
     'onboarding.title': 'Vamos a construir tu plan',
     'onboarding.haveAccount': '¿Ya tienes cuenta?',
+    'onboarding.signIn': 'Entrar',
     'onboarding.haveAccountHint': 'Entra con tu llave de acceso y recupera tus datos en este dispositivo. Si no tienes cuenta, sigue rellenando el asistente: la aplicación funciona entera sin ella.',
     'onboarding.stepOf': 'Paso {current} de {total}',
     'onboarding.step.profile': 'Sobre ti',
