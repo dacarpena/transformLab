@@ -11,6 +11,7 @@
 import { ROUTES } from '../_manifest.js';
 import { match } from '../_lib/router.js';
 import { fail } from '../_lib/http.js';
+import { line, deExcepcion } from '../_lib/log.js';
 
 /**
  * @param {EventContext} ctx
@@ -19,6 +20,12 @@ import { fail } from '../_lib/http.js';
 export async function onRequest(ctx) {
     const url = new URL(ctx.request.url);
     const encontrada = match(ROUTES, ctx.request.method, url.pathname);
+
+    // El PATRÓN de la ruta, para que el middleware pueda registrarla sin
+    // registrar la ruta CONCRETA: ahí dentro van el id de una foto —que es
+    // `ph_<fecha>`— y el de un perfil. Un registro con eso acaba contando en qué
+    // días alguien se hizo fotos, y eso no se puede des-registrar.
+    if (encontrada.route) /** @type {*} */ (ctx.data).route = encontrada.route.path;
 
     if (!encontrada.route) {
         // La ruta existe pero no con ese método: 405 con `Allow`, que es lo que
@@ -44,7 +51,7 @@ export async function onRequest(ctx) {
         // Nunca se filtra el error al cliente: un `stack` dice rutas de fichero,
         // nombres de tabla y a veces valores. Al registro sí va entero, que es
         // donde sirve.
-        console.error('api.handler', url.pathname, error);
+        line({ evt: 'handler.threw', route: encontrada.route.path, ...deExcepcion(error) });
         return fail(500, 'internal');
     }
 }

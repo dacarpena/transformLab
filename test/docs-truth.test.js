@@ -18,7 +18,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { VIEWS } from '../src/ui/views/_manifest.js';
@@ -26,6 +26,17 @@ import { SCHEMA_VERSION, rootPrefix } from '../src/data/version.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const leer = (/** @type {string} */ f) => readFileSync(join(ROOT, f), 'utf8');
+
+/** Los `.js` de un árbol, en rutas relativas a la raíz del repositorio. */
+function ficherosDe(/** @type {string} */ dir) {
+    /** @type {string[]} */ const out = [];
+    for (const entrada of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${entrada.name}`;
+        if (entrada.isDirectory()) out.push(...ficherosDe(rel));
+        else if (entrada.name.endsWith('.js')) out.push(rel);
+    }
+    return out;
+}
 
 const README = leer('README.md');
 const CLAUDE = leer('CLAUDE.md');
@@ -116,5 +127,60 @@ test('el BACKLOG no manda rehacer lo que ya está hecho', () => {
         assert.ok(linea, `falta la entrada de BACKLOG sobre «${marca}»`);
         assert.match(linea, /~~|HECHO/,
             `la entrada «${marca}» sigue escrita como pendiente, y está hecha en ${donde}`);
+    }
+});
+
+/* ── El runbook ──────────────────────────────────────────────────────────── */
+
+test('el runbook nombra eventos que el servidor emite de verdad', () => {
+    // Un runbook que cita un `evt` que se renombró es peor que no tenerlo: se
+    // lee con prisa y en mitad de una incidencia, buscando algo que no aparece.
+    const runbook = leer('docs/RUNBOOK.md');
+    const enCodigo = new Set(
+        [...ficherosDe('functions').flatMap((f) => [...leer(f).matchAll(/evt: '([a-zA-Z.]+)'/g)])]
+            .map((m) => m[1]));
+    assert.ok(enCodigo.size >= 5, '¿ya no se registran eventos?');
+
+    // Los que la tabla del runbook enumera, que van entre acentos graves en la
+    // primera columna.
+    const citados = [...runbook.matchAll(/^\| `([a-z]+\.[a-zA-Z.]+)` \| /gm)].map((m) => m[1]);
+    assert.ok(citados.length >= 5, 'no se encontró la tabla de eventos del runbook');
+    for (const evt of citados) {
+        assert.ok(enCodigo.has(evt), `el runbook documenta «${evt}» y el servidor no lo emite`);
+    }
+});
+
+test('el runbook nombra constantes y funciones que existen', () => {
+    const runbook = leer('docs/RUNBOOK.md');
+    /** @type {[string, string][]} */ const referencias = [
+        ['MAX_CHALLENGES_PER_IP', 'functions/_lib/db.js'],
+        ['MAX_ACCOUNT_BYTES', 'functions/_handlers/photos.js'],
+        ['sweepExpired', 'functions/_lib/db.js'],
+        ['photo_bytes', 'migrations/0001_init.sql']
+    ];
+    for (const [nombre, fichero] of referencias) {
+        assert.ok(runbook.includes(nombre), `el runbook ya no cita ${nombre}: ¿se quedó sin sitio?`);
+        assert.ok(leer(fichero).includes(nombre),
+            `el runbook manda mirar ${nombre} en ${fichero} y ahí no está`);
+    }
+    // Y los ficheros a los que envía tienen que existir.
+    for (const ruta of [...runbook.matchAll(/`((?:functions|src|migrations)\/[\w[\]/.-]+\.(?:js|sql))`/g)]) {
+        assert.doesNotThrow(() => leer(ruta[1]), `el runbook cita ${ruta[1]}, que no existe`);
+    }
+});
+
+test('el runbook no manda ejecutar un subcomando de wrangler que no existe', () => {
+    // `wrangler r2 object list` NO existe —solo `get`, `put` y `delete`— y el
+    // runbook lo mandaba ejecutar. Un comando inventado en un runbook cuesta
+    // exactamente los minutos que no se tienen.
+    const runbook = leer('docs/RUNBOOK.md');
+    const R2_OBJECT = ['get', 'put', 'delete'];
+    for (const m of runbook.matchAll(/wrangler r2 object (\w+)/g)) {
+        assert.ok(R2_OBJECT.includes(m[1]),
+            `el runbook manda «wrangler r2 object ${m[1]}», que no es un subcomando`);
+    }
+    const D1 = ['execute', 'migrations', 'create', 'list', 'info'];
+    for (const m of runbook.matchAll(/wrangler d1 (\w+)/g)) {
+        assert.ok(D1.includes(m[1]), `el runbook manda «wrangler d1 ${m[1]}», que no es un subcomando`);
     }
 });

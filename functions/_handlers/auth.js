@@ -28,6 +28,7 @@
  */
 
 import { json, fail, readJson } from '../_lib/http.js';
+import { line, deExcepcion } from '../_lib/log.js';
 import {
     verifyRegistration, verifyAssertion, newChallenge, sha256, sha256Bytes,
     fromB64u, CHALLENGE_TTL_MS, ALG_ES256
@@ -158,7 +159,7 @@ export async function loginStart(ctx) {
     // ocurre lo bastante a menudo como para que nada se acumule, pero lo bastante
     // poco como para no notarse. Con `waitUntil` no retrasa la respuesta, y si
     // falla no la tumba.
-    ctx.waitUntil(sweepExpired(ctx.env, ahora).catch((e) => console.error('sweep', e)));
+    ctx.waitUntil(sweepExpired(ctx.env, ahora).catch((e) => line({ evt: 'sweep.failed', ...deExcepcion(e) })));
 
     return json({
         challenge: encode(reto),

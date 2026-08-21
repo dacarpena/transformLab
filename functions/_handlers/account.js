@@ -25,6 +25,7 @@
  */
 
 import { json, fail, readJson } from '../_lib/http.js';
+import { line, deExcepcion } from '../_lib/log.js';
 import { clearCookie } from '../_lib/sessions.js';
 import { fromB64u } from '../_lib/webauthn.js';
 import { encode } from '../_lib/base64url.js';
@@ -251,7 +252,7 @@ async function barrerFotos(ctx) {
         // llega aquí, algo no está borrando y NO se puede decir que sí.
         return { ok: false, borradas };
     } catch (error) {
-        console.error('account.sweepPhotos', error);
+        line({ evt: 'photos.sweepFailed', ...deExcepcion(error) });
         return { ok: false, borradas };
     }
 }

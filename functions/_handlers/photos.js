@@ -38,6 +38,7 @@
  */
 
 import { json, fail, binary } from '../_lib/http.js';
+import { line, deExcepcion } from '../_lib/log.js';
 
 /**
  * Tamaño máximo de un objeto.
@@ -137,7 +138,7 @@ export async function upload(ctx) {
         // Se devuelve lo reservado. Sin esto, cada fallo de R2 le comería a
         // alguien un trozo de su cuota para siempre, sin nada que lo ocupe.
         await scope.reservePhotoBytes({ delta: -delta, limit: MAX_ACCOUNT_BYTES });
-        console.error('photos.put', error);
+        line({ evt: 'photos.putFailed', ...deExcepcion(error) });
         return fail(502, 'photos.storeFailed');
     }
 

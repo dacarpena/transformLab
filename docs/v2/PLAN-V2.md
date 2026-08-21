@@ -2999,7 +2999,7 @@ relleno a múltiplos de 256 B antes de cifrar.
 
   El barrido de R2 y `deletion_jobs` se aplazan a M9-5, que es donde nacen los
   objetos que habría que barrer.
-- [ ] **M9-7 · Endurecimiento.** Hecho ya lo que no podía esperar al despliegue:
+- [x] **M9-7 · Endurecimiento.**
 
   - [x] **Techo por IP en `/api/auth/*/start`.** Es la única escritura sin
     autenticar de toda la API, o sea la única puerta por la que alguien puede
@@ -3009,8 +3009,43 @@ relleno a múltiplos de 256 B antes de cifrar.
     petición, o sea que el limitador pagaría el coste del ataque—, quince por IP
     truncada. **Verificado contra producción:** quince pasan, el dieciséis
     devuelve 429, y la tabla se queda en quince filas con la IP a /24.
-  - [ ] Acolchado de 120 ms en `/api/auth/*` contra fugas por temporización.
-  - [ ] Logs JSON estructurados y runbook de `wrangler pages deployment tail`.
+  - [x] **Acolchado de 120 ms en `/api/auth/*`.** `login/finish` con una
+    credencial que no existe vuelve enseguida; con una que sí, verifica una firma
+    ECDSA y lee la base. Esa diferencia responde a «¿está registrada esta
+    credencial?» y se mide desde fuera sin autenticarse. Con un suelo común,
+    todas las respuestas de autenticación tardan lo mismo.
+
+    Fijo y no aleatorio: un retardo aleatorio parece más seguro y es peor, porque
+    el ruido se promedia con suficientes muestras. Y **cubre también los rechazos
+    tempranos**, que son los rápidos y por tanto los que más se distinguirían —un
+    `return` suelto antes del acolchado habría sido justo el interesante—.
+
+    Lo que un suelo NO tapa, y se escribe para que conste: solo esconde las
+    diferencias que caen por debajo. Si un camino pasara de 120 ms, volvería a
+    distinguirse.
+  - [x] **Logs JSON estructurados**, y aquí apareció algo que no era cosmético.
+
+    **El registro anterior filtraba datos del usuario.** `api/[[path]].js` hacía
+    `console.error('api.handler', url.pathname, error)`, y una ruta concreta de
+    esta API lleva dentro el id de una foto —que es `ph_<fecha>`— y el de un
+    perfil. Los registros del servidor acababan conteniendo **en qué días alguien
+    se hizo fotos de progreso**, que es exactamente lo que el resto del diseño se
+    toma tantas molestias en no saber. Y un registro no se puede des-escribir.
+
+    Ahora se registra el PATRÓN de la ruta, nunca la concreta, y `line()` compone
+    el objeto campo a campo en vez de volcar lo que le pasen: lo que no está
+    nombrado en esa función no puede salir por ahí. Del mensaje de las
+    excepciones se guarda solo el nombre de la clase y el primer marco de la
+    pila —`scoped()` lanza con el texto de la consulta, y un error de D1 puede
+    traer los parámetros—. Un test estático exige que **nadie del servidor llame
+    a `console` salvo `_lib/log.js`**: el filtro no sirve de nada si cualquiera
+    puede escribir a mano, que es justo lo que hacía el enrutador.
+  - [x] **Runbook.** `docs/RUNBOOK.md`, por síntoma y no por componente, porque
+    se lee con prisa. Y atado al código con tres guardas: los `evt` que documenta
+    tienen que emitirse de verdad, los ficheros y constantes que cita tienen que
+    existir, y **los comandos de `wrangler` que manda ejecutar tienen que ser
+    subcomandos reales** — `wrangler r2 object list` no existe, y el borrador lo
+    mandaba ejecutar.
 
 #### El primer login desde un dispositivo que ya tiene datos
 
