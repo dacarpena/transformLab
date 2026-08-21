@@ -319,18 +319,49 @@ async function boot() {
     // índice de perfiles, la aplicación vería cero perfiles, arrancaría el
     // onboarding y el usuario SOBRESCRIBIRÍA sus propios datos — reproducido
     // antes de escribirlo. Copia, nunca mueve, y con copia de seguridad previa.
-    const schemaMigration = migrations.migrateStore({ nowISO: new Date().toISOString() });
+    // `await migrations.run(...)` y no `migrateStore` a secas: desde M9-1 la
+    // migración tiene una fase ASÍNCRONA —reetiquetar las fotos en IndexedDB,
+    // porque el id del perfil va embebido en su clave primaria— y va ANTES de
+    // copiar las claves. Si fuera después y fallara, la aplicación arrancaría en
+    // la versión nueva con los metadatos migrados y los blobs bajo el id viejo:
+    // la galería se acortaría sin decir nada.
+    const schemaMigration = await migrations.run({ nowISO: new Date().toISOString() });
     if (!schemaMigration.ok) {
         console.error('[main] migración de esquema fallida:', schemaMigration.error);
         // No se sigue: arrancar sobre un almacén a medio migrar es justo cómo
         // se pierden datos. Se ofrece recargar, nunca borrar (ficha H-013).
-        render(roots.viewRoot, errorState({ titleKey: 'error.viewTitle', bodyKey: 'error.viewBody' }));
+        //
+        // Y el texto es PROPIO, no el error genérico. Lo que esta persona
+        // necesita saber en este momento es una cosa concreta: que sus datos
+        // siguen ahí. La migración copia y nunca borra, así que es cierto — y
+        // decirle «algo ha ido mal» a secas, en la pantalla que ha sustituido a
+        // sus años de check-ins, es la peor lectura posible de una situación que
+        // además es recuperable.
+        render(roots.viewRoot, errorState({
+            titleKey: 'migration.failedTitle',
+            bodyKey: 'migration.failedBody'
+        }));
         wireReload(roots.viewRoot);
         return;
     }
     if (schemaMigration.value.migrated) {
         console.info(`[main] esquema migrado de v${schemaMigration.value.from}: ` +
             `${schemaMigration.value.keysMigrated} claves`);
+    }
+    // Los avisos NO se quedan en la consola: son claves del usuario que no
+    // llegaron. Se le dicen, y los datos siguen intactos bajo el prefijo
+    // anterior — que es lo que el aviso tiene que transmitir.
+    const noMigradas = [
+        ...(schemaMigration.value.warnings ?? []),
+        ...(schemaMigration.value.retryable ?? [])
+    ];
+    if (noMigradas.length > 0) {
+        console.error('[main] claves no migradas:', noMigradas);
+        toast.error('migration.partial');
+    }
+    if (schemaMigration.value.photos && !schemaMigration.value.photos.done) {
+        console.error('[main] fotos sin reetiquetar:', schemaMigration.value.photos.errors);
+        toast.error('migration.photosPending');
     }
 
     // 1 · perfiles: el namespace del almacén depende del perfil activo, así

@@ -39,6 +39,14 @@ import { SCHEMA_VERSION, MIGRATABLE_FROM } from './version.js';
 const STEPS = {
     5: {
         // Sin cambios de forma en el salto 5→6.
+    },
+    6: {
+        // Sin cambios de forma en el salto 6→7 tampoco: v7 cambia el NOMBRE de
+        // las claves —el id de perfil va dentro— y no el contenido de ninguna
+        // colección. La entrada tiene que existir igualmente: `migrateValue`
+        // recorre `STEPS` desde la versión de origen hasta la vigente, y un
+        // hueco en la cadena haría que un valor de la v6 se rechazara en vez de
+        // subir de versión.
     }
 };
 

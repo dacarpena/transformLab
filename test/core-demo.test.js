@@ -149,7 +149,12 @@ test('nadie fuera del ejemplo conoce el id `demo`', () => {
             const full = join(current, entry.name);
             if (entry.isDirectory()) { walk(full); continue; }
             if (!entry.name.endsWith('.js')) continue;
-            if (entry.name === 'demo-profile.js') continue;   // es su casa
+            // Su casa: desde M9-1 el id lo DECLARA `ids.js` —un módulo hoja sin
+            // imports, para que `profile-remap.js` y `storage.js` lo consulten
+            // sin crear un ciclo— y `demo-profile.js` lo reexporta. La garantía
+            // que este test protege no cambia: sigue habiendo un solo sitio
+            // donde la cadena aparece escrita.
+            if (entry.name === 'ids.js' || entry.name === 'demo-profile.js') continue;
             const code = readFileSync(full, 'utf8')
                 .replace(/\/\*[\s\S]*?\*\//g, ' ')
                 .replace(/(^|[^:])\/\/[^\n]*/g, '$1');

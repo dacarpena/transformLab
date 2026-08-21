@@ -10,8 +10,25 @@
  * Las peticiones resuelven de forma asíncrona (microtarea), como las reales.
  */
 
+/**
+ * Peticiones en vuelo de la transacción abierta.
+ *
+ * IndexedTB de verdad no confirma una transacción mientras queden peticiones
+ * suyas por resolver, **incluidas las que se encolan DENTRO de un `onsuccess`**.
+ * Es lo que permite el patrón «leo un registro y, con lo leído, escribo otro»,
+ * que es exactamente lo que hace el reetiquetado de fotos (M9-1).
+ *
+ * Sin este contador, `oncomplete` se disparaba tras un número FIJO de
+ * microtareas y un test podía dar por confirmada una transacción cuyas
+ * escrituras aún no se habían encolado — midiendo otra cosa sin decirlo.
+ */
+let enVuelo = 0;
+/** @type {(() => void) | null} */
+let alVaciarse = null;
+
 /** Dispara los callbacks de una petición en la siguiente microtarea. */
 function settle(request, { result, error } = {}) {
+    enVuelo += 1;
     queueMicrotask(() => {
         if (error) {
             request.error = error;
@@ -20,6 +37,16 @@ function settle(request, { result, error } = {}) {
             request.result = result;
             request.onsuccess?.({ target: request });
         }
+        enVuelo -= 1;
+        // En la MICROTAREA SIGUIENTE: el manejador que se acaba de ejecutar pudo
+        // encolar más peticiones, y hay que darles tiempo a contarse.
+        queueMicrotask(() => {
+            if (enVuelo === 0 && alVaciarse) {
+                const fn = alVaciarse;
+                alVaciarse = null;
+                fn();
+            }
+        });
     });
     return request;
 }
@@ -41,10 +68,34 @@ class FakeIndex {
     }
     /** @param {{ only: * } | *} range */
     getAll(range) {
-        const wanted = range && typeof range === 'object' && 'only' in range ? range.only : range;
-        const out = [...this.rows.values()].filter((row) => row[this.keyPath] === wanted);
+        return settle(new FakeRequest(), { result: this.filtrar(range) });
+    }
+    /**
+     * Las CLAVES primarias, sin traerse los valores. Es lo que usa el
+     * reetiquetado de fotos para no materializar cientos de megabytes de blobs
+     * solo para leer una lista de cadenas.
+     * @param {*} range
+     */
+    getAllKeys(range) {
+        const out = [];
+        for (const [clave, row] of this.rows) {
+            if (row[this.keyPath] === desempaquetar(range)) out.push(clave);
+        }
         return settle(new FakeRequest(), { result: out });
     }
+    /** @param {*} range */
+    count(range) {
+        return settle(new FakeRequest(), { result: this.filtrar(range).length });
+    }
+    /** @param {*} range */
+    filtrar(range) {
+        return [...this.rows.values()].filter((row) => row[this.keyPath] === desempaquetar(range));
+    }
+}
+
+/** El valor de un `IDBKeyRange.only(x)`, o el propio valor. */
+function desempaquetar(range) {
+    return range && typeof range === 'object' && 'only' in range ? range.only : range;
 }
 
 class FakeObjectStore {
@@ -142,10 +193,16 @@ class FakeDatabase {
             oncomplete: null,
             onerror: null
         };
-        // `oncomplete` va DESPUÉS de las peticiones que se encolen dentro de la
-        // transacción: dos microtareas, no una. Sin esto, un `putAll` veía su
-        // `oncomplete` antes de escribir nada y el test no medía lo que creía.
-        queueMicrotask(() => queueMicrotask(() => tx.oncomplete?.()));
+        // `oncomplete` cuando NO QUEDA ninguna petición en vuelo, no tras un
+        // número fijo de microtareas. Ver el comentario de `enVuelo`: el
+        // reetiquetado de fotos encola escrituras dentro del `onsuccess` de una
+        // lectura, y con un número fijo la transacción se daba por confirmada
+        // antes de que existieran.
+        const rematar = () => queueMicrotask(() => {
+            if (enVuelo === 0) tx.oncomplete?.();
+            else alVaciarse = () => tx.oncomplete?.();
+        });
+        rematar();
         return tx;
     }
     close() {

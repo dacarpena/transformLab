@@ -36,7 +36,25 @@ async function conPerfilReal(page) {
 
     await page.fill('[data-quick-weight]', '74.8');
     await page.click('[data-quick-save]');
-    await expect.poll(() => contarCheckins(page, 'p1')).toBe(1);
+    const id = await idReal(page);
+    expect(id, 'no se encontró el perfil real en el índice').not.toBe('');
+    await expect.poll(() => contarCheckins(page, id)).toBe(1);
+    return id;
+}
+
+/**
+ * El id del perfil real. Desde la v7 es OPACO (M9-1), así que hay que
+ * preguntárselo al índice en vez de escribir `'p1'`.
+ *
+ * Los `'demo'` de este fichero SÍ siguen siendo válidos: el id del ejemplo es
+ * reservado y no se remapea a propósito — no se sincroniza, así que no hay nada
+ * que colisionar, y remapearlo rompería `isInstalled()` en silencio.
+ */
+async function idReal(page) {
+    return page.evaluate(({ P }) => {
+        const indice = JSON.parse(localStorage.getItem(`${P}profiles`) ?? '{"profiles":[]}');
+        return indice.profiles.find((p) => p.id !== 'demo')?.id ?? '';
+    }, { P });
 }
 
 async function contarCheckins(page, profileId) {
@@ -101,8 +119,8 @@ test('la banda de «datos simulados» se ve en TODAS las vistas y no se puede de
 });
 
 test('mientras el ejemplo está activo, los datos REALES no se tocan', async ({ page }) => {
-    await conPerfilReal(page);
-    const antes = await page.evaluate(({ P }) => localStorage.getItem(`${P}p1.checkins`), { P });
+    const real = await conPerfilReal(page);
+    const antes = await page.evaluate(({ P, real }) => localStorage.getItem(`${P}${real}.checkins`), { P, real });
     await crearEjemplo(page);
 
     // Se trastea dentro del ejemplo: se apunta un peso.
@@ -113,13 +131,13 @@ test('mientras el ejemplo está activo, los datos REALES no se tocan', async ({ 
 
     // El perfil real, byte por byte, sigue igual. La garantía es de NAMESPACE:
     // `storage.js` inyecta `tl.<v>.<profileId>.` y el ejemplo vive en el suyo.
-    const despues = await page.evaluate(({ P }) => localStorage.getItem(`${P}p1.checkins`), { P });
+    const despues = await page.evaluate(({ P, real }) => localStorage.getItem(`${P}${real}.checkins`), { P, real });
     expect(despues).toBe(antes);
-    expect(await contarCheckins(page, 'p1')).toBe(1);
+    expect(await contarCheckins(page, real)).toBe(1);
 });
 
 test('salir del ejemplo lo BORRA entero y devuelve al perfil real', async ({ page }) => {
-    await conPerfilReal(page);
+    const real = await conPerfilReal(page);
     await crearEjemplo(page);
     expect(await contarCheckins(page, 'demo')).toBeGreaterThan(10);
 
@@ -133,7 +151,7 @@ test('salir del ejemplo lo BORRA entero y devuelve al perfil real', async ({ pag
 
     // Y el perfil real vuelve, con su check-in. Se navega a Hoy a propósito: al
     // salir, el router restaura la vista persistida —que era Ajustes—, no Hoy.
-    expect(await contarCheckins(page, 'p1')).toBe(1);
+    expect(await contarCheckins(page, real)).toBe(1);
     await page.locator('[data-view="today"]').first().click();
     await expect(page.locator('#today-title')).toBeVisible();
 });

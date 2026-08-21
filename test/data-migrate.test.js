@@ -45,7 +45,12 @@ test('migración completa: perfil v5 válido con muscleSource estimated (A3)', (
     const r = migrate.migrate({ nowISO: NOW });
     assert.ok(r.ok, JSON.stringify(!r.ok && r.error));
     assert.equal(r.value.migrated, true);
-    assert.equal(r.value.profileId, 'p1');
+    // El id lo genera `profiles.create` y desde la v7 es OPACO (M9-1): se afirma
+    // la forma y que el perfil se alcanza por él, no un literal que cambiaría en
+    // cada ejecución.
+    assert.match(r.value.profileId, /^[A-Za-z0-9_-]{20,40}$/,
+        `el id del perfil migrado no es opaco: ${r.value.profileId}`);
+    assert.equal(storage.getActiveProfile(), r.value.profileId);
 
     const stored = storage.get('profile');
     assert.ok(stored.ok);

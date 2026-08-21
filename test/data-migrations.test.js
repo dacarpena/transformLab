@@ -28,6 +28,7 @@ import * as storage from '../src/data/storage.js';
 import * as backup from '../src/data/backup.js';
 import * as profiles from '../src/data/profiles.js';
 import { SCHEMA_VERSION, MIGRATABLE_FROM, rootPrefix } from '../src/data/version.js';
+import { readTable } from '../src/data/profile-remap.js';
 import { migrateValue, migrateStore, needsMigration, readMigrationBackup } from '../src/data/migrations.js';
 import { validateCollection, COLLECTIONS } from '../src/data/schema.js';
 
@@ -91,9 +92,16 @@ test('migracion_sin_perdida: un usuario de la v1 conserva TODO al pasar a la v2'
     assert.equal(report.value.from, 5);
     assert.deepEqual(report.value.warnings, [], 'hubo claves que no se pudieron migrar');
 
+    // Activar el perfil ANTES de leer, igual que hace el arranque real
+    // (`main.js`: migrar → leer índice → activar). Desde la v7 hace falta de
+    // verdad: el id se ha remapeado a uno opaco, así que el namespace en memoria
+    // —que sigue en su valor por defecto— ya no apunta a los datos. Sin esta
+    // línea el test fallaba por la razón correcta.
+    profiles.activateStored();
+
     // El perfil: lo que decide si la app arranca normal o tira al onboarding.
     const profile = storage.get('profile');
-    assert.ok(profile.ok && profile.value !== null, 'el perfil no llegó a la v6');
+    assert.ok(profile.ok && profile.value !== null, 'el perfil no llegó a la versión nueva');
     const validProfile = validateCollection('profile', profile.value);
     assert.ok(validProfile.ok, 'el perfil migrado no valida: la app abriría el onboarding');
     assert.equal(validProfile.value.name, 'Dani');
@@ -116,10 +124,18 @@ test('migracion_sin_perdida: un usuario de la v1 conserva TODO al pasar a la v2'
 
     // El índice de perfiles, que no es una colección y se copia tal cual.
     const index = mock.getItem(`${rootPrefix()}profiles`);
-    assert.ok(index !== null, 'el índice de perfiles no llegó a la v6');
+    assert.ok(index !== null, 'el índice de perfiles no llegó a la versión nueva');
     const parsedIndex = JSON.parse(index);
     assert.equal(parsedIndex.profiles[0].name, 'Dani');
-    assert.equal(parsedIndex.activeProfileId, 'p1');
+    // Desde la v7 el id del índice también se remapea. Reescribir las CLAVES sin
+    // tocar el índice dejaría los datos perfectamente copiados y la aplicación
+    // sin encontrar ningún perfil — el mismo fallo que ya ocurrió con
+    // `schemaVersion` justo aquí debajo, y que solo se vio en el navegador.
+    const tabla = readTable();
+    assert.ok(tabla, 'no se persistió la tabla de remapeo');
+    assert.equal(parsedIndex.activeProfileId, tabla.map.p1);
+    assert.equal(parsedIndex.profiles[0].id, tabla.map.p1);
+    assert.notEqual(parsedIndex.activeProfileId, 'p1');
     // Y su VERSIÓN: copiarlo tal cual dejaba el índice en la 5, `readIndex()`
     // devolvía `profiles.indexCorrupt` y la aplicación no encontraba ningún
     // perfil — todos los datos migrados y la app inservible.
@@ -282,7 +298,17 @@ test('backup_compatible: un backup exportado en v5 se importa en v6', () => {
 
     const applied = backup.apply(inspected.value.backup, { nowISO: NOW });
     assert.ok(applied.ok, `no se pudo aplicar: ${!applied.ok && applied.error}`);
-    const restored = validateCollection('checkins', /** @type {*} */ (storage.get('checkins')).value);
+
+    // Se lee por el id IMPORTADO, no por el namespace activo: importar no mueve
+    // al usuario de perfil, y con ids opacos (M9-1) ya no coinciden por
+    // casualidad como pasaba cuando `create()` devolvía `p1`. Ese azar es
+    // justo lo que hacía pasar este test antes.
+    const importado = applied.value.importedProfiles[0].id;
+    assert.match(importado, /^[A-Za-z0-9_-]{20,40}$/);
+    assert.notEqual(importado, 'p1', 'se reutilizó el id que traía el fichero');
+    const leido = storage.getForProfile(importado, 'checkins');
+    assert.ok(leido.ok, `no se pudo leer el perfil importado: ${!leido.ok && leido.error}`);
+    const restored = validateCollection('checkins', /** @type {*} */ (leido).value);
     assert.ok(restored.ok);
     assert.equal(restored.value.items.length, 1);
     assert.equal(restored.value.schemaVersion, SCHEMA_VERSION, 'no se migró al restaurar');
@@ -336,7 +362,23 @@ test('tras migrar, la aplicación ENCUENTRA el perfil (no solo lo copia)', () =>
     profiles.activateStored();
     const active = profiles.getActive();
     assert.ok(active.ok, 'no hay perfil activo tras migrar');
-    assert.equal(active.value, 'p1');
+
+    // Desde la v7 el id ya no es `p1`: se remapea a uno OPACO (M9-1). Se afirma
+    // el INVARIANTE en vez del literal —el literal cambiaría en cada ejecución—
+    // y con eso se prueba más, no menos: que el id nuevo es el que dice la
+    // tabla, y que los datos del usuario se alcanzan a través de él.
+    const tabla = readTable();
+    assert.ok(tabla, 'no se persistió la tabla de remapeo');
+    assert.equal(active.value, tabla.map.p1, 'el perfil activo no es el que dice la tabla');
+    assert.notEqual(active.value, 'p1', 'el id no se remapeó');
+    assert.match(active.value, /^[A-Za-z0-9_-]{20,40}$/, 'el id nuevo no parece opaco');
+    assert.equal(index.value.profiles[0].id, active.value);
+
+    // Y lo que de verdad importa: los datos del usuario se leen por el id nuevo.
+    const leidos = storage.get('checkins');
+    assert.ok(leidos.ok && leidos.value, 'los check-ins no se alcanzan por el id nuevo');
+    assert.equal(/** @type {*} */ (leidos.value).items.length, 3,
+        'seedV5User siembra TRES check-ins');
 });
 
 test('la migración corre UNA vez, no en cada arranque', () => {

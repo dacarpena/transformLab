@@ -17,6 +17,10 @@ export const es = {
     'nav.less': 'Menos',
 
     // Acciones
+    'migration.failedTitle': 'No se ha podido actualizar el formato de tus datos',
+    'migration.failedBody': 'Tus datos NO se han perdido: siguen guardados en este dispositivo, exactamente como estaban. Vuelve a cargar la aplicación para intentarlo de nuevo.',
+    'migration.partial': 'Algunos datos no se han podido actualizar al formato nuevo. Siguen guardados en tu dispositivo y no se han perdido.',
+    'migration.photosPending': 'Tus fotos todavía se están actualizando. Si alguna no aparece, vuelve a abrir la aplicación.',
     'action.done': 'Hecho',
     'action.retry': 'Reintentar',
     'action.close': 'Cerrar',

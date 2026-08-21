@@ -15,6 +15,7 @@
  */
 
 import { rootPrefix } from './version.js';
+import { NO_PROFILE } from './ids.js';
 
 const ROOT_PREFIX = rootPrefix();
 
@@ -25,11 +26,18 @@ export const QUOTA_LIMIT_BYTES = 5 * 1024 * 1024;
 export const QUOTA_WARN_RATIO = 0.6;
 
 /**
- * Perfil activo. 'p1' por defecto hasta que `profiles.js` (M2) gestione el
- * índice `tl.5.profiles` y la selección real.
+ * Perfil activo.
+ *
+ * Arranca en `NO_PROFILE`, el namespace de aparcamiento, y no en un id real
+ * (M9-1). Antes era `'p1'`, que hasta la v6 daba la casualidad de ser el id del
+ * primer perfil de casi todo el mundo: una escritura antes de que
+ * `profiles.activateStored()` corriera caía por accidente en el sitio bueno y el
+ * fallo no se notaba. Con ids opacos ya no puede coincidir con nadie, así que
+ * más vale que caiga en un cajón identificable que en el perfil de otro.
+ *
  * @type {string}
  */
-let activeProfileId = 'p1';
+let activeProfileId = NO_PROFILE;
 
 /**
  * Fija el perfil activo cuyo namespace usarán get/set/remove.

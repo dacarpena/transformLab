@@ -14,6 +14,7 @@
  */
 
 import * as storage from './storage.js';
+import { DEMO_PROFILE_ID } from './ids.js';
 import * as profiles from './profiles.js';
 import { buildDemo } from '../core/demo.js';
 
@@ -22,7 +23,10 @@ import { buildDemo } from '../core/demo.js';
  * `profiles.nextId()` —que solo produce `pN`—, así que ni colisiona ni se puede
  * confundir con un perfil del usuario.
  */
-export const DEMO_PROFILE_ID = 'demo';
+// El id vive en el módulo hoja `ids.js`: lo necesitan también `profile-remap.js`
+// y `storage.js`, y tenerlo aquí creaba un ciclo de imports (M9-1). Se reexporta
+// para que ningún llamante existente cambie.
+export { DEMO_PROFILE_ID };
 
 /** El nombre visible. Se usa también como confirmación al borrarlo. */
 export const DEMO_PROFILE_NAME = 'Ejemplo';

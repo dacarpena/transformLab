@@ -1,6 +1,14 @@
 // @ts-check
 
-/** M2-2 · Multiperfil: índice, aislamiento por namespace y borrado protegido. */
+/**
+ * M2-2 · Multiperfil: índice, aislamiento por namespace y borrado protegido.
+ *
+ * **Desde la v7 los ids son OPACOS** (M9-1), así que ningún test puede escribir
+ * `'p1'` esperando que sea el id del primer perfil: se capturan del valor que
+ * devuelve `create()`. Eso además prueba más que antes — que el id que se
+ * devuelve es el que de verdad gobierna el namespace— en vez de comprobar que la
+ * generación sigue una fórmula.
+ */
 
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,6 +27,18 @@ beforeEach(() => {
     storage.setActiveProfile('p1');
 });
 
+/**
+ * Crea un perfil y devuelve su id. Con ids opacos no hay forma de adivinarlo:
+ * hay que quedárselo.
+ * @param {string} nombre
+ * @returns {string}
+ */
+function crear(nombre) {
+    const r = profiles.create(nombre, { createdAtISO: AT });
+    assert.ok(r.ok, `create('${nombre}') falló: ${!r.ok && r.error}`);
+    return r.value.id;
+}
+
 test('sin índice previo, list() devuelve vacío y getActive() cadena vacía', () => {
     const l = profiles.list();
     assert.ok(l.ok);
@@ -30,14 +50,17 @@ test('sin índice previo, list() devuelve vacío y getActive() cadena vacía', (
 test('create() da de alta, deja activo y siembra las colecciones por defecto', () => {
     const created = profiles.create('Dani', { createdAtISO: AT });
     assert.ok(created.ok, JSON.stringify(!created.ok && created.error));
-    assert.equal(created.value.id, 'p1');
+    const id = created.value.id;
+    // El id es OPACO: ni `p1`, ni nada derivado del nombre o del orden.
+    assert.match(id, /^[A-Za-z0-9_-]{20,40}$/, `el id no parece opaco: ${id}`);
+    assert.notEqual(id, 'p1');
 
     const active = profiles.getActive();
-    assert.ok(active.ok && active.value === 'p1');
-    assert.equal(storage.getActiveProfile(), 'p1');
+    assert.ok(active.ok && active.value === id);
+    assert.equal(storage.getActiveProfile(), id);
 
     // colecciones sembradas y válidas (menos profile, que escribe el onboarding)
-    const keys = storage.keysOfProfile('p1');
+    const keys = storage.keysOfProfile(id);
     assert.ok(keys.ok);
     assert.ok(keys.value.includes('checkins'));
     assert.ok(keys.value.includes('settings'));
@@ -57,19 +80,18 @@ test('el índice se guarda en la clave global `tl.<version>.profiles`', () => {
 });
 
 test('los datos de dos perfiles están aislados por namespace', () => {
-    profiles.create('Dani', { createdAtISO: AT });
+    const dani = crear('Dani');
     storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [{ id: 'a' }] });
 
-    const second = profiles.create('Ana', { createdAtISO: AT });
-    assert.ok(second.ok);
-    assert.equal(second.value.id, 'p2');
+    const ana = crear('Ana');
+    assert.notEqual(ana, dani, 'dos perfiles con el mismo id');
     // el perfil nuevo arranca con su colección por defecto, no con la del otro
     const fresh = storage.get('checkins');
     assert.ok(fresh.ok);
     assert.deepEqual(/** @type {*} */ (fresh.value).items, []);
 
     // y volver al primero recupera lo suyo
-    assert.ok(profiles.setActive('p1').ok);
+    assert.ok(profiles.setActive(dani).ok);
     const back = storage.get('checkins');
     assert.ok(back.ok);
     assert.equal(/** @type {*} */ (back.value).items.length, 1);
@@ -96,55 +118,70 @@ test('el nombre del perfil se guarda como TEXTO literal (escapar es del render)'
 });
 
 test('rename() cambia el nombre y respeta la unicidad', () => {
-    profiles.create('Dani', { createdAtISO: AT });
-    profiles.create('Ana', { createdAtISO: AT });
-    assert.ok(profiles.rename('p1', 'Daniel').ok);
+    const dani = crear('Dani');
+    crear('Ana');
+    assert.ok(profiles.rename(dani, 'Daniel').ok);
     const l = profiles.list();
-    assert.ok(l.ok && l.value.find((p) => p.id === 'p1')?.name === 'Daniel');
+    assert.ok(l.ok && l.value.find((p) => p.id === dani)?.name === 'Daniel');
 
-    const clash = profiles.rename('p1', 'Ana');
+    const clash = profiles.rename(dani, 'Ana');
     assert.ok(!clash.ok && clash.error === 'profiles.nameTaken');
     assert.equal(profiles.rename('p9', 'X').ok, false);
 });
 
 test('C4: borrar exige el nombre EXACTO tecleado; sin él no se toca nada', () => {
-    profiles.create('Dani', { createdAtISO: AT });
+    const dani = crear('Dani');
     storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [{ id: 'a' }] });
 
     for (const wrong of ['', 'dani', 'Dan', 'Dani ']) {
-        const r = profiles.remove('p1', wrong === 'Dani ' ? 'Dani  x' : wrong);
+        const r = profiles.remove(dani, wrong === 'Dani ' ? 'Dani  x' : wrong);
         assert.equal(r.ok, false, `confirmación "${wrong}" aceptada`);
     }
     // los datos siguen ahí
-    const keys = storage.keysOfProfile('p1');
+    const keys = storage.keysOfProfile(dani);
     assert.ok(keys.ok && keys.value.length > 0);
     const l = profiles.list();
     assert.ok(l.ok && l.value.length === 1);
 });
 
 test('borrar con el nombre correcto elimina el perfil y TODAS sus claves', () => {
-    profiles.create('Dani', { createdAtISO: AT });
-    profiles.create('Ana', { createdAtISO: AT });
-    assert.ok(profiles.setActive('p1').ok);
+    const dani = crear('Dani');
+    const ana = crear('Ana');
+    assert.ok(profiles.setActive(dani).ok);
     storage.set('checkins', { schemaVersion: SCHEMA_VERSION, items: [{ id: 'a' }] });
 
-    const removed = profiles.remove('p1', 'Dani');
+    const removed = profiles.remove(dani, 'Dani');
     assert.ok(removed.ok, JSON.stringify(!removed.ok && removed.error));
     assert.ok(removed.value.deletedKeys > 0);
-    assert.equal(removed.value.activeProfileId, 'p2', 'debería activarse el perfil restante');
+    assert.equal(removed.value.activeProfileId, ana, 'debería activarse el perfil restante');
 
-    const keys = storage.keysOfProfile('p1');
+    const keys = storage.keysOfProfile(dani);
     assert.ok(keys.ok && keys.value.length === 0, 'quedaron claves huérfanas');
     const l = profiles.list();
-    assert.ok(l.ok && l.value.length === 1 && l.value[0].id === 'p2');
+    assert.ok(l.ok && l.value.length === 1 && l.value[0].id === ana);
     // y no ha tocado los datos del otro perfil
-    const otherKeys = storage.keysOfProfile('p2');
+    const otherKeys = storage.keysOfProfile(ana);
     assert.ok(otherKeys.ok && otherKeys.value.length > 0);
 });
 
+test('el id de un perfil borrado NO se reutiliza (M9-1)', () => {
+    // Es el defecto que los ids opacos cierran por construcción: con `pN`, el
+    // siguiente perfil heredaba el id del borrado y —como `create()` no siembra
+    // la colección `profile`— también sus datos personales.
+    const dani = crear('Dani');
+    storage.set('profile', { schemaVersion: SCHEMA_VERSION, name: 'Dani', secreto: true });
+    assert.ok(profiles.remove(dani, 'Dani').ok);
+
+    const nuevo = crear('Ana');
+    assert.notEqual(nuevo, dani, 'el id del perfil borrado se reutilizó');
+    const perfil = storage.get('profile');
+    assert.ok(perfil.ok);
+    assert.equal(perfil.value, null, 'el perfil nuevo heredó datos del borrado');
+});
+
 test('borrar el último perfil deja el índice vacío sin activo', () => {
-    profiles.create('Dani', { createdAtISO: AT });
-    const removed = profiles.remove('p1', 'Dani');
+    const dani = crear('Dani');
+    const removed = profiles.remove(dani, 'Dani');
     assert.ok(removed.ok);
     assert.equal(removed.value.activeProfileId, '');
     const l = profiles.list();
@@ -165,21 +202,21 @@ test('un índice corrupto se reporta, NUNCA se sobrescribe en silencio', () => {
 });
 
 test('activateStored() sincroniza el namespace con el perfil guardado', () => {
-    profiles.create('Dani', { createdAtISO: AT });
-    profiles.create('Ana', { createdAtISO: AT });
-    assert.ok(profiles.setActive('p2').ok);
+    const dani = crear('Dani');
+    const ana = crear('Ana');
+    assert.ok(profiles.setActive(ana).ok);
 
-    storage.setActiveProfile('p1'); // simula un arranque en frío
+    storage.setActiveProfile(dani); // simula un arranque en frío
     const r = profiles.activateStored();
-    assert.ok(r.ok && r.value === 'p2');
-    assert.equal(storage.getActiveProfile(), 'p2');
+    assert.ok(r.ok && r.value === ana);
+    assert.equal(storage.getActiveProfile(), ana);
 });
 
 test('setActive() rechaza perfiles inexistentes sin cambiar el activo', () => {
-    profiles.create('Dani', { createdAtISO: AT });
+    const dani = crear('Dani');
     const r = profiles.setActive('p9');
     assert.ok(!r.ok && r.error === 'profiles.notFound');
-    assert.equal(storage.getActiveProfile(), 'p1');
+    assert.equal(storage.getActiveProfile(), dani);
 });
 
 test('se respeta el límite de perfiles', () => {
@@ -201,8 +238,8 @@ test('sin localStorage disponible, todas las operaciones degradan sin lanzar', (
 });
 
 test('cuota: quotaBudget mide perfil y total, y avisa al superar el umbral', () => {
-    profiles.create('Dani', { createdAtISO: AT });
-    const small = storage.quotaBudget('p1');
+    const dani = crear('Dani');
+    const small = storage.quotaBudget(dani);
     assert.ok(small.ok);
     assert.ok(small.value.profileBytes > 0);
     assert.ok(small.value.totalBytes >= small.value.profileBytes);
@@ -211,19 +248,19 @@ test('cuota: quotaBudget mide perfil y total, y avisa al superar el umbral', () 
 
     // llenar por encima del 60 % del límite
     storage.set('bulto', 'x'.repeat(Math.ceil(storage.QUOTA_LIMIT_BYTES * 0.62 / 2)));
-    const big = storage.quotaBudget('p1');
+    const big = storage.quotaBudget(dani);
     assert.ok(big.ok);
     assert.ok(big.value.usedRatio >= storage.QUOTA_WARN_RATIO);
     assert.equal(big.value.warn, true);
 });
 
 test('usageBytes por perfil no cuenta el namespace de otro', () => {
-    profiles.create('Dani', { createdAtISO: AT });
+    const dani = crear('Dani');
     storage.set('grande', 'y'.repeat(500));
-    profiles.create('Ana', { createdAtISO: AT });
+    const ana = crear('Ana');
 
-    const p1 = storage.usageBytes('p1');
-    const p2 = storage.usageBytes('p2');
-    assert.ok(p1.ok && p2.ok);
-    assert.ok(p1.value > p2.value, `p1=${p1.ok && p1.value} p2=${p2.ok && p2.value}`);
+    const uno = storage.usageBytes(dani);
+    const dos = storage.usageBytes(ana);
+    assert.ok(uno.ok && dos.ok);
+    assert.ok(uno.value > dos.value, `dani=${uno.ok && uno.value} ana=${dos.ok && dos.value}`);
 });

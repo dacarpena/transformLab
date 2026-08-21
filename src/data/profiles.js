@@ -14,6 +14,7 @@
 
 import * as storage from './storage.js';
 import { SCHEMA_VERSION, validateProfilesIndex, sanitizeText, COLLECTIONS, makeDefault } from './schema.js';
+import { newProfileId, NO_PROFILE } from './ids.js';
 
 /**
  * @typedef {{ id: string, name: string, createdAtISO: string }} ProfileSummary
@@ -31,13 +32,6 @@ const INDEX_KEY = 'profiles';
 
 /** Máximo de perfiles: el multiperfil es para una familia, no para un SaaS. */
 export const MAX_PROFILES = 10;
-
-/**
- * Namespace de aparcamiento cuando no hay ningún perfil activo. Los ids reales
- * son `pN`, así que nada colisiona con él, y las escrituras accidentales caen
- * en un cajón identificable en vez de contaminar el perfil de alguien.
- */
-const NO_PROFILE = 'none';
 
 /** Índice vacío válido. @returns {ProfilesIndex} */
 function emptyIndex() {
@@ -74,18 +68,40 @@ function writeIndex(index) {
 }
 
 /**
- * Genera un id de perfil libre. Determinista respecto al índice: no usa
- * aleatoriedad ni reloj (prohibido en el core y evitable aquí).
- * @param {ProfilesIndex} index
+ * Bytes de entropía de un id de perfil. Dieciséis: 128 bits, que es donde la
+ * probabilidad de colisión deja de merecer una comprobación. Sin ellos habría
+ * que consultar el índice antes de crear —una lectura más y una condición de
+ * carrera de regalo— y aun así no cubriría el caso que importa, que es la
+ * colisión entre DISPOSITIVOS distintos, donde no hay índice común que mirar.
+ */
+const ID_BYTES = 16;
+
+/**
+ * Genera un id de perfil libre: **opaco y aleatorio** desde la v7 (M9-1).
+ *
+ * Antes era el `pN` libre más bajo, y era determinista a propósito. Dos cosas
+ * lo tiraron:
+ *
+ * 1. **Colisión entre dispositivos.** El primer perfil de cualquier persona era
+ *    `p1`. En cuanto dos dispositivos sincronicen, dos perfiles DISTINTOS
+ *    comparten identificador. No es un riesgo estadístico: es una certeza.
+ * 2. **Reutilización tras borrar**, que ya causó un defecto real — está contado
+ *    en `remove()`, aquí abajo: al borrar `p1`, el perfil siguiente volvía a ser
+ *    `p1` y heredaba los datos personales del borrado.
+ *
+ * La aleatoriedad no viola la regla del proyecto: lo prohibido es `Math.random`
+ * (`test/security.test.js`) y en el núcleo del motor, que tiene que ser
+ * determinista. Aquí la fuente es `crypto.getRandomValues`, y el determinismo
+ * era justamente el problema.
+ *
+ * No se comprueba contra el índice: con 128 bits, la probabilidad de colisión no
+ * merece una lectura más — y no cubriría el caso que importa, que es la
+ * colisión entre dispositivos distintos, donde no hay índice común que mirar.
+ *
  * @returns {string}
  */
-function nextId(index) {
-    const used = new Set(index.profiles.map((p) => p.id));
-    for (let n = 1; n <= MAX_PROFILES * 10; n++) {
-        const candidate = `p${n}`;
-        if (!used.has(candidate)) return candidate;
-    }
-    return `p${Date.now()}`;
+function nextId() {
+    return newProfileId();
 }
 
 /**
@@ -167,7 +183,7 @@ export function create(name, meta) {
         return { ok: false, error: 'profiles.nameTaken' };
     }
 
-    const id = typeof meta.id === 'string' && meta.id !== '' ? meta.id : nextId(index.value);
+    const id = typeof meta.id === 'string' && meta.id !== '' ? meta.id : nextId();
     /** @type {ProfileSummary} */
     const summary = { id, name: cleanName, createdAtISO: meta.createdAtISO };
 

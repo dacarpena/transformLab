@@ -62,7 +62,9 @@ test/
   e2e/smoke.spec.js         Playwright — recorrido de humo
 ```
 
-Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (hoy `tl.6.p1.checkins`; la versión sale de `src/data/version.js`, que es su fuente única — nunca se teclea). Índice de perfiles en `tl.<v>.profiles`. Nunca una clave plana nueva fuera de este esquema.
+Claves de almacenamiento: `tl.<schemaVersion>.<profileId>.<colección>` (hoy `tl.7.<opaco>.checkins`; la versión sale de `src/data/version.js`, que es su fuente única — nunca se teclea). Índice de perfiles en `tl.<v>.profiles`. Nunca una clave plana nueva fuera de este esquema.
+
+**Desde la v7 (M9-1) los ids de perfil son OPACOS**, no `p1`/`p2`: dos dispositivos compartían `p1` por construcción, y eso hace imposible sincronizar sin mezclar los datos de dos personas. `src/data/profile-remap.js` es la fuente única de esa decisión —incluida la lista de ids reservados— y `migrateStore` remapea al subir de versión, con tabla persistida antes de escribir nada.
 
 ## 4. Invariantes del motor (no negociables)
 

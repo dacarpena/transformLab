@@ -24,15 +24,29 @@
  * el migrador sea maquinaria de primera clase y no un apaño por versión.
  */
 
-/** Versión de esquema vigente. La única. */
-export const SCHEMA_VERSION = 6;
+/**
+ * Versión de esquema vigente. La única.
+ *
+ * **v7 (M9-1): los ids de perfil pasan a ser OPACOS.** Es el único salto de
+ * versión que no cambia ninguna forma de dato: cambia el NOMBRE de las claves,
+ * porque el id de perfil va dentro. Ver `profile-remap.js` para el porqué —dos
+ * dispositivos comparten `p1` por construcción, y eso no es un riesgo
+ * estadístico sino una certeza en cuanto haya sincronía—.
+ */
+export const SCHEMA_VERSION = 7;
 
 /**
  * Versiones anteriores desde las que sabemos migrar, de la más vieja a la más
  * nueva. No incluye la vigente.
+ * El orden en que se recorren lo decide `needsMigration`, y es DESCENDENTE:
+ * gana la versión más reciente que tenga claves y no tenga testigo. Ver allí el
+ * porqué —ascendente pierde datos con una migración anterior interrumpida—.
+ * Alguien que venga de la v5 sin haber abierto nunca la v6 migra 5→7 de una vez,
+ * porque `migrateValue` recorre los pasos intermedios.
+ *
  * @type {readonly number[]}
  */
-export const MIGRATABLE_FROM = Object.freeze([5]);
+export const MIGRATABLE_FROM = Object.freeze([5, 6]);
 
 /**
  * Prefijo de las claves de una versión dada.

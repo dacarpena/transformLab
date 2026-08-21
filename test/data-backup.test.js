@@ -213,31 +213,33 @@ test('importar NUNCA pisa los perfiles existentes: se añaden como nuevos', () =
 
 test('export selectivo por perfil', () => {
     seedProfile('Dani');
-    seedProfile('Ana');
+    // Desde la v7 los ids son opacos (M9-1): se capturan de `seedProfile`, que
+    // devuelve el que `create()` generó.
+    const ana = seedProfile('Ana');
     const all = backup.exportProfiles({ exportedAtISO: NOW });
     assert.ok(all.ok && all.value.profiles.length === 2);
 
-    const one = backup.exportProfiles({ exportedAtISO: NOW, profileIds: ['p2'] });
+    const one = backup.exportProfiles({ exportedAtISO: NOW, profileIds: [ana] });
     assert.ok(one.ok);
     assert.equal(one.value.profiles.length, 1);
     assert.equal(one.value.profiles[0].name, 'Ana');
 });
 
 test('exportar e importar restaura el perfil activo previo', () => {
-    seedProfile('Dani');
-    seedProfile('Ana');
-    assert.ok(profiles.setActive('p1').ok);
-    assert.equal(storage.getActiveProfile(), 'p1');
+    const dani = seedProfile('Dani');
+    const ana = seedProfile('Ana');
+    assert.ok(profiles.setActive(dani).ok);
+    assert.equal(storage.getActiveProfile(), dani);
 
     backup.exportProfiles({ exportedAtISO: NOW });
-    assert.equal(storage.getActiveProfile(), 'p1', 'export cambió el perfil activo');
+    assert.equal(storage.getActiveProfile(), dani, 'export cambió el perfil activo');
 
-    const exported = backup.exportProfiles({ exportedAtISO: NOW, profileIds: ['p2'] });
+    const exported = backup.exportProfiles({ exportedAtISO: NOW, profileIds: [ana] });
     assert.ok(exported.ok);
     const inspected = backup.inspect(/** @type {*} */ (backup.serialize(exported.value)).value);
     assert.ok(inspected.ok);
     assert.ok(backup.apply(inspected.value.backup, { nowISO: NOW }).ok);
-    assert.equal(storage.getActiveProfile(), 'p1', 'import cambió el perfil activo');
+    assert.equal(storage.getActiveProfile(), dani, 'import cambió el perfil activo');
 });
 
 test('sin perfiles no hay nada que exportar', () => {
@@ -255,15 +257,40 @@ test('apply() con entrada arbitraria no escribe nada ni lanza', () => {
 });
 
 test('si el almacén se llena a mitad del import, se reporta sin dejar el activo movido', () => {
-    seedProfile('Dani');
+    const dani = seedProfile('Dani');
     const exported = backup.exportProfiles({ exportedAtISO: NOW });
     assert.ok(exported.ok);
     const inspected = backup.inspect(/** @type {*} */ (backup.serialize(exported.value)).value);
     assert.ok(inspected.ok);
 
-    assert.ok(profiles.setActive('p1').ok);
+    assert.ok(profiles.setActive(dani).ok);
     mock.quotaFull = true;
     const applied = backup.apply(inspected.value.backup, { nowISO: NOW });
     assert.equal(applied.ok, false);
-    assert.equal(storage.getActiveProfile(), 'p1', 'el perfil activo quedó desplazado tras el fallo');
+    assert.equal(storage.getActiveProfile(), dani, 'el perfil activo quedó desplazado tras el fallo');
+});
+
+test('un backup de la v6 (con ids `pN`) se importa SIN reutilizar esos ids', () => {
+    // Es el caso real de M9-1: alguien guarda una copia antes de actualizar y la
+    // restaura después. `apply` nunca reutiliza el id del fichero —crea uno
+    // nuevo—, así que un `p1` de la v6 no puede volver a entrar en un almacén v7
+    // y colisionar con nada.
+    const fichero = {
+        formatVersion: 1,
+        exportedAtISO: NOW,
+        schemaVersion: SCHEMA_VERSION,
+        profiles: [{
+            id: 'p1', name: 'De la v6', createdAtISO: NOW,
+            collections: { checkins: { schemaVersion: SCHEMA_VERSION, items: [] } }
+        }]
+    };
+    const inspected = backup.inspect(JSON.stringify(fichero));
+    assert.ok(inspected.ok, JSON.stringify(!inspected.ok && inspected.error));
+    const applied = backup.apply(inspected.value.backup, { nowISO: NOW });
+    assert.ok(applied.ok, JSON.stringify(!applied.ok && applied.error));
+
+    const l = profiles.list();
+    assert.ok(l.ok && l.value.length === 1);
+    assert.notEqual(l.value[0].id, 'p1', 'se reutilizó el id del fichero');
+    assert.match(l.value[0].id, /^[A-Za-z0-9_-]{20,40}$/);
 });

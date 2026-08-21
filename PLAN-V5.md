@@ -1049,6 +1049,32 @@ frente a los 11 ms de ahora, contra un umbral de 500.
 
 ## BACKLOG (ideas fuera de alcance — se anotan, no se hacen)
 
+**Del análisis de M9-1** (2026-08-21). Riesgos reales, medidos, que quedan fuera
+de la milestone:
+
+- **Una pestaña abierta desde antes de migrar sigue escribiendo en `tl.6.*`.**
+  `ROOT_PREFIX` es estado de módulo y no cruza pestañas. El testigo ya guarda
+  `sourceKeys`, así que se puede detectar comparando al arrancar; falta el aviso
+  en Ajustes con la lista. **No fusionar automáticamente**: fusionar es donde se
+  pierde en silencio. Una baliza `tl.schemaCurrent` que las pestañas vigilen
+  sería la solución completa.
+- **Purga de `tl.6.*`, manual y guardada.** Hoy los originales se quedan para
+  siempre ocupando cuota. Debe ir en Ajustes, con cinco condiciones: testigo sin
+  avisos, fase de fotos cerrada y cuadrando, índice v7 válido con todos los ids
+  en la tabla, copia de seguridad presente y legible, y sin claves rezagadas.
+  **No puede usar `storage.clearProfile`**, que barre por el prefijo vigente y ni
+  ve `tl.6.`.
+- **`readMigrationBackup` existe y no lo llama nadie en `src/`.** Una red de
+  seguridad a la que solo se llega desde la consola del navegador no es una red:
+  hace falta un botón de «descargar mis datos anteriores» en Ajustes.
+- **`views/photos.js:95` descarta en silencio una foto que no encuentra.**
+  Preexistente y contrario a §D9: debería contar los fallos y decir «N fotos no
+  se pudieron recuperar».
+- **`navigator.locks` para la migración.** Cerraría la ventana entre pestañas del
+  todo, pero obligaría a volver asíncrono el arranque antes de leer nada.
+- **La caché de `menuSeed` en `nutrition.js:322`**, preexistente y ajena a esto.
+
+
 - ~~**`chart.js` es un SINGLETON y dos gráficas simultáneas fallan en silencio (visto en M7).**~~ **HECHO en V2-M8.** `chart.createChart()` es una factoría y cada lienzo tiene su instancia (`src/ui/chart.js`, `plan-chart.js#chartFor`); `test/e2e/chart-factory.spec.js` comprueba con píxeles que dos gráficas conviven. _(Seguía escrito como pendiente y mandaba rehacer ~600 líneas ya escritas; corregido en E15-7.)_
 - **Diferir `onboarding.js` y `migrate.js` del arranque** (13,6 KB). Real pero marginal con Lighthouse en 99–100; medido en M7-9.
 - **Diccionarios i18n bajo demanda.** Medido: se cambian 10 KB por un RTT extra en el camino crítico. Solo compensa a partir del tercer idioma.

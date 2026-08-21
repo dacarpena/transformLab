@@ -2522,6 +2522,181 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   Chart.js exista. Era una carrera latente que se volvió determinista al engordar
   el montaje de Ajustes. Con `expect.poll`, tres pasadas seguidas en verde.
 
+### M9 — sincronización cifrada
+
+Lo que M8 construyó es la identidad y el llavero; M9 es lo que de verdad mueve
+datos. **Aquí sí sale del dispositivo información del usuario** —cifrada, pero
+suya— y por eso `CLAUDE.md` §1 y el `og:description` de `index.html` se reescriben
+en **M9-3**, en el mismo commit que introduzca la primera petición con datos.
+
+#### Las decisiones que ya están cerradas
+
+**Los 125 call-sites síncronos no se tocan.** `storage.js` sigue siendo síncrono
+sobre `localStorage`; la red es un efecto en segundo plano enganchado a
+`storage.revision()` —el contador que ya sube con cualquier mutación, incluidas
+las de otra pestaña— y reconcilia por diff de hashes en `requestIdleCallback`. La
+sombra guarda **hashes, no cuerpos**. Convertir todo a async tocaría ~42 ficheros,
+rompería ~12 suites y **reintroduciría por construcción el bug de M7** (fuga de
+check-ins entre perfiles, porque `getActiveProfile()` es un `let` de módulo y
+`backup.apply` hace `setActiveProfile` de ida y vuelta con E/S intercalada).
+
+**Unidad de sincronización: una fila cifrada por ITEM, no por colección.** Con
+blob por colección y last-write-wins, dos dispositivos que añaden check-ins de
+días distintos sin red pierden uno entero — y ése es el camino más frecuente de
+esta aplicación. La clave de fila es `(profile_id, collection, item_tag)`, donde
+`item_tag = HMAC-SHA256(HKDF(DK,'tl.idx.v1'), collection ‖ itemKey)` truncado a 16
+bytes: determinista, así que los dos dispositivos calculan la misma etiqueta, y
+opaco, así que el servidor nunca aprende el `dateISO`.
+
+**Los merges semánticos corren en el CLIENTE**, no en el servidor, porque el
+servidor no lee. Se aplican tras descifrar el pull y antes de escribir en local.
+
+**Lo que el servidor aprende de todos modos:** que usas la app, cuándo, tu IP
+truncada, cuántos perfiles tienes, qué colecciones y **cuántos items tiene cada
+una**. El recuento se filtra por construcción al usar una fila por item; es el
+precio de no perder datos y se documenta. El tamaño individual sí se oculta:
+relleno a múltiplos de 256 B antes de cifrar.
+
+#### Tareas
+
+- [x] **M9-1 · Esquema v7: ids de perfil opacos.** El **riesgo número uno de todo
+  el plan**: la única operación irreversible sobre datos que ya existen en el
+  navegador de alguien. Va sola, 100 % en el cliente y sin servidor de por medio.
+
+  El motivo: hoy los ids son `p1`, `p2`… y los genera `nextId()` reutilizando el
+  **`pN` libre más bajo**. Dos personas en dos dispositivos tienen las dos un
+  `p1`, así que al sincronizar sus datos se mezclarían. Y hay un beneficio de
+  regalo: ese mismo `nextId` ya causó un defecto real —el perfil nuevo heredaba
+  los datos del borrado— que con ids aleatorios deja de ser posible.
+
+  Requisitos: la tabla de remapeo se **persiste antes de escribir nada** y se
+  reutiliza en la re-entrada; `migrateStore` copia y nunca mueve; copia de
+  seguridad previa automática; y un paso **aparte e idempotente** para reetiquetar
+  las fotos en IndexedDB, que llevan doble vínculo (la clave primaria es
+  `<perfil>:<foto>` **y** hay un campo `profileId` indexado).
+
+  **Antes de escribir una línea se mapeó exhaustivamente qué asume hoy el código
+  sobre los ids** —siete lectores en paralelo sobre `storage`, `migrations`,
+  `profiles`, `photos-db`, `backup`, la interfaz y un barrido de todo el árbol,
+  más tres análisis adversariales—. Encontró cinco cosas que la lectura directa
+  no había visto, y una de ellas es un defecto **preexistente** que llevaba
+  perdiendo datos de todos los usuarios en cada subida de esquema.
+
+  #### Lo que se encontró y se arregló
+
+  1. **Las claves `ui.*` se DESCARTABAN en cada migración.** Confirmado
+     reproduciéndolo: `collection` sale valiendo `'ui.activeView'` —esas claves
+     llevan dos puntos— que no está en `COLLECTIONS`; `migrateValue` recibía la
+     cadena `"progress"`, devolvía `migrations.notAnObject` y la clave se perdía.
+     Efecto real: la oferta de recalibrar que el usuario había rechazado le
+     volvía a saltar, y desde M8-5d perdía `ui.accountSeen` —o sea, se le ofrecía
+     crear una cuenta que ya tenía—. Ahora una colección desconocida se copia
+     **verbatim**: «desconocida» y «corrupta» no pueden acabar igual.
+  2. **Un ciclo de imports que dejaba la aplicación en blanco.**
+     `profiles.js → profile-remap.js → demo-profile.js → profiles.js`. El
+     typecheck estaba limpio y el fallo era un `ReferenceError` en tiempo de
+     ARRANQUE que aparece o no según qué módulo se cargue primero. Se rompió con
+     un módulo **hoja**, `src/data/ids.js`, sin un solo import.
+  3. **Quedarse sin cuota a mitad perdía una colección para siempre.** El testigo
+     se escribía igual, así que esas claves no se reintentaban nunca. Ahora hay
+     *preflight* que aborta **sin escribir nada** si no cabe, y los avisos se
+     clasifican: un valor ilegible es permanente, un fallo de escritura deja la
+     migración **pendiente** y se reintenta en el arranque siguiente.
+  4. **Si el índice no llegaba, el usuario acababa en el onboarding sobre sus
+     propios datos.** `readIndex()` devuelve un índice VACÍO —no un error— cuando
+     la clave falta, y `main.js` creaba un perfil nuevo. Ahora se comprueba
+     explícitamente y se devuelve `migrations.indexMissing`.
+  5. **`needsMigration` recorría de la versión más vieja a la más nueva**, y con
+     una 5→6 interrumpida sobre la que se siguió usando la v6, los datos buenos
+     quedaban huérfanos. Ahora descendente.
+
+  Y dos decisiones que el análisis confirmó y conviene no reabrir: el perfil de
+  **ejemplo conserva su id** —no se sincroniza, así que no hay nada que
+  colisionar, y remapearlo rompería `isInstalled()` en silencio dejando un perfil
+  imborrable— y **`backup.apply` ya generaba ids nuevos**, así que restaurar una
+  copia de la v6 en una v7 no puede reintroducir un `p1`.
+
+  #### El orden, y por qué
+
+  ```
+  1. preflight de cuota      → aborta sin escribir si no cabe
+  2. copia de seguridad      → escritura ÚNICA (la que vale es la del primer día)
+  3. tabla de remapeo        → escribir y RELEER, antes de tocar un solo dato
+  4. FOTOS                   → antes que las claves
+  5. claves + índice         → no pisa destinos; verifica que el índice llegó
+  6. testigo                 → o «pendiente», si quedaron fallos de escritura
+  ```
+
+  Las fotos van **antes**. Si fueran después y fallaran, la aplicación ya habría
+  arrancado en la v7 con los metadatos migrados y los blobs bajo el id viejo: la
+  galería se acortaría sin decir nada. La tabla se **relee** tras escribirla
+  porque `localStorage` no tiene comparar-y-escribir, y así dos pestañas que
+  arranquen a la vez convergen antes de copiar nada.
+
+  #### Verificación
+
+  36 tests nuevos, y **cada guarda crítica se verificó reintroduciendo su
+  defecto**: sin el arreglo de `ui.*`, sin el preflight, sin la comprobación del
+  índice, con la tabla regenerándose, sin el remapeo en el destino y con el orden
+  de versiones invertido — cada uno pone en rojo el test que lo nombra.
+
+  Y cinco E2E en un navegador de verdad con IndexedDB de verdad, que es lo único
+  que puede demostrar que las fotos se mueven y que la aplicación **arranca**
+  después: la migración 5→6 ya dejó una vez todos los datos copiados y la app
+  inservible, y solo se vio abriéndola. El fixture siembra dos perfiles, sus
+  claves de interfaz y fotos reales; se comprueba que cada clave v6 tiene su
+  gemela v7, que las fotos llevan sus **dos** vínculos cambiados con el blob
+  intacto, que nada de la v6 se ha borrado, y que recargar dos veces no duplica
+  nada.
+
+  Un detalle que salió de ahí: el E2E fallaba al esperar `#today-title`, y el
+  motivo era que **el arreglo funciona** — al conservarse `ui.activeView`, la
+  aplicación restaura Progreso. La aserción pasó a ser esa, que prueba más.
+
+  Si la migración falla, la pantalla ya no dice «algo ha ido mal»: dice que los
+  datos siguen ahí. Es cierto —copia y nunca borra— y es lo único que esa persona
+  necesita saber en ese momento.
+
+- [ ] **M9-2 · `src/data/sync-policy.js`.** `split`/`join` y los merges declarados,
+  puro y probado con `node:test`. Su invariante:
+  `join(split(v)) ≡ validateCollection(name, v).value` para toda colección y todo
+  `v` válido.
+
+  Por *item*: `checkins`, `intakeLog`, `steps`, `volumeLog`, `pantry`, `recipes`,
+  `photos`, `nutrition` y `training.sessions`. Como documento: `profile`,
+  `settings`, `preferences`, `supplementsPlan` y `training.routine`. Con merge
+  declarado: `plan` (unión de `history[]` por id + LWW en `current`/`params`) y
+  `achievements` (unión de ids: un logro desbloqueado no se re-bloquea).
+
+- [ ] **M9-3 · Pull, solo lectura.** `GET /api/sync?since=<seq>` y
+  `GET /api/export`. Nada del usuario puede destruirse todavía. **Aquí se
+  reescriben `CLAUDE.md` §1 y el `og:description`**, en este mismo commit.
+- [ ] **M9-4 · Push.** Sombra por hash, cola de salida offline con *coalescing*
+  por `(collection, itemKey)`, LWW por fila con reloj **del servidor** —los
+  relojes de los móviles están mal— y el perdedor **guardado** en
+  `record_conflict` en vez de tirado. `POST /api/adopt` para el primer alta desde
+  un dispositivo con datos, reusando `backup.exportProfiles`.
+- [ ] **M9-5 · Fotos en R2, cifradas.** Compresión en el cliente, subida **a
+  través de la Function** (una URL prefirmada obligaría a meter el host de R2 en
+  `connect-src` y a firmar SigV4 con una dependencia de runtime prohibida), cuota
+  por usuario y recolección de huérfanos.
+- [ ] **M9-6 · Salida y borrado.** `GET /api/export` cableado al panel de copias
+  que ya existe (RGPD art. 20) y `DELETE /api/account` con confirmación tecleada,
+  cascada en D1 y barrido de R2 dirigido por `deletion_jobs` —que **no** tiene
+  clave foránea a propósito, para sobrevivir al borrado del usuario (art. 17)—.
+- [ ] **M9-7 · Endurecimiento.** Límites de tasa (WAF por IP + `auth_attempts`
+  por cuenta con retroceso exponencial), acolchado de 120 ms en `/api/auth/*`
+  contra fugas por temporización, logs JSON estructurados y runbook.
+
+#### El primer login desde un dispositivo que ya tiene datos
+
+`backup.js` **ya es el protocolo**: `GET /api/export` devuelve exactamente su
+`BackupFile`, e `inspect`/`apply` resuelven el caso sin escribir una línea nueva.
+Local vacío → pull silencioso. Servidor vacío → `adopt`. **Los dos con datos →
+nunca se fusiona solo**: el mismo diálogo de dos pasos del import de copias.
+
+#### Bitácora M9
+
 #### Bitácora M8
 
 **2026-08-21 · M8 CERRADA.** Las seis etapas (M8-0 a M8-5d) en un día.

@@ -17,6 +17,10 @@ export const en = {
     'nav.less': 'Less',
 
     // Actions
+    'migration.failedTitle': 'Your data format could not be updated',
+    'migration.failedBody': 'Your data has NOT been lost: it is still stored on this device, exactly as it was. Reload the app to try again.',
+    'migration.partial': 'Some data could not be updated to the new format. It is still stored on your device and has not been lost.',
+    'migration.photosPending': 'Your photos are still being updated. If one is missing, open the app again.',
     'action.done': 'Done',
     'action.retry': 'Try again',
     'action.close': 'Close',

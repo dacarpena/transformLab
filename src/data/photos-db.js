@@ -96,6 +96,74 @@ async function withStore(mode, operation) {
     });
 }
 
+/**
+ * Ejecuta VARIAS operaciones en una sola transacción y resuelve cuando la
+ * transacción **se ha confirmado de verdad** (M9-1).
+ *
+ * Es lo que `withStore` no puede hacer, y la diferencia importa: `withStore`
+ * resuelve en `request.onsuccess`, que se dispara **antes de que la transacción
+ * confirme**. Para una lectura da igual; para una escritura significa acusar
+ * recibo de algo que la transacción todavía puede abortar —al cerrar la pestaña,
+ * por ejemplo—. En un reetiquetado eso sería dar por movida una foto que se
+ * quedó donde estaba, y el barrido siguiente no volvería a por ella.
+ *
+ * @template T
+ * @param {IDBTransactionMode} mode
+ * @param {(store: IDBObjectStore) => Promise<T> | T} work
+ * @returns {Promise<PhotoResult<T>>}
+ */
+export async function withTransaction(mode, work) {
+    const db = await openDb();
+    if (!db.ok) return db;
+    return new Promise((resolve) => {
+        /** @type {IDBTransaction} */ let tx;
+        try {
+            tx = db.value.transaction(STORE, mode);
+        } catch (err) {
+            return resolve({ ok: false, error: message(err) });
+        }
+        /** @type {*} */ let resultado;
+        let fallo = null;
+        try {
+            resultado = work(tx.objectStore(STORE));
+        } catch (err) {
+            fallo = message(err);
+            try { tx.abort(); } catch { /* ya abortada */ }
+        }
+        // `oncomplete` y no `onsuccess`: es el único momento en que lo escrito
+        // está DURABLE.
+        tx.oncomplete = () => resolve(fallo ? { ok: false, error: fallo } : { ok: true, value: resultado });
+        tx.onabort = () => resolve({ ok: false, error: fallo ?? message(tx.error) });
+        tx.onerror = () => resolve({ ok: false, error: fallo ?? message(tx.error) });
+    });
+}
+
+/**
+ * Las claves primarias de las fotos de un perfil, **sin traerse los blobs**.
+ *
+ * `index.getAllKeys` y no `getAll`: con cuatrocientas fotos, `getAll`
+ * materializa cientos de megabytes en memoria para leer una lista de cadenas.
+ *
+ * @param {string} profileId
+ * @returns {Promise<PhotoResult<string[]>>}
+ */
+export async function keysOfProfile(profileId) {
+    if (!isNonEmptyString(profileId)) return { ok: false, error: 'photos.profileIdInvalid' };
+    return withStore('readonly', (store) =>
+        store.index(INDEX_PROFILE).getAllKeys(IDBKeyRange.only(profileId)));
+}
+
+/**
+ * Cuántas fotos tiene un perfil. Es el criterio de «ya está» del reetiquetado.
+ * @param {string} profileId
+ * @returns {Promise<PhotoResult<number>>}
+ */
+export async function countOfProfile(profileId) {
+    if (!isNonEmptyString(profileId)) return { ok: false, error: 'photos.profileIdInvalid' };
+    return withStore('readonly', (store) =>
+        store.index(INDEX_PROFILE).count(IDBKeyRange.only(profileId)));
+}
+
 /** @param {unknown} v @returns {v is string} */
 function isNonEmptyString(v) {
     return typeof v === 'string' && v !== '';

@@ -40,22 +40,30 @@ beforeEach(() => {
 // ---- CRÍTICO: fuga de datos entre perfiles al borrar el último ----
 
 test('borrar el ÚLTIMO perfil resincroniza el namespace: nada se escribe en el borrado', () => {
-    profiles.create('Ana', { createdAtISO: NOW });
+    // El id se captura: desde la v7 es opaco (M9-1) y no se puede escribir.
+    const ana = profiles.create('Ana', { createdAtISO: NOW });
+    assert.ok(ana.ok);
     storage.set('profile', { secreto: 'datos de Ana' });
-    assert.ok(profiles.remove('p1', 'Ana').ok);
+    assert.ok(profiles.remove(ana.value.id, 'Ana').ok);
 
-    assert.notEqual(storage.getActiveProfile(), 'p1', 'el namespace sigue apuntando al perfil borrado');
+    assert.notEqual(storage.getActiveProfile(), ana.value.id, 'el namespace sigue apuntando al perfil borrado');
     storage.set('loQueSea', { x: 1 });
-    assert.equal(mock.getItem(`${rootPrefix()}p1.loQueSea`), null, 'se resucitó una clave en el namespace borrado');
+    assert.equal(mock.getItem(`${rootPrefix()}${ana.value.id}.loQueSea`), null,
+        'se resucitó una clave en el namespace borrado');
 });
 
 test('el perfil creado tras borrar NO hereda los datos personales del anterior', () => {
-    profiles.create('Ana', { createdAtISO: NOW });
+    const ana = profiles.create('Ana', { createdAtISO: NOW });
+    assert.ok(ana.ok);
     storage.set('profile', { secreto: 'datos de Ana' });
-    assert.ok(profiles.remove('p1', 'Ana').ok);
+    assert.ok(profiles.remove(ana.value.id, 'Ana').ok);
 
     const bea = profiles.create('Bea', { createdAtISO: NOW });
     assert.ok(bea.ok);
+    // Desde la v7 el id ni siquiera se reutiliza, así que la herencia es
+    // imposible por construcción — pero la afirmación se queda: es la que
+    // describe lo que le pasa al usuario.
+    assert.notEqual(bea.value.id, ana.value.id);
     const leaked = storage.get('profile');
     assert.ok(leaked.ok);
     assert.equal(leaked.value, null, `Bea heredó el perfil de Ana: ${JSON.stringify(leaked.value)}`);
@@ -214,7 +222,8 @@ test('si apply() falla a mitad, informa de lo que YA escribió', () => {
 });
 
 test('apply() restaura el perfil activo TAMBIÉN en el índice persistido', () => {
-    profiles.create('Mío', { createdAtISO: NOW });
+    const mio = profiles.create('Mío', { createdAtISO: NOW });
+    assert.ok(mio.ok);
     storage.set('settings', { schemaVersion: SCHEMA_VERSION, locale: 'es', activeMeasures: ['waist'], fluctuationVisible: false, reminder: null });
 
     const file = JSON.stringify({
@@ -233,7 +242,7 @@ test('apply() restaura el perfil activo TAMBIÉN en el índice persistido', () =
     const indexActive = profiles.getActive();
     assert.ok(indexActive.ok);
     assert.equal(indexActive.value, storage.getActiveProfile(), 'índice y namespace desincronizados');
-    assert.equal(indexActive.value, 'p1');
+    assert.equal(indexActive.value, mio.value.id);
 
     // y al reiniciar, el usuario sigue en SU perfil
     profiles.activateStored();
