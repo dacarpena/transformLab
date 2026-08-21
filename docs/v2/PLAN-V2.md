@@ -1769,6 +1769,52 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   Cuatro specs tuvieron que aprender a desplegar el cajón. Que los tests tuvieran
   que cambiar es la prueba de que la portada del formulario cambió de verdad.
 
+- [x] **E15-9 · Importar el histórico de pesos por CSV.**
+  La otra mitad de llenar la aplicación. E15-8 abarató apuntar el peso de HOY;
+  esto trae el pasado. Y la forma honesta de poblar un almacén vacío no es
+  inventarse datos: son los del propio usuario, que casi siempre ya están en la
+  aplicación de su báscula.
+
+  `src/data/import-weights.js` es puro y NUNCA lanza —un CSV es un fichero ajeno,
+  y los ficheros ajenos son el vector hostil de este producto—. Tres decisiones
+  que no son de formato:
+
+  1. **No se adivina el orden de las columnas: se reconoce el CONTENIDO.** De cada
+     fila se toma el primer campo que sea una fecha y el primer número plausible
+     como peso. Da igual que el fichero traiga tres columnas o doce, y que la
+     fecha vaya primera o última. La cabecera se descarta sola —sus campos no son
+     ni fecha ni número— sin tener que reconocer sus nombres en dos idiomas.
+  2. **Nunca se sobrescribe un check-in existente.** Ese día puede llevar
+     perímetros, notas o escalas que el import no ve. Se descarta y se CUENTA, la
+     misma regla que `backup.apply`.
+  3. **`inspect` no escribe.** Devuelve lo leído y lo descartado con su motivo,
+     la interfaz lo enseña, y solo entonces `applyRows` escribe. Entre los dos
+     hay una persona — el contrato que `backup.js` estableció.
+
+  La **vista previa es la salvaguarda de verdad**: enseña las primeras filas ya
+  interpretadas, así que un fichero mal entendido —columnas cruzadas, un decimal
+  perdido— se ve antes de que nada toque el almacén. Y los descartes se agrupan
+  por motivo con su recuento: al usuario le interesa qué ha pasado y cuántas
+  veces, no una lista de doscientas líneas.
+
+  Tolera lo que sueltan las básculas de verdad: `;`, tabulador o coma; coma o
+  punto decimal; `AAAA-MM-DD`, `DD/MM/AAAA`, `DD-MM-AAAA` y `DD.MM.AAAA`; horas
+  pegadas detrás de la fecha; unidades pegadas al número; BOM de Excel; CRLF; y
+  campos entrecomillados. **No admite el orden americano**: `03/04/2026` es
+  ambiguo y adivinar es peor que rechazar. Diez mil filas se parsean en 17 ms.
+
+  `applyRows` recibe el `save` inyectado —misma costura que `fetchImpl` en
+  `foods-db.js`—, se para al primer fallo y **devuelve cuántas escribió**: un
+  import a medias que miente sobre cuánto entró es peor que uno que se para y lo
+  dice.
+
+  Al construirlo mordieron dos carreras de test más, las dos de la misma familia
+  que E15-3b: la barra de navegación se reconstruye ENTERA al guardar un check-in
+  —`route()` reinicia el router—, así que esperar solo a `[data-nav]` no basta;
+  hay que esperar a la entrada concreta. Y en el producto, el oyente del cajón
+  pasó a engancharse **antes** del primer `draw`: engancharlo después dejaba una
+  ventana corta pero real en la que el resorte ya estaba en el DOM y el oyente no.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1829,14 +1875,20 @@ backend (E15-11…17).
 **2026-08-21 · E15-6, E15-7 y E15-8.** Cerradas. **867 unitarios y 216 E2E**
 (dos pasadas seguidas), typecheck limpio.
 
-Siguiente paso concreto: **E15-9**, importar el histórico de pesos por CSV. Es la
-otra mitad de llenar la app: la forma honesta de poblar un almacén vacío son los
-datos reales del usuario, que ya están en otra aplicación. Módulo puro
-`src/data/import-weights.js` que tolere `;`/`,`, coma decimal, `DD/MM/AAAA` e
-ISO, BOM y CRLF, y que NUNCA lance; y el contrato de dos pasos que `backup.js` ya
-estableció (`inspect` → enseñar qué se ha leído y qué se descarta y por qué →
-`apply` solo al confirmar). Una fecha que ya tenga check-in se descarta y se
-cuenta, nunca se sobrescribe.
+**2026-08-21 · E15-9.** Cerrada. `src/data/import-weights.js` con 17 tests
+unitarios, la interfaz de dos pasos en Ajustes, 20 claves i18n en los dos
+idiomas, y tres E2E que suben un CSV de verdad. **884 unitarios y 219 E2E** (tres
+pasadas seguidas), typecheck limpio. Verificado en el navegador con un CSV
+español de siete filas: entra 4, descarta 3 y lo dice desglosado por motivo.
+
+Siguiente paso concreto: **E15-10**, el perfil de ejemplo. `storage.js` inyecta
+el prefijo `tl.<v>.<profileId>.`, así que un ejemplo en su propio namespace es
+**estructuralmente incapaz** de contaminar el almacén real — no por convención,
+por construcción. Generado por el motor de verdad (`planPhases` +
+`generateProjection` con semilla fija), nunca dibujado a mano, que es lo que
+prohíbe la ficha H-035. Banda persistente y no descartable en el ARMAZÓN, para
+que ninguna vista pueda olvidarse de decir que es simulado, y borrable de un
+clic.
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa

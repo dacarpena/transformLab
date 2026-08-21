@@ -300,8 +300,12 @@ function draw(container, /** @type {*} */ editDate) {
 
 /** @param {HTMLElement} container */
 export function mount(container) {
-    draw(container, null);
 
+    // El oyente va ANTES del primer `draw`, no después: si no, existe una
+    // ventana —corta pero real— en la que el resorte ya está en el DOM y el
+    // oyente todavía no. Un usuario rápido perdería su preferencia en silencio,
+    // y un E2E lo cazaba una de cada varias ejecuciones.
+    //
     // El estado del cajón se guarda con un oyente en fase de CAPTURA sobre el
     // contenedor. Las dos mitades importan:
     //
@@ -320,6 +324,8 @@ export function mount(container) {
             settingsStore.patch({ checkinDetailOpen: det.open });
         }
     }, true);
+
+    draw(container, null);
 
     on(container, 'input', '[data-subjective]', () => refreshScales(container));
 

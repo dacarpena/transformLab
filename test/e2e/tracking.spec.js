@@ -311,15 +311,36 @@ test('el formulario enseña fecha y peso, y pliega el resto', async ({ page }) =
     await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
 });
 
+/**
+ * Entra en Check-in y espera a que la vista esté montada de verdad.
+ *
+ * La vista es diferida (`import()`), y tras un `page.reload()` la barra tarda en
+ * nacer. Sin estas esperas el test se vuelve intermitente y el fallo —«element
+ * is not visible»— no apunta a la causa.
+ */
+async function irACheckin(page) {
+    await expect(page.locator('[data-nav]')).toBeVisible();
+    const entrada = page.locator('[data-view="checkin"]');
+    await entrada.first().waitFor({ state: 'attached', timeout: 15000 });
+    await entrada.first().click();
+    await expect(page.locator('[data-more]')).toHaveCount(1);
+}
+
 test('el detalle desplegado se recuerda entre visitas', async ({ page }) => {
     // Quien SÍ mide perímetros no debería desplegarlo cada semana.
     await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
-    await page.click('[data-view="checkin"]');
+    await irACheckin(page);
     await page.click('[data-more] > summary');
     await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
+    // El ajuste se escribe en el `toggle`, que es asíncrono: se espera a verlo
+    // guardado en vez de suponer que ya está.
+    await expect.poll(() => page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.settings'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{}').checkinDetailOpen === true;
+    })).toBe(true);
 
     await page.reload();
-    await page.click('[data-view="checkin"]');
+    await irACheckin(page);
     await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
 });
 
@@ -402,4 +423,126 @@ test('el peso rápido rechaza lo que no es un peso, sin escribir nada', async ({
         return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.length;
     });
     expect(n).toBe(0);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-9 · Importar el histórico de pesos por CSV
+ *
+ * La otra mitad de llenar la aplicación. E15-8 abarató apuntar el peso de HOY;
+ * esto trae el pasado, y la forma honesta de poblar un almacén vacío no es
+ * inventarse datos: son los del propio usuario, que ya están en la aplicación de
+ * su báscula.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Sube un CSV al control de importar pesos, sin tocar el disco. */
+async function subirCsv(page, contenido) {
+    await page.locator('[data-import-weights]').setInputFiles({
+        name: 'pesos.csv', mimeType: 'text/csv', buffer: Buffer.from(contenido, 'utf8')
+    });
+}
+
+async function irAAjustes(page) {
+    // Esperar a la barra antes de decidir qué botón pulsar: con ella a medio
+    // nacer no existe `[data-view="settings"]`, se toma la rama de «pantalla
+    // estrecha» y se espera treinta segundos a un `[data-nav-more]` que en
+    // escritorio nunca será visible. Es la misma carrera que E15-3b cerró en
+    // `analysis.spec.js`.
+    await expect(page.locator('[data-nav]')).toBeVisible();
+    const directo = page.locator('[data-view="settings"]');
+    // Y a la ENTRADA, no solo a la barra: guardar un check-in dispara `route()`,
+    // que reinicia el router y reconstruye la navegación entera. Preguntar por
+    // `isVisible()` en ese hueco da «no» y manda a la rama de pantalla estrecha.
+    await directo.first().waitFor({ state: 'attached', timeout: 15000 });
+    if (!(await directo.first().isVisible())) {
+        await page.locator('[data-nav-more]').click();
+    }
+    await directo.first().click();
+    await expect(page.locator('[data-import-weights]')).toHaveCount(1);
+}
+
+test('un CSV de la báscula entra entero, tras enseñar lo que se ha entendido', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 4, checkinWeights: [] });
+    const inicio = await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.profile'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{}').startDateISO;
+    });
+    const dia = (n) => new Date(Date.parse(`${inicio}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+    await irAAjustes(page);
+    // Formato español de verdad: punto y coma, coma decimal, con cabecera.
+    await subirCsv(page, `Fecha;Peso (kg)\n${dia(1)};75,4\n${dia(8)};74,9\n${dia(15)};74,1\n`);
+
+    // Paso 1: se ENSEÑA. Nada se ha escrito todavía.
+    await expect(page.locator('[role="dialog"]')).toBeVisible();
+    await expect(page.locator('[role="dialog"]')).toContainText('3');
+    await expect(page.locator('[role="dialog"]')).toContainText('75,4');
+    expect(await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.length;
+    })).toBe(0);
+
+    // Paso 2: se confirma, y entonces sí.
+    await page.locator('[role="dialog"] [data-go]').click();
+    await expect.poll(() => page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.length;
+    })).toBe(3);
+
+    // Y llegan a Progreso, que es para lo que servían.
+    await page.locator('[data-view="progress"]').click();
+    await expect(page.locator('.signal').first()).toBeVisible();
+});
+
+test('el import DICE lo que descarta, y no pisa un check-in existente', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 4, checkinWeights: [] });
+    const inicio = await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.profile'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{}').startDateISO;
+    });
+    const dia = (n) => new Date(Date.parse(`${inicio}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+    // Un check-in con perímetros: el import no puede borrárselos.
+    await page.locator('[data-view="checkin"]').click();
+    await page.fill('[data-field="dateISO"]', dia(1));
+    await page.fill('[data-field="weightKg"]', '75.4');
+    await page.locator('[data-more] > summary').click();
+    await page.fill('[data-measure="waist"]', '88.5');
+    await page.locator('[data-save]').click();
+
+    await irAAjustes(page);
+    await subirCsv(page, [
+        `${dia(1)};70,0`,      // ya existe → se descarta
+        `${dia(8)};74,9`,      // entra
+        `${dia(9)};999`,       // peso imposible
+        '1999-01-01;74,0'      // fuera del plan
+    ].join('\n'));
+
+    const dialogo = page.locator('[role="dialog"]');
+    await expect(dialogo).toBeVisible();
+    await expect(dialogo).toContainText(/Descarto 3|Skipping 3/);
+    await dialogo.locator('[data-go]').click();
+
+    const items = await page.evaluate(async () => {
+        await new Promise((r) => setTimeout(r, 300));
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items;
+    });
+    expect(items.length).toBe(2);
+    // El que ya existía sigue con su peso y su perímetro: no lo ha tocado nadie.
+    const previo = items.find((/** @type {*} */ i) => i.dateISO === dia(1));
+    expect(previo.weightKg).toBe(75.4);
+    expect(previo.measuresCm.waist).toBe(88.5);
+});
+
+test('un CSV que no se puede usar lo dice y no escribe nada', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 4, checkinWeights: [] });
+    await irAAjustes(page);
+    await subirCsv(page, 'esto no es\nun csv de pesos\n');
+
+    await expect(page.locator('.toast')).toBeVisible();
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    expect(await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.length;
+    })).toBe(0);
 });

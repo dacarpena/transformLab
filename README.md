@@ -37,7 +37,7 @@ npm run sw:bump      # sube CACHE_VERSION tras tocar algo precacheado
 
 ```
 index.html                  carga css/ y src/main.js (type="module")
-sw.js                       service worker: precache de 102 entradas, la app abre sin red
+sw.js                       service worker: precachea TODO src/, la app abre sin red
 vendor/chart.umd.min.js     Chart.js fijado y servido en local (CSP 'self' + offline)
 css/tokens.css              ÚNICA fuente de color, espaciado, tipografía y radios
 src/core/                   el motor: puro, sin DOM, importable desde Node

@@ -14,6 +14,8 @@ import { t, getLocale, setLocale, availableLocales } from '../../i18n/i18n.js';
 import * as storage from '../../data/storage.js';
 import * as profiles from '../../data/profiles.js';
 import * as backup from '../../data/backup.js';
+import * as importWeights from '../../data/import-weights.js';
+import * as checkins from '../../data/checkins.js';
 import * as plans from '../plan-state.js';
 import * as router from '../router.js';
 import * as reminder from '../reminder.js';
@@ -115,8 +117,32 @@ function renderDataSection() {
                 </label>
             </div>
             <p class="muted">${t('settings.importHint')}</p>
+
+            <!-- Importar el histórico de pesos (E15-9). Vive junto al backup
+                 porque comparte su contrato: mirar, enseñar, y escribir solo
+                 cuando una persona lo confirma. -->
+            <div class="btn-row">
+                <label class="btn">
+                    ${t('settings.importWeights')}
+                    <input type="file" accept="text/csv,.csv,.txt" data-import-weights class="visually-hidden">
+                </label>
+            </div>
+            <p class="muted">${t('settings.importWeightsHint')}</p>
         </section>
     `;
+}
+
+/**
+ * Agrupa los descartes por motivo, para no soltarle al usuario una lista de
+ * doscientas líneas: le interesa QUÉ ha pasado y CUÁNTAS veces, no cuáles.
+ * @param {Array<{reason: string}>} skipped
+ * @returns {Array<{reason: string, count: number}>}
+ */
+function groupSkipped(skipped) {
+    /** @type {Map<string, number>} */ const porMotivo = new Map();
+    for (const s of skipped) porMotivo.set(s.reason, (porMotivo.get(s.reason) ?? 0) + 1);
+    return [...porMotivo].map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count);
 }
 
 function renderLanguageSection() {
@@ -428,6 +454,89 @@ export function mount(container) {
         }
         download(`transformlab-${new Date().toISOString().slice(0, 10)}.json`, text.value);
         toast.success('settings.exported.success');
+    });
+
+    // Importar un histórico de pesos (E15-9). Mismo contrato de dos pasos que el
+    // import de backups: `inspect` mira y NO escribe, se enseña qué se ha
+    // entendido y qué se descarta, y solo entonces se escribe.
+    on(container, 'change', '[data-import-weights]', (event) => {
+        const input = /** @type {HTMLInputElement} */ (event.target);
+        const file = input.files?.[0];
+        if (!file) return;
+        file.text().then((text) => {
+            const data = plans.get();
+            const inspected = importWeights.inspect(text, {
+                existingDates: checkins.list().map((/** @type {*} */ c) => c.dateISO),
+                plan: data ? { startDateISO: data.startDateISO, totalDays: data.plan.totalDays } : null
+            });
+            if (!inspected.ok) {
+                toast.error(inspected.error);
+                input.value = '';
+                return;
+            }
+            const { rows, skipped, firstISO, lastISO } = inspected.value;
+            const grupos = groupSkipped(skipped);
+
+            const dialog = modal.open({
+                titleKey: 'settings.importWeightsTitle',
+                body: html`
+                    <p>${t('settings.importWeightsSummary', {
+                        count: rows.length,
+                        from: longDate(/** @type {string} */ (firstISO)),
+                        to: longDate(/** @type {string} */ (lastISO))
+                    })}</p>
+
+                    <!-- La vista previa es la salvaguarda de verdad: si el
+                         fichero se hubiera entendido mal —columnas cruzadas, un
+                         decimal perdido— se ve AQUÍ, antes de escribir nada. -->
+                    <p class="muted">${t('settings.importWeightsPreview')}</p>
+                    <ul class="profile-list">
+                        ${rows.slice(0, importWeights.PREVIEW_ROWS).map((r) => html`
+                            <li class="profile-item">
+                                <span>${longDate(r.dateISO)}</span>
+                                <span class="numeric">${num(r.weightKg)} ${t('today.unit.kg')}</span>
+                            </li>
+                        `)}
+                    </ul>
+
+                    ${grupos.length > 0 ? html`
+                        <p class="notice notice--warning">
+                            <span class="notice__icon" aria-hidden="true">⚠</span>
+                            <span>
+                                ${t('settings.importWeightsSkipped', { count: skipped.length })}
+                                ${grupos.map((g) => `${g.count} ${t(g.reason)}`).join(' · ')}
+                            </span>
+                        </p>
+                    ` : ''}
+
+                    <div class="modal__actions">
+                        <button type="button" class="btn" data-modal-close>${t('action.cancel')}</button>
+                        <button type="button" class="btn btn--primary" data-go>${t('settings.importWeightsConfirm')}</button>
+                    </div>
+                `,
+                onClose: () => { input.value = ''; }
+            });
+
+            dialog.querySelector('[data-go]')?.addEventListener('click', () => {
+                const applied = importWeights.applyRows(rows, {
+                    save: checkins.save,
+                    nowISO: new Date().toISOString()
+                });
+                modal.close();
+                input.value = '';
+                if (!applied.ok) {
+                    // Se dice CUÁNTOS entraron: un import a medias que calla es
+                    // peor que uno que se para y lo cuenta.
+                    toast.error('settings.importWeightsPartial', { count: applied.imported });
+                } else {
+                    toast.success('settings.importWeightsDone', { count: applied.imported });
+                }
+                if (onProfilesChanged) onProfilesChanged();
+            });
+        }).catch(() => {
+            toast.error('importWeights.notText');
+            input.value = '';
+        });
     });
 
     on(container, 'change', '[data-import]', (event) => {

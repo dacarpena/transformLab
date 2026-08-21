@@ -41,10 +41,16 @@ function precacheList() {
     return [...cuerpo.matchAll(/'([^']+)'/g)].map((x) => x[1]);
 }
 
-test('el README dice el tamaño real del precache', () => {
-    const declarado = README.match(/precache de (\d+) entradas/);
-    assert.ok(declarado, 'el README debe decir el tamaño del precache');
-    assert.equal(Number(declarado[1]), precacheList().length);
+test('el README NO copia el tamaño del precache: cambia con cada módulo nuevo', () => {
+    // Decía «64 entradas» cuando había 102, y volvió a desviarse en cuanto E15-9
+    // añadió un módulo — este test lo cazó, que era su trabajo. Pero la cifra no
+    // le dice nada a nadie y su único destino es volver a mentir: se quita, igual
+    // que el número de tests. Lo que sí se comprueba es que el precache existe y
+    // no está vacío, que es lo que el README promete.
+    assert.equal(README.match(/precache de \d+ entradas/), null,
+        'el README no debe llevar un número duro de entradas de precache');
+    assert.match(README, /precache/i, 'el README debe seguir explicando que hay precache');
+    assert.ok(precacheList().length > 50, 'el precache no puede estar vacío');
 });
 
 test('el README dice el número real de vistas', () => {
