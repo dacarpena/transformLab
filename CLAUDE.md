@@ -90,7 +90,7 @@ Estos invariantes viven como **tests con nombre** en `test/` y deben estar en ve
 - **Accesibilidad (F7, objetivo AA):** todo control alcanzable con teclado y con `:focus-visible`; modales con focus-trap + `Escape` + devolución de foco; contraste ≥ 4,5:1; `prefers-reduced-motion` respetado en toda animación; sin desbordes a 320 px.
 - **Errores (D9):** cada vista define su estado vacío y su estado de error con salida clara. **Nunca** una acción destructiva como respuesta por defecto a un fallo (el legacy ofrecía borrar todos los datos si Chart.js no cargaba: H-013; eso no se repite).
 - **Persistencia:** solo a través de `src/data/storage.js`. Prohibido `localStorage.` directo fuera de ese módulo. Fotos solo en IndexedDB vía `photos-db.js`.
-- **Dependencias:** cero dependencias de runtime salvo Chart.js vendorizado. DevDeps permitidas: `typescript`, `@playwright/test`. Cualquier otra requiere justificarla en la bitácora antes de instalarla.
+- **Dependencias:** cero dependencias de runtime salvo Chart.js vendorizado — **cero, también en el servidor**: WebAuthn, AES-GCM y HKDF salen de `crypto.subtle`, y los tipos de plataforma de Cloudflare se declaran a mano en `functions/env.d.ts`. DevDeps permitidas: `typescript`, `@playwright/test` y `wrangler` (desde M8-1: es el emulador y el desplegador de Pages Functions, y sin él la parte de servidor no se puede ni ejecutar ni desplegar). Cualquier otra requiere justificarla en la bitácora antes de instalarla. `test/deps.test.js` lo vigila.
 - Código en inglés (identificadores, claves), UI en `es`/`en` vía i18n, documentación del repo en español.
 
 ## 6. Comandos

@@ -20,6 +20,11 @@ node_modules/
 test-results/
 playwright-report/
 
+# Wrangler: estado local del emulador (D1 en sqlite, R2 en disco, caché de
+# workerd). Es la copia de DESARROLLO de los datos, y no tiene nada que hacer en
+# el repositorio.
+.wrangler/
+
 # Varios
 *.log
 

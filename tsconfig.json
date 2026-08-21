@@ -24,5 +24,12 @@
   // Al activarlo aparecieron 10 errores reales, y los peores estaban justo en
   // la frontera core↔UI: el patrón `Result<T>` (`{ok:true,value}` |
   // `{ok:false}`) se usa con disciplina a ambos lados, y solo se vigilaba uno.
-  "include": ["src/**/*.js"]
+  //
+  // Y `functions/` desde M8-1. El servidor es el sitio donde un `undefined` no
+  // se ve en una pantalla: se convierte en un 500 para una persona que está
+  // sincronizando sus datos. Los tipos de plataforma —D1, R2, EventContext— los
+  // declara `functions/env.d.ts` a mano, sin `@cloudflare/workers-types`: son
+  // las cinco interfaces que se tocan de verdad, y así ese fichero es también el
+  // inventario auditable de la superficie de la que depende el servidor.
+  "include": ["src/**/*.js", "functions/**/*.js", "functions/**/*.d.ts"]
 }

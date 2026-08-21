@@ -2110,9 +2110,56 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   (`includes('api')`, que se llevaría por delante cualquier módulo con «api» en el
   nombre), y `schema.js` volviendo a apuntar a `migrations.js`.
 
-- [ ] **M8-1 · El esqueleto del servidor.** `wrangler.toml`, `_routes.json`,
-  `functions/api/[[path]].js`, `functions/_middleware.js` y `GET /api/health`.
-  `wrangler` entra como devDep, justificada aquí según §5 de `CLAUDE.md`.
+- [x] **M8-1 · El esqueleto del servidor.** `wrangler.toml`, `_routes.json`,
+  `functions/_middleware.js`, `functions/api/[[path]].js` y `GET /api/health`.
+
+  **El enrutado por ficheros de Pages queda sin usar, a propósito.** Pages
+  publica una ruta por cada `.js` que caiga en `functions/`, y eso significa que
+  añadir una ruta pública es dejar caer un fichero: acaba habiendo rutas que
+  nadie ha revisado. Los manejadores viven en `functions/_handlers/`, que el
+  guion bajo saca del enrutado, y la única puerta es el atrapatodo. Para exponer
+  algo hay que escribirlo en `functions/_manifest.js` —el mismo truco que
+  `src/ui/views/_manifest.js`—, y hay tests que exigen que las dos listas
+  coincidan en las dos direcciones, más uno que falla si aparece cualquier `.js`
+  suelto en `functions/api/`. `auth` es obligatorio en cada entrada y no tiene
+  valor por omisión: con uno, olvidarlo abriría la ruta.
+
+  **Las cabeceras se sellan a la SALIDA, en el middleware.** `_headers` no se
+  aplica a lo que genera el código —Pages solo lo usa para ficheros estáticos—,
+  así que la CSP estricta de la aplicación no protege ni una respuesta de la API.
+  Y si las pusiera cada manejador, bastaría un camino que devuelve una `Response`
+  a pelo —un 500 del runtime, un `redirect`— para que se colara una respuesta sin
+  `no-store` ni `Vary`. Sellándolas a la salida no hay camino que se libre; hay
+  un test que recorre los cuatro tipos de respuesta, el 500 incluido.
+
+  **CSRF sin token, en tres capas**, y ninguna es cosmética: `SameSite=Strict`
+  (M8-4), `Origin` exacto en todo lo que no sea GET, y `Content-Type:
+  application/json` obligatorio —los tres únicos tipos que un `<form>` ajeno
+  puede producir se rechazan—. Un token anti-CSRF no añadiría una cuarta capa
+  independiente: viviría en la misma cookie o en el mismo documento.
+
+  **`wrangler` entra como devDep**, y es la primera fuera de las dos que §5
+  permitía. Justificación: es el emulador y el desplegador de Pages Functions;
+  sin él la parte de servidor no se puede ni ejecutar ni desplegar. §5 se
+  actualiza en el mismo commit, y de paso el inventario de dependencias gana el
+  guardián que nunca tuvo (`test/deps.test.js`): cero de runtime, las tres
+  devDeps escritas con su razón, y la regla de `CLAUDE.md` comparada con
+  `package.json`. La tentación de instalar es mayor en el servidor —hay una
+  librería de WebAuthn, de CBOR y de JWT para cada gusto— y ninguna hace falta:
+  `crypto.subtle` verifica ECDSA P-256, y `getPublicKey()` devuelve SPKI DER, que
+  entra directo en `importKey` sin descodificar COSE.
+
+  Los enlaces de `wrangler.toml` van **comentados** hasta M8-2: `database_id` no
+  se puede inventar, y uno inventado hace fallar el despliegue en el arranque.
+  Mientras tanto `/api/health` informa de que faltan, que es la respuesta honesta.
+
+  Verificación: 15 tests de comportamiento que montan la tubería real de Pages
+  —middleware → `next()` → atrapatodo— con `Request`/`Response` de verdad, 9
+  guardas estáticas, y **una pasada a mano con `npx wrangler pages dev`**, que es
+  lo único que puede confirmar lo que ningún test en Node ve: que Pages no
+  publica `_handlers/` por su cuenta (`/_handlers/health` devuelve el shell de la
+  SPA, no el manejador), que el estático no pasa por la Function, que el 403 y el
+  415 salen de verdad, y que **no se emite ni una cabecera `Access-Control-*`**.
 - [ ] **M8-2 · D1.** Base creada con `--jurisdiction=eu`, `migrations/0001_init.sql`,
   y `test/helpers/d1-fake.js` sobre `node:sqlite` (ya en Node 22: cero devDeps
   nuevas) aplicando el DDL real y ejecutando las cadenas SQL reales.
@@ -2132,9 +2179,28 @@ extraída a `src/data/migrate-value.js`, con `schema.js` apuntando ya al módulo
 puro. **950 unitarios**, typecheck limpio. `npm run sw:bump` ejecutado
 (`tl-37641be72320` → `tl-9f83cd220c69`).
 
-Siguiente paso concreto: **M8-1**, que es la primera etapa que crea recursos en la
-cuenta de Cloudflare (D1, R2) y añade `wrangler` como devDep. Hay que pedírselo a
-Dani antes de ejecutarla.
+**2026-08-21 · M8-1.** Cerrada. Esqueleto de la API en `functions/`: middleware
+que sella cabeceras y aplica las tres capas anti-CSRF, enrutador por tabla con
+`_manifest.js` como fuente única, `GET /api/health` y `_routes.json` limitando la
+Function a `/api/*`. `wrangler` como devDep, §5 de `CLAUDE.md` actualizada y
+`test/deps.test.js` vigilando el inventario. **977 unitarios**, typecheck limpio
+—`functions/` ya entra en `tsconfig.json`, con los tipos de plataforma escritos a
+mano en `functions/env.d.ts` en vez de `@cloudflare/workers-types`—. Verificado
+además contra el runtime real con `npx wrangler pages dev`.
+
+**Siguiente paso concreto: M8-2, y aquí hay que parar a pedir permiso.** Es la
+primera etapa que crea recursos en la cuenta de Cloudflare de Dani:
+
+```
+npx wrangler d1 create transformlab --location=weur
+npx wrangler r2 bucket create transformlab-photos --jurisdiction=eu
+```
+
+Lo que SÍ se puede adelantar sin la cuenta, y es la mayor parte: escribir
+`migrations/0001_init.sql` y `test/helpers/d1-fake.js` sobre `node:sqlite` (ya en
+Node 22: cero devDeps nuevas), que aplica el DDL real y ejecuta las cadenas SQL
+reales. Lo único que hace falta de la cuenta es el `database_id` para
+descomentar los enlaces de `wrangler.toml`.
 
 #### Bitácora E15
 

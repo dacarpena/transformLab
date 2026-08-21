@@ -1,0 +1,51 @@
+# Cloudflare Pages, con Functions en el MISMO ORIGEN (M8-1).
+#
+# ## Por qué Pages Functions y no un Worker aparte
+#
+# Es la decisión de la que cuelga todo lo demás. Un Worker en `api.motifyer.com`
+# obligaría a las tres cosas a la vez:
+#
+#   - relajar `connect-src 'self'` en `_headers`, que es la directiva que hoy
+#     hace literalmente imposible que esta aplicación hable con nadie;
+#   - CORS con preflight, y por tanto un `Access-Control-Allow-Origin` emitido de
+#     verdad, que es justo la puerta que este diseño mantiene cerrada;
+#   - `SameSite=None` en la cookie de sesión, que es renunciar a la capa fuerte
+#     de la defensa contra CSRF.
+#
+# Mismo origen: ninguna de las tres. `_headers` no se toca y `test/security.test.js`
+# sigue verde sin modificarlo.
+#
+# El «sin bundler» también sobrevive: Pages empaqueta SOLO `functions/`, nunca
+# mira `src/`, y el cliente sigue cargando módulos ES nativos.
+
+name = "transformlab"
+compatibility_date = "2026-08-21"
+
+# La raíz del repo ES el sitio: no hay build. `functions/` se excluye sola —Pages
+# la trata aparte— igual que `node_modules`.
+pages_build_output_dir = "."
+
+# ── Enlaces ────────────────────────────────────────────────────────────────────
+#
+# ESTÁN COMENTADOS A PROPÓSITO hasta M8-2. `database_id` no se puede inventar:
+# lo devuelve `wrangler d1 create`, y un id inventado hace que el despliegue
+# falle en el arranque, no en la petición. Mientras tanto `GET /api/health`
+# informa de que los enlaces faltan, que es la respuesta honesta.
+#
+# Cuando se creen (M8-2), los comandos son:
+#
+#   npx wrangler d1 create transformlab --location=weur
+#   npx wrangler r2 bucket create transformlab-photos --jurisdiction=eu
+#
+# `--jurisdiction=eu` en R2 y `--location=weur` en D1 no son cosmética: fijan que
+# los datos —cifrados, pero datos personales al fin— no salgan de la UE.
+
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "transformlab"
+# database_id = "<lo devuelve `wrangler d1 create`>"
+# migrations_dir = "migrations"
+
+# [[r2_buckets]]
+# binding = "PHOTOS"
+# bucket_name = "transformlab-photos"

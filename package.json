@@ -15,10 +15,12 @@
     "test": "node --test \"test/**/*.test.js\"",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
-    "sw:bump": "node tools/sw-version.mjs --bump"
+    "sw:bump": "node tools/sw-version.mjs --bump",
+    "serve:api": "wrangler pages dev . --port 8788 --ip 127.0.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^4.125.0"
   }
 }
