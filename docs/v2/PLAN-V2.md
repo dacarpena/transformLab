@@ -2212,8 +2212,51 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
 
   Los enlaces de `wrangler.toml` siguen comentados hasta que exista el
   `database_id`.
-- [ ] **M8-3 · WebAuthn.** Registro y login con credenciales descubribles, sin una
-  sola dependencia, con vectores grabados en `node:test`.
+- [x] **M8-3a · La verificación de WebAuthn, sin una sola dependencia.**
+  `functions/_lib/webauthn.js` (~250 líneas) y `functions/_lib/base64url.js`.
+
+  **Por qué no hay librería:** las de WebAuthn son grandes porque resuelven la
+  atestación —CBOR, COSE, cadenas de certificados de fabricante—, y dos
+  decisiones la quitan de en medio: `attestation: 'none'` (no nos importa qué
+  fabricante hizo el autenticador, sino que la clave que se registró sea la que
+  firma) y `response.getPublicKey()`, que devuelve **SPKI DER** y entra directo
+  en `crypto.subtle.importKey`. Lo que queda son doscientas líneas auditables, y
+  en un servidor que guarda datos cifrados de personas eso vale más que una
+  dependencia que no se puede leer.
+
+  **La trampa que se lleva a todo el mundo por delante:** WebAuthn entrega la
+  firma en ASN.1 DER y `crypto.subtle` espera r‖s en crudo. Sin convertir,
+  `verify` devuelve `false` siempre — y `false` no es un error, así que el
+  síntoma es «el login no funciona» sin ninguna traza. `derToRaw` lo hace, con
+  sus dos casos de borde probados generando firmas reales hasta que salen, en vez
+  de escribir un DER a mano —uno escrito a mano prueba lo que su autor creía—.
+
+  **LOS VECTORES NO ESTÁN FABRICADOS, y es lo que sostiene el fichero de tests.**
+  La tentación era generar un par de claves, montar los bytes de
+  `authenticatorData` según el estándar y firmar. Eso no prueba nada: si quien
+  escribe el verificador entendió mal el formato, entiende mal las dos mitades
+  igual, y el test pasa con un código que ningún navegador puede satisfacer.
+  `tools/record-webauthn-vectors.mjs` los graba del **autenticador virtual de
+  Chrome** —la implementación real de CTAP2 del navegador, manejada por CDP— y
+  quedan congelados en `test/fixtures/`. Un registro y un login auténticos: SPKI
+  de 91 bytes, firma DER de 71.
+
+  24 tests: que la firma real verifica; que cambiar un byte de `authData` o de
+  `clientDataJSON` la tumba (o sea, que la firma ata de verdad el origen, el reto
+  y el contador); que otro origen, otro reto y otro `rpIdHash` se rechazan; que
+  una respuesta de registro no vale como login; y que el contador que retrocede
+  es una credencial clonada — con la excepción documentada de los pases
+  sincronizados de Apple y Google, que lo dejan siempre en cero a propósito.
+
+  Un hallazgo del camino: el autenticador de Chrome **sí incrementa** el contador
+  (1 → 2). El test del caso «siempre cero» estaba escrito sobre la premisa
+  contraria y se puso en rojo; se reescribió para afirmar solo lo comprobable
+  —que la puerta del contador lo deja pasar y el rechazo viene de la firma— y se
+  añadió otro que ata el fixture, para que si Chrome cambia de comportamiento los
+  tests del contador se pongan en rojo en vez de dejar de probar en silencio.
+
+- [ ] **M8-3b · Los cuatro endpoints de registro y login**, con los retos de un
+  solo uso en `challenges` y la emisión de la primera sesión.
 - [ ] **M8-4 · Sesiones y autorización por fila.** Rotación con detección de reuso,
   revocación, `openUserScope` y los cinco tests estáticos que hacen imposible
   escribir una consulta sin `WHERE user_id = ?`.
