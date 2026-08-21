@@ -19,6 +19,7 @@
 import { onRequest as health } from './_handlers/health.js';
 import { registerStart, registerFinish, loginStart, loginFinish } from './_handlers/auth.js';
 import { current, logout, logoutAll } from './_handlers/session.js';
+import { overview, keys, saveKeys, removeCredential } from './_handlers/account.js';
 
 /** @type {readonly import('./_lib/router.js').Route[]} */
 export const ROUTES = Object.freeze([
@@ -34,5 +35,12 @@ export const ROUTES = Object.freeze([
     // Y las que SÍ piden sesión.
     { method: 'GET', path: '/api/session', handler: current, auth: true },
     { method: 'POST', path: '/api/auth/logout', handler: logout, auth: true },
-    { method: 'POST', path: '/api/auth/logout-all', handler: logoutAll, auth: true }
+    { method: 'POST', path: '/api/auth/logout-all', handler: logoutAll, auth: true },
+
+    // La cuenta: dispositivos y llaves. Todo lo que devuelven son criptogramas o
+    // metadatos; ni un dato del usuario en claro.
+    { method: 'GET', path: '/api/account', handler: overview, auth: true },
+    { method: 'GET', path: '/api/account/keys', handler: keys, auth: true },
+    { method: 'POST', path: '/api/account/keys', handler: saveKeys, auth: true },
+    { method: 'DELETE', path: '/api/account/credentials/:id', handler: removeCredential, auth: true }
 ]);

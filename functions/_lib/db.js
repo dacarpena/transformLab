@@ -163,6 +163,37 @@ export function openUserScope(env, userId) {
         },
 
         /**
+         * Guarda el envoltorio de la DK para UNA credencial (la extensión PRF
+         * del autenticador). El servidor guarda bytes que no puede abrir.
+         *
+         * La condición `user_id = ?1` en el `WHERE` no es solo la aduana: impide
+         * que una sesión escriba el envoltorio de la credencial de otra persona,
+         * que sería la forma de sustituirle la clave.
+         *
+         * @param {{ credentialId: string, wrapped: Uint8Array, prfSalt: Uint8Array }} envoltorio
+         */
+        async setCredentialWrapper({ credentialId, wrapped, prfSalt }) {
+            const r = await q(`UPDATE credentials SET wrapped_dk = ?3, prf_salt = ?4
+                                WHERE user_id = ?1 AND id = ?2`, credentialId, wrapped, prfSalt).run();
+            return r.meta.changes === 1;
+        },
+
+        /**
+         * Todo lo que hace falta para abrir la DK en este dispositivo: el sobre
+         * de recuperación y los sobres por credencial.
+         *
+         * Devuelve criptogramas, y por eso puede devolverlos: el servidor no
+         * tiene ninguna de las claves que los abren.
+         */
+        async keyMaterial() {
+            const usuario = /** @type {*} */ (await q(
+                'SELECT wrapped_dk_recovery, recovery_salt, protected_at FROM users WHERE id = ?1').first());
+            const cred = await q(`SELECT id, wrapped_dk, prf_salt FROM credentials
+                                   WHERE user_id = ?1 AND wrapped_dk IS NOT NULL`).all();
+            return { usuario, credenciales: /** @type {*[]} */ (cred.results) };
+        },
+
+        /**
          * Marca la cuenta como protegida porque hay una segunda passkey.
          *
          * La condición vive en el SQL —`>= 2` credenciales— para que no pueda

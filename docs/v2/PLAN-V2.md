@@ -2397,9 +2397,37 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   fallara, el usuario perdería sus datos de forma irreversible y no habría a
   quién pedírselos.
 
-- [ ] **M8-5b · La DK en el dispositivo y los endpoints de cuenta.**
-  `src/data/keys-db.js` (IndexedDB, como `photos-db.js`), guardar el envoltorio
-  de recuperación, alta y baja de passkeys, y la **regla dura**.
+- [x] **M8-5b · La DK en el dispositivo, los endpoints de cuenta y la regla dura.**
+
+  **`keys-db.js` es IndexedDB por una razón concreta**, no por simetría con
+  `photos-db.js`: IndexedDB guarda **objetos `CryptoKey`**, y `localStorage` solo
+  guarda cadenas. Un `CryptoKey` no extraíble se almacena, se recupera y se usa,
+  pero nadie puede leer sus bytes; en `localStorage` habría que escribirla en
+  claro y cualquier script se la lleva. El módulo **rechaza** una clave
+  extraíble en vez de confiar, y degrada sin romper cuando IndexedDB no está
+  —navegación privada de Safari—: eso significa pedir la passkey en cada sesión,
+  no perder nada. §1 dice que la aplicación funciona entera sin cuenta, y eso
+  incluye cuando la cuenta falla.
+
+  **La regla dura vive en el SERVIDOR.** `users.protected_at`, escrito dentro del
+  SQL, con la condición en la propia sentencia: guardar el kit lo marca en la
+  misma sentencia que guarda el sobre —una cuenta marcada como protegida sin
+  sobre sería una mentira con consecuencias irreversibles— y la vía de la segunda
+  passkey exige `>= 2` credenciales de verdad. No hay ningún camino para
+  declararlo desde el cuerpo de una petición. Dejarlo en el cliente sería dejar
+  la única salvaguarda de un dato irrecuperable en una bandera que un
+  `localStorage.clear()` borra.
+
+  Los endpoints devuelven **solo criptogramas**, y hay un test que lo comprueba
+  sobre la respuesta entera: con todo lo que la API da y sin el código del kit,
+  no hay forma de sacar la DK. Y no se puede quitar la última passkey —quedarse
+  sin credenciales es quedarse fuera para siempre—, con el motivo distinguido del
+  404 porque aquí el usuario sí necesita saber por qué no puede.
+
+  Dos tests míos no discriminaban y se arreglaron: el de fallo de escritura no
+  llegaba a marcar la base (`keys-db` la abre perezosamente, así que
+  `failNextWrite` no encontraba nada que marcar) y el de fila corrupta no
+  corrompía nada. Los dos pasaban con y sin el código que probaban.
 - [ ] **M8-5c · La vista Cuenta y la pantalla del kit**, con i18n en los dos
   diccionarios, teclado, 320 px y E2E.
 
