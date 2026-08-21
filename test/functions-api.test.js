@@ -20,6 +20,7 @@ import { onRequest as middleware } from '../functions/_middleware.js';
 import { onRequest as enrutador } from '../functions/api/[[path]].js';
 import { ROUTES } from '../functions/_manifest.js';
 import { match } from '../functions/_lib/router.js';
+import { ALLOWED_METHODS } from '../functions/_lib/guard.js';
 
 const ORIGEN = 'https://motifyer.com';
 
@@ -45,6 +46,14 @@ const cuerpo = async (/** @type {Response} */ r) => JSON.parse(await r.text());
 
 /** Las cabeceras que un `POST` legítimo lleva. */
 const POST_OK = { Origin: ORIGEN, 'Content-Type': 'application/json' };
+
+test('la lista de métodos aceptados es la que se decidió, y no crece sola', () => {
+    // `PUT` y `PATCH` no están porque nadie los sirve: la sincronización empuja
+    // con `POST` y el borrado usa `DELETE`. `OPTIONS` tampoco, y ése es el
+    // importante: contestar un preflight es habilitar CORS, y esta API es del
+    // mismo origen. Aceptar métodos que nadie atiende solo amplía la superficie.
+    assert.deepEqual([...ALLOWED_METHODS], ['GET', 'HEAD', 'POST', 'DELETE']);
+});
 
 /* ── El endpoint ─────────────────────────────────────────────────────────── */
 

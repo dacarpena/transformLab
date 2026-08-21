@@ -2306,9 +2306,56 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   Aviso de desarrollo que queda escrito en el código: hay que entrar por
   `http://localhost:8788`, no por la IP — el `rpId` sale del `hostname`, y
   WebAuthn no acepta una IP como `rpId`.
-- [ ] **M8-4 · Sesiones y autorización por fila.** Rotación con detección de reuso,
-  revocación, `openUserScope` y los cinco tests estáticos que hacen imposible
-  escribir una consulta sin `WHERE user_id = ?`.
+- [x] **M8-4 · Sesiones y autorización por fila.**
+
+  **La pieza estructural.** El fallo clásico de un servidor multiusuario no es
+  una consulta mal escrita: es una consulta a la que se le olvidó el
+  `WHERE user_id`. Pasa las revisiones porque parece bien, funciona en desarrollo
+  —donde solo hay una cuenta— y en producción devuelve los datos de otra persona.
+
+  Aquí no se resuelve con una convención: **un manejador no tiene físicamente un
+  `D1Database`**. Todo el SQL se muda a `functions/_lib/db.js` —`auth.js` se
+  reescribió para no tener ni una sentencia— y lo que el middleware deja en
+  `ctx.data.scope` es un `Scope` que lleva el `userId` cerrado dentro y cuyos
+  métodos **no aceptan ningún `userId`**. No hay dónde agarrarse.
+
+  Y por si alguien añadiera un método sin la cláusula, `scoped()` lo comprueba
+  **en ejecución**: una guarda estática mira el texto, ésta mira lo que se
+  ejecuta. Las cinco guardas del plan están, y se verificaron reintroduciendo
+  cada defecto: manejador que toca `env.DB` (caen la 1 y la 2), sentencia de
+  `Scope` que esquiva `scoped()` (la 3), método que acepta un `userId` (la 5), y
+  consulta que pierde el `WHERE` (la aduana en ejecución, más el test de dos
+  cuentas). Porque lo estático solo prueba que el texto lo menciona, hay además
+  **dos cuentas de verdad**: el ámbito de Ana no ve nada de Bea ni la toca
+  aunque se le pasen a propósito los identificadores de Bea.
+
+  **Rotación con detección de reuso.** Cada hora el token rota; la fila guarda el
+  hash del anterior. El viejo vale **un minuto más**, y esa gracia no es
+  laxitud: sin ella, perder la respuesta que traía la cookie nueva —una pestaña
+  que se cierra, un túnel que se corta, dos peticiones en paralelo— cerraría la
+  sesión y la marcaría como robo, que es un fallo propio disfrazado de seguridad.
+  Pasado el minuto, presentar el token viejo revoca **la familia entera**: el
+  atacante ya usó el bueno, así que revocar solo el viejo dejaría dentro a quien
+  no debe y fuera al dueño. Hay un test que comprueba justo eso — que el token
+  BUENO también deja de valer.
+
+  Dos plazos, y hacen falta los dos: inactividad de 14 días **deslizante** y vida
+  absoluta de 30 días medida desde `created_at`. La primera versión del test del
+  deslizamiento recorría trece semanas y se puso en rojo en la quinta —por el
+  límite absoluto—: medía otra cosa. Ahora visita los días 10, 20 y 28, que es la
+  ventana donde el deslizamiento es lo único que la mantiene viva.
+
+  La cookie la pone el **middleware**, no los manejadores: si la pusiera cada
+  manejador, el que se olvidara dejaría al usuario con un token que caduca sin
+  renovarse. Y no pisa la que escribe el manejador, para que «salir» no deje al
+  usuario dentro — con su test.
+
+  Al hilo, dos cosas más. `sweepExpired` se cabló a `login/start` con
+  `waitUntil` (no hay cron en el plan gratuito, y un barrido por petición
+  gastaría cuota en el camino crítico de la sincronización). Y se añadió la
+  guarda que aplica al servidor **la lección de E15**: nada de `functions/_lib/`
+  puede estar exportado y sin cablear — una función de seguridad que nadie
+  invoca parece una defensa y no lo es. Cazó una a la primera (`ALLOWED_METHODS`).
 - [ ] **M8-5 · El llavero.** DK, los dos envoltorios (PRF y kit de recuperación),
   la pantalla del kit, la regla dura de no subir nada sin vía de vuelta, y la
   vista **Cuenta**.

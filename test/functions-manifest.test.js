@@ -141,6 +141,38 @@ test('ningún manejador construye una Response saltándose los ayudantes', () =>
     }
 });
 
+test('nada de functions/_lib/ está escrito y sin cablear', () => {
+    // La lección de E15, aplicada al servidor: `renderCoordinatedOffer` estuvo
+    // meses escrita, probada y sin que la llamara nadie, y un invariante que no
+    // gobierna nada del producto es documentación, no garantía. Aquí eso sería
+    // peor: una función de seguridad que nadie invoca —un barrido que no barre,
+    // una revocación que no revoca— parece una defensa y no lo es.
+    //
+    // Se acepta que la use `functions/` O un test: un ayudante probado a fondo y
+    // aún sin consumidor es trabajo en curso legítimo, mientras conste.
+    const consumidores = [
+        ...FICHEROS.map(({ code }) => code),
+        ...readdirSync(join(ROOT, 'test'))
+            .filter((n) => n.endsWith('.test.js') && !isICloudDuplicate(n))
+            .map((n) => readFileSync(join(ROOT, 'test', n), 'utf8'))
+    ].join('\n');
+
+    /** @type {string[]} */ const huerfanas = [];
+    for (const { rel, code } of FICHEROS) {
+        if (!rel.startsWith('_lib/')) continue;
+        for (const m of sinComentarios(code).matchAll(
+            /export\s+(?:async\s+)?(?:function|const|class)\s+(\w+)/g)) {
+            const nombre = m[1];
+            // Se busca el nombre en un contexto de uso, no en cualquier sitio:
+            // su propia declaración no cuenta como consumidor.
+            const usos = [...consumidores.matchAll(new RegExp(`\\b${nombre}\\b`, 'g'))].length;
+            if (usos <= 1) huerfanas.push(`${rel}: ${nombre}`);
+        }
+    }
+    assert.deepEqual(huerfanas, [],
+        `exportadas y sin cablear —una defensa que nadie invoca parece una defensa—: ${huerfanas.join(', ')}`);
+});
+
 /** Quita comentarios de bloque y de línea, para no leer lo que solo se explica. */
 function sinComentarios(/** @type {string} */ code) {
     return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');

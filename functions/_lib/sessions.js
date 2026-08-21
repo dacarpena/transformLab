@@ -1,8 +1,11 @@
 // @ts-check
 
 /**
- * Sesiones: emitir la cookie y reconocerla (M8-3b; la rotación y la revocación
- * llegan en M8-4).
+ * La COOKIE de sesión: sus atributos, su lectura y sus plazos (M8-4).
+ *
+ * Abrir, reconocer, rotar y revocar viven en `db.js`, con el resto del SQL. Aquí
+ * solo hay lo que no toca la base, para que este módulo se pueda importar desde
+ * un test sin montar un D1.
  *
  * ## La cookie
  *
@@ -28,7 +31,6 @@
  * `getRandomValues`.
  */
 
-import { newSessionToken, newFamilyId, truncateIp } from './ids.js';
 import { decode } from './base64url.js';
 import { sha256Bytes } from './webauthn.js';
 
@@ -49,32 +51,6 @@ export async function tokenHash(token) {
     const bytes = decode(token);
     if (!bytes) return null;
     return sha256Bytes(bytes);
-}
-
-/**
- * Abre una sesión y devuelve el token en claro **una sola vez**: es lo que va a
- * la cookie, y no se puede recuperar después.
- *
- * @param {{ db: *, userId: string, credentialId: string | null, ip: string | null, now: number }} entrada
- * @returns {Promise<{ token: string, expiresAt: number }>}
- */
-export async function createSession({ db, userId, credentialId, ip, now }) {
-    const token = newSessionToken();
-    const hash = await tokenHash(token);
-    if (!hash) throw new Error('token ilegible recién generado');
-
-    // El vencimiento guardado es el MENOR de los dos límites. Guardar solo el
-    // absoluto y calcular la inactividad al leer repartiría la regla entre dos
-    // sitios, y el barrido de caducadas se quedaría corto.
-    const expiresAt = now + Math.min(ABSOLUTE_TTL_MS, IDLE_TTL_MS);
-
-    await db.prepare(`INSERT INTO sessions
-            (token_hash, user_id, credential_id, family_id, created_at, last_seen_at, expires_at, ip_trunc)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7)`)
-        .bind(hash, userId, credentialId, newFamilyId(), now, expiresAt, truncateIp(ip))
-        .run();
-
-    return { token, expiresAt };
 }
 
 /**

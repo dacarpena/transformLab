@@ -18,6 +18,7 @@
 
 import { onRequest as health } from './_handlers/health.js';
 import { registerStart, registerFinish, loginStart, loginFinish } from './_handlers/auth.js';
+import { current, logout, logoutAll } from './_handlers/session.js';
 
 /** @type {readonly import('./_lib/router.js').Route[]} */
 export const ROUTES = Object.freeze([
@@ -28,5 +29,10 @@ export const ROUTES = Object.freeze([
     { method: 'POST', path: '/api/auth/register/start', handler: registerStart, auth: false },
     { method: 'POST', path: '/api/auth/register/finish', handler: registerFinish, auth: false },
     { method: 'POST', path: '/api/auth/login/start', handler: loginStart, auth: false },
-    { method: 'POST', path: '/api/auth/login/finish', handler: loginFinish, auth: false }
+    { method: 'POST', path: '/api/auth/login/finish', handler: loginFinish, auth: false },
+
+    // Y las que SÍ piden sesión.
+    { method: 'GET', path: '/api/session', handler: current, auth: true },
+    { method: 'POST', path: '/api/auth/logout', handler: logout, auth: true },
+    { method: 'POST', path: '/api/auth/logout-all', handler: logoutAll, auth: true }
 ]);

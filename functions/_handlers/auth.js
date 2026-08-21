@@ -34,7 +34,13 @@ import {
 } from '../_lib/webauthn.js';
 import { encode } from '../_lib/base64url.js';
 import { newUserId } from '../_lib/ids.js';
-import { createSession, sessionCookie } from '../_lib/sessions.js';
+import { sessionCookie, clearCookie, readCookie } from '../_lib/sessions.js';
+// Todo el SQL vive en `db.js`; aquí no hay ni una sentencia, y hay una guarda
+// estática que lo exige (M8-4). Ver la cabecera de `db.js`.
+import {
+    createChallenge, consumeChallenge, createAccount, findCredential,
+    touchCredential, openSession, openUserScope, sweepExpired
+} from '../_lib/db.js';
 
 /** Cuerpo máximo: una respuesta de WebAuthn son unos pocos KB. */
 const MAX_BODY = 8 * 1024;
@@ -56,10 +62,10 @@ export async function registerStart(ctx) {
     // dentro de la credencial y es lo que vuelve como `userHandle` en el login.
     const userId = newUserId();
 
-    await ctx.env.DB.prepare(
-        `INSERT INTO challenges (hash, purpose, user_id, pending_user_id, created_at, expires_at)
-         VALUES (?1, 'register', NULL, ?2, ?3, ?4)`)
-        .bind(await sha256Bytes(reto), userId, ahora, ahora + CHALLENGE_TTL_MS).run();
+    await createChallenge(ctx.env, {
+        hash: await sha256Bytes(reto), purpose: 'register',
+        userId: null, pendingUserId: userId, now: ahora, ttlMs: CHALLENGE_TTL_MS
+    });
 
     return json({
         challenge: encode(reto),
@@ -95,7 +101,7 @@ export async function registerFinish(ctx) {
     if (typeof b.id !== 'string' || !fromB64u(b.id)) return fail(400, 'body.malformed');
     if (typeof b.algorithm !== 'number') return fail(400, 'body.malformed');
 
-    const reto = await consumirReto(ctx.env.DB, campos.clientDataJSON, 'register');
+    const reto = await consumirReto(ctx.env, campos.clientDataJSON, 'register');
     if (!reto.ok) return fail(400, reto.error);
 
     const { origin, rpId } = sitio(ctx.request);
@@ -108,19 +114,13 @@ export async function registerFinish(ctx) {
     if (!userId) return fail(400, 'challenge.noPendingUser');
 
     const ahora = Date.now();
-    // En un LOTE: si la credencial no entra, la cuenta tampoco. Una cuenta sin
-    // credencial es una cuenta en la que nadie puede entrar nunca — y que el
-    // usuario no puede volver a crear, porque ya está el id ocupado.
-    await ctx.env.DB.batch([
-        ctx.env.DB.prepare('INSERT INTO users (id, created_at) VALUES (?1, ?2)').bind(userId, ahora),
-        ctx.env.DB.prepare(
-            `INSERT INTO credentials (id, user_id, public_key, algorithm, sign_count, created_at, last_used_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`)
-            .bind(b.id, userId, campos.publicKeySpki, b.algorithm, veredicto.value.signCount, ahora)
-    ]);
+    await createAccount(ctx.env, {
+        userId, credentialId: b.id, publicKey: campos.publicKeySpki,
+        algorithm: b.algorithm, signCount: veredicto.value.signCount, now: ahora
+    });
 
-    const sesion = await createSession({
-        db: ctx.env.DB, userId, credentialId: b.id, ip: ipDe(ctx.request), now: ahora
+    const sesion = await openSession(ctx.env, {
+        userId, credentialId: b.id, ip: ipDe(ctx.request), now: ahora
     });
 
     // `protected: false` no es cosmético: es la REGLA DURA. Hasta que el usuario
@@ -141,10 +141,18 @@ export async function loginStart(ctx) {
     const ahora = Date.now();
     const reto = newChallenge();
 
-    await ctx.env.DB.prepare(
-        `INSERT INTO challenges (hash, purpose, user_id, pending_user_id, created_at, expires_at)
-         VALUES (?1, 'login', NULL, NULL, ?2, ?3)`)
-        .bind(await sha256Bytes(reto), ahora, ahora + CHALLENGE_TTL_MS).run();
+    await createChallenge(ctx.env, {
+        hash: await sha256Bytes(reto), purpose: 'login',
+        userId: null, pendingUserId: null, now: ahora, ttlMs: CHALLENGE_TTL_MS
+    });
+
+    // El barrido de caducados va colgado de AQUÍ, y no de cada petición, por
+    // tres razones: el plan gratuito no tiene cron; un barrido por petición
+    // gastaría cuota y CPU en el camino crítico de la sincronización; y un login
+    // ocurre lo bastante a menudo como para que nada se acumule, pero lo bastante
+    // poco como para no notarse. Con `waitUntil` no retrasa la respuesta, y si
+    // falla no la tumba.
+    ctx.waitUntil(sweepExpired(ctx.env, ahora).catch((e) => console.error('sweep', e)));
 
     return json({
         challenge: encode(reto),
@@ -172,12 +180,10 @@ export async function loginFinish(ctx) {
     if (!campos) return fail(400, 'body.malformed');
     if (typeof b.id !== 'string' || !fromB64u(b.id)) return fail(400, 'body.malformed');
 
-    const reto = await consumirReto(ctx.env.DB, campos.clientDataJSON, 'login');
+    const reto = await consumirReto(ctx.env, campos.clientDataJSON, 'login');
     if (!reto.ok) return fail(400, reto.error);
 
-    const credencial = /** @type {*} */ (await ctx.env.DB
-        .prepare('SELECT id, user_id, public_key, sign_count FROM credentials WHERE id = ?1')
-        .bind(b.id).first());
+    const credencial = await findCredential(ctx.env, b.id);
     // Mismo error que una firma mala, y a propósito: distinguir «esa credencial
     // no existe» de «esa firma no vale» convertiría este endpoint en un oráculo
     // de qué credenciales están registradas.
@@ -191,16 +197,14 @@ export async function loginFinish(ctx) {
     if (!veredicto.ok) return fail(401, 'auth.failed');
 
     const ahora = Date.now();
-    await ctx.env.DB.prepare('UPDATE credentials SET sign_count = ?1, last_used_at = ?2 WHERE id = ?3')
-        .bind(veredicto.value.signCount, ahora, credencial.id).run();
+    await touchCredential(ctx.env, { credentialId: credencial.id, signCount: veredicto.value.signCount, now: ahora });
 
-    const sesion = await createSession({
-        db: ctx.env.DB, userId: credencial.user_id, credentialId: credencial.id,
+    const sesion = await openSession(ctx.env, {
+        userId: credencial.user_id, credentialId: credencial.id,
         ip: ipDe(ctx.request), now: ahora
     });
 
-    const usuario = /** @type {*} */ (await ctx.env.DB
-        .prepare('SELECT protected_at FROM users WHERE id = ?1').bind(credencial.user_id).first());
+    const usuario = await openUserScope(ctx.env, credencial.user_id).user();
 
     return json(
         { userId: credencial.user_id, protected: Boolean(usuario?.protected_at) },
@@ -252,24 +256,19 @@ function decodificar(cuerpo, nombres) {
 }
 
 /**
- * Saca el reto del `clientDataJSON` firmado y lo GASTA, atómicamente.
+ * Saca el reto del `clientDataJSON` firmado y lo GASTA.
  *
- * Dos decisiones dentro:
+ * El reto se lee de lo que se FIRMÓ, no de un campo aparte del cuerpo. Si
+ * viniera aparte, el cliente podría hacer que el servidor buscase un reto
+ * distinto del que el autenticador firmó — y entonces la firma dejaría de atar
+ * nada.
  *
- * 1. El reto se lee de lo que se firmó, no de un campo aparte del cuerpo. Si
- *    viniera aparte, el cliente podría hacer que el servidor buscase un reto
- *    distinto del que el autenticador firmó.
- * 2. `DELETE … RETURNING` en vez de `SELECT` y luego `DELETE`. En SQLite es
- *    atómico, así que dos peticiones simultáneas con el mismo reto no pueden
- *    ganar las dos. Con las dos sentencias por separado esa ventana existe, y es
- *    justo la que un reto de un solo uso está para cerrar.
- *
- * @param {*} db
+ * @param {Env} env
  * @param {Uint8Array} clientDataJSON
  * @param {'register' | 'login' | 'add-credential'} purpose
  * @returns {Promise<{ ok: true, value: { challenge: Uint8Array, pendingUserId: string | null, userId: string | null } } | { ok: false, error: string }>}
  */
-async function consumirReto(db, clientDataJSON, purpose) {
+async function consumirReto(env, clientDataJSON, purpose) {
     let datos;
     try {
         datos = JSON.parse(new TextDecoder().decode(clientDataJSON));
@@ -279,11 +278,9 @@ async function consumirReto(db, clientDataJSON, purpose) {
     const reto = fromB64u(datos?.challenge);
     if (!reto) return { ok: false, error: 'clientData.noChallenge' };
 
-    const fila = /** @type {*} */ (await db.prepare(
-        `DELETE FROM challenges
-          WHERE hash = ?1 AND purpose = ?2 AND expires_at > ?3
-      RETURNING pending_user_id, user_id`)
-        .bind(await sha256Bytes(reto), purpose, Date.now()).first());
+    const fila = await consumeChallenge(env, {
+        hash: await sha256Bytes(reto), purpose, now: Date.now()
+    });
 
     // Un reto desconocido, caducado, de otro propósito o ya gastado: el mismo
     // error para los cuatro. Cuál de ellos fue solo le sirve a quien está
