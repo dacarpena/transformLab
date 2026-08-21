@@ -44,6 +44,24 @@ test.beforeEach(async ({ page }) => {
 // había que acordarse de actualizar al añadir una vista (M7-3).
 const VIEWS = VIEW_IDS;
 
+/**
+ * Despliega el detalle del check-in (E15-8). Grasa, cifras de báscula, medidas,
+ * escalas y notas viven ahí desde que el formulario dejó de pedir dieciséis
+ * campos de entrada: el peso era el único obligatorio y pasó a ser lo único que
+ * se ve. Idempotente y sin efecto en el onboarding, que no tiene detalle.
+ */
+async function abrirDetalleCheckin(page) {
+    // La vista de check-in es diferida (`import()`), así que hay que esperar a
+    // que exista antes de buscar el cajón: sin esto la comprobación de
+    // `count()` corre sobre la vista anterior, sale cero y el ayudante no hace
+    // nada — en silencio, que es lo peor.
+    await page.locator('[data-field="weightKg"]').first().waitFor({ state: 'visible', timeout: 15000 });
+    const detalle = page.locator('[data-more]');
+    if (await detalle.count() === 0) return;
+    const abierto = await detalle.first().evaluate((d) => /** @type {HTMLDetailsElement} */ (d).open);
+    if (!abierto) await detalle.first().locator('summary').click();
+}
+
 test('todas las vistas montan sin error de consola', async ({ page }) => {
     /** @type {string[]} */ const errors = [];
     page.on('pageerror', (err) => errors.push(String(err)));
@@ -111,6 +129,7 @@ test('sin mediciones, la tarjeta no puede publicar cifras: ni siquiera se ofrece
 
 test('con un check-in real, el opt-in de peso y %grasa funciona en los dos sentidos', async ({ page }) => {
     await page.locator('[data-view="checkin"]').click();
+    await abrirDetalleCheckin(page);
     await page.fill('[data-field="weightKg"]', '74.2');
     await page.fill('[data-field="fatPct"]', '19.4');
     await page.locator('[data-save]').click();
@@ -128,6 +147,7 @@ test('con un check-in real, el opt-in de peso y %grasa funciona en los dos senti
 
 test('el consentimiento no se hereda al volver a la vista', async ({ page }) => {
     await page.locator('[data-view="checkin"]').click();
+    await abrirDetalleCheckin(page);
     await page.fill('[data-field="weightKg"]', '74.2');
     await page.locator('[data-save]').click();
 

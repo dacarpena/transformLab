@@ -1698,6 +1698,77 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   prohíbe `innerHTML` fuera de `dom.js` — una regla deliberadamente roma, y esa
   rudeza es lo que la hace útil.
 
+- [x] **E15-6 · Las dos direcciones del contrato de i18n.**
+  `test/i18n.test.js` comprobaba que `es` y `en` tienen las MISMAS claves, que no
+  dice nada sobre si son las que el código pide. Por ese hueco entró
+  `today.createPlan`. Ahora se exige que toda clave usada exista y que toda clave
+  del diccionario la use alguien, con los prefijos dinámicos **derivados del
+  fuente**: un catálogo escrito a mano se pudre en cuanto alguien añade un
+  `t()` con plantilla, y entonces el test acusa claves perfectamente usadas, que
+  es la forma más rápida de que alguien lo desactive.
+
+  Dos decisiones que costaron su rato de afinado: se busca **clave a clave**
+  delimitada por comillas en vez de extraer todos los literales con una regex —
+  emparejar comillas con regex se desincroniza con el primer apóstrofo de un
+  comentario en español, y eso hacía que `foods.searchHint` saliera huérfana
+  estando en uso—; y solo cuentan los literales con punto, o entra `key: 'seed'`
+  de `foods-db.js`. Borradas las cinco huérfanas reales.
+
+- [x] **E15-7 · La documentación deja de mentir.**
+  `CLAUDE.md` §7 obliga a leer el plan al abrir sesión, así que lo que ahí ponga
+  es lo que la siguiente sesión da por cierto. Y ponía: rehacer `chart.js` como
+  factoría (hecho en V2-M8, ~600 líneas) y arreglar la recalibración sin báscula
+  (hecha en V2-M9). Más 453 tests donde hay 860, precache de 64 donde hay 102,
+  «las once vistas» donde hay dieciséis, y un `ESTADO.md` que decía «el proyecto
+  acaba de nacer · cabos sueltos: ninguno» sobre 27 000 líneas en producción — y
+  ese fichero lo lee otro sistema.
+
+  La regla que impone `test/docs-truth.test.js`: **una cifra que el árbol conoce,
+  o se deriva o no se escribe.** El número de tests sale del README (cambia en
+  cada commit); el precache y las vistas se comprueban contra `sw.js` y
+  `_manifest.js`; la versión de esquema, contra `version.js`; y las dos entradas
+  rancias del BACKLOG tienen que estar tachadas o el test se cae.
+
+- [x] **E15-8 · Un check-in son un peso y un botón.**
+  El arreglo de la CAUSA RAÍZ. La aplicación no estaba sin acabar: estaba sin
+  alimentar. Cero check-ins, cero ingesta, cero pasos, cero sesiones — y todas
+  las vistas «que no funcionan» son consumidoras de esos datos. La razón es que
+  la única puerta de entrada era un formulario de dieciséis bloques cada semana.
+
+  El peso ya era el único campo obligatorio; ahora es lo único que se VE. El
+  resto —grasa, cifras de báscula, seis perímetros, cuatro escalas y notas— vive
+  tras un resorte. **No se quita nada ni se guarda nada distinto**: los campos
+  siguen en el DOM, así que `readForm` no se entera. Y quien sí los rellena
+  despliega una vez: el estado se recuerda por perfil.
+
+  Y la misma entrada, de un solo campo, aparece en **Hoy**, encima de la gráfica:
+  el bucle diario pasa a costar un número y un toque desde la pantalla de
+  arranque. No son dos mecanismos — escribe por `checkins.save`, el mismo camino
+  y la misma validación.
+
+  **Tres defectos reales encontrados al construirla:**
+
+  1. `checkins.save` conserva por su cuenta las cifras de báscula (`keepOptional`)
+     pero **reconstruye la grasa, los perímetros, las escalas y las notas desde su
+     entrada**. La primera versión del guardado rápido habría borrado los
+     perímetros medidos por la mañana al apuntar el peso por la tarde. Se le
+     devuelven explícitamente; no vale arreglarlo en `save`, porque entonces
+     vaciar un perímetro en el formulario dejaría de borrarlo.
+  2. `settings.read()` reconstruye el objeto campo a campo, así que un ajuste
+     añadido solo al validador **se escribe y no se lee nunca**. El síntoma —«la
+     preferencia no se guarda»— manda a buscar el fallo justo al otro lado. Hay
+     test nuevo que compara las dos listas.
+  3. **`toggle` no burbujea en `<details>`**, así que la delegación normal no lo
+     ve. Enganchado por render sobre el propio elemento tampoco valía: había una
+     carrera real con el montaje diferido de la vista y el usuario podía pulsar
+     antes de que el oyente existiera, perdiendo la preferencia en silencio. La
+     solución es un oyente en fase de **captura** sobre el contenedor estable: la
+     captura sí recorre los eventos que no burbujean. Lo cazó un E2E que fallaba
+     sin esperas y pasaba con ellas, que es como avisan estas carreras.
+
+  Cuatro specs tuvieron que aprender a desplegar el cajón. Que los tests tuvieran
+  que cambiar es la prueba de que la portada del formulario cambió de verdad.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1755,12 +1826,17 @@ unitarios (incluido uno estático: toda vista con `data-chart-host` declara su
 documentación (E15-6/7), el vacío de datos (E15-8/9/10) y la deuda previa al
 backend (E15-11…17).
 
-Siguiente paso concreto: **E15-6**, `test/i18n-usage.test.js` en las dos
-direcciones —ninguna clave usada puede faltar, ninguna sobrante puede quedarse—,
-derivando los prefijos dinámicos del propio fuente en vez de listarlos a mano.
-Presupuestar media etapa solo para afinar el extractor: tiene falsos positivos
-conocidos (`ellipsize` en `chart.js` usa acentos graves dentro de una plantilla;
-`est_e1rm${PARAM_SEP}` no es un prefijo con punto).
+**2026-08-21 · E15-6, E15-7 y E15-8.** Cerradas. **867 unitarios y 216 E2E**
+(dos pasadas seguidas), typecheck limpio.
+
+Siguiente paso concreto: **E15-9**, importar el histórico de pesos por CSV. Es la
+otra mitad de llenar la app: la forma honesta de poblar un almacén vacío son los
+datos reales del usuario, que ya están en otra aplicación. Módulo puro
+`src/data/import-weights.js` que tolere `;`/`,`, coma decimal, `DD/MM/AAAA` e
+ISO, BOM y CRLF, y que NUNCA lance; y el contrato de dos pasos que `backup.js` ya
+estableció (`inspect` → enseñar qué se ha leído y qué se descarta y por qué →
+`apply` solo al confirmar). Una fecha que ya tenga check-in se descarta y se
+cuenta, nunca se sobrescribe.
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa

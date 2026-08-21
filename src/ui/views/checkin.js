@@ -16,6 +16,7 @@ import { listDate, longDate } from '../dates.js';
 import { MEASURE_KEYS, SUBJECTIVE_KEYS } from '../../data/schema.js';
 import * as checkins from '../../data/checkins.js';
 import * as storage from '../../data/storage.js';
+import * as settingsStore from '../../data/settings.js';
 import * as plans from '../plan-state.js';
 import { muscleUnitsOf } from '../muscle-units.js';
 import { fromBioimpedance } from '../../core/scale.js';
@@ -38,9 +39,36 @@ function activeMeasures() {
     return ['waist'];
 }
 
+/**
+ * ¿Este registro lleva algo más que la fecha y el peso?
+ * @param {*} record
+ * @returns {boolean}
+ */
+function hasDetail(record) {
+    if (!record) return false;
+    // Nota: el formulario completo escribe SIEMPRE las cuatro escalas
+    // subjetivas —nacen en 5 aunque nadie las toque—, así que todo lo guardado
+    // desde ahí cuenta como «con detalle». Es lo correcto: si el usuario estuvo
+    // en el formulario detallado, al volver quiere encontrárselo. El único
+    // camino que produce un registro de solo peso es la entrada rápida de Hoy.
+
+    return record.fatPct !== null
+        || record.scaleMuscleKg !== null
+        || record.boneKg !== null
+        || Object.keys(record.measuresCm ?? {}).length > 0
+        || Object.keys(record.subjective ?? {}).length > 0
+        || (record.notes ?? '') !== '';
+}
+
 /** Formulario de alta o edición. */
 function renderForm(/** @type {*} */ existing, /** @type {*} */ dateISO) {
     const measures = activeMeasures();
+    // Se despliega si el registro TRAE detalle, no por el mero hecho de editar:
+    // si trae grasa o medidas y naciera plegado, el usuario vería un formulario
+    // que parece haber perdido sus datos. Pero un registro guardado desde la
+    // entrada rápida de Hoy solo tiene peso, y desplegarle catorce campos vacíos
+    // sería devolverle justo el formulario del que E15-8 viene a sacarlo.
+    const detailOpen = hasDetail(existing) || settingsStore.read().checkinDetailOpen === true;
     const data = plans.get();
     const muscle = muscleUnitsOf(data);
     // El hueso apenas se mueve de una semana a otra, así que se prellena con
@@ -61,6 +89,34 @@ function renderForm(/** @type {*} */ existing, /** @type {*} */ dateISO) {
                            data-field="weightKg" value="${existing ? existing.weightKg : ''}">
                     <span class="field__hint">${t('checkin.field.weightHint')}</span>
                 </label>
+            </div>
+
+            <!-- TODO LO DEMÁS, PLEGADO (E15-8).
+
+                 El formulario pedía dieciséis campos cada semana, y ésa es la
+                 razón de que el almacén estuviera vacío: la app no fallaba, es
+                 que nadie completa dieciséis campos siete días seguidos. El peso
+                 ya era el único obligatorio; lo que faltaba era que fuera lo
+                 único que se VE.
+
+                 No se quita nada ni se guarda nada distinto: los campos siguen
+                 en el DOM (un details cerrado no los saca), así que readForm no
+                 se entera. Quien los rellena solo tiene que desplegar una vez: el
+                 estado se recuerda por perfil.
+
+                 SIN ACENTOS GRAVES aquí dentro: en una plantilla la CIERRAN.
+
+                 Y el atributo va SIN espacio delante dentro de la interpolación:
+                 escapeHtml convierte un espacio en &#32; y el atributo acaba
+                 siendo TEXTO. Es el fallo que dejó el cajón de Analizar
+                 inalcanzable en E14-4. -->
+            <details class="detail" data-more ${detailOpen ? 'open' : ''}>
+                <summary class="detail__summary">
+                    ${t('checkin.moreDetail')}
+                    <span class="muted">${t('checkin.moreDetailHint')}</span>
+                </summary>
+
+            <div class="field-grid">
                 <label class="field">
                     <span class="field__label">${t('checkin.field.fatPct')}</span>
                     <input class="input" type="number" inputmode="decimal" step="0.1"
@@ -121,6 +177,7 @@ function renderForm(/** @type {*} */ existing, /** @type {*} */ dateISO) {
                 <textarea class="input" rows="3" data-field="notes"
                           placeholder="${t('checkin.notesPlaceholder')}">${existing ? existing.notes : ''}</textarea>
             </label>
+            </details>
 
             <div data-messages role="status" aria-live="polite"></div>
             <div class="btn-row">
@@ -244,6 +301,25 @@ function draw(container, /** @type {*} */ editDate) {
 /** @param {HTMLElement} container */
 export function mount(container) {
     draw(container, null);
+
+    // El estado del cajón se guarda con un oyente en fase de CAPTURA sobre el
+    // contenedor. Las dos mitades importan:
+    //
+    // - `toggle` NO burbujea en `<details>`, así que `on(container, 'toggle', …)`
+    //   —que delega en la fase de burbuja— no se entera nunca. La captura sí ve
+    //   los eventos que no burbujean: recorre de la raíz al objetivo siempre.
+    // - Y va en `mount`, sobre el contenedor que el router crea una vez, no
+    //   dentro de `draw` sobre el `<details>` de cada render. Enganchado por
+    //   render había una carrera real con el montaje diferido de la vista: el
+    //   usuario podía pulsar el resorte antes de que el oyente existiera y la
+    //   preferencia se perdía en silencio. Lo cazó un E2E que fallaba sin las
+    //   esperas y pasaba con ellas, que es la forma en que estas carreras avisan.
+    container.addEventListener('toggle', (event) => {
+        const det = event.target;
+        if (det instanceof HTMLDetailsElement && det.hasAttribute('data-more')) {
+            settingsStore.patch({ checkinDetailOpen: det.open });
+        }
+    }, true);
 
     on(container, 'input', '[data-subjective]', () => refreshScales(container));
 

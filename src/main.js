@@ -316,6 +316,9 @@ async function boot() {
     // El aviso «tu objetivo no gana músculo» lleva al asistente, que es donde se
     // corrige. Mismo `editProfile` que Ajustes: una sola puerta (E15-2).
     dashboard.setOnEditProfile(() => editProfile(roots));
+    // Apuntar el peso desde Hoy recalcula el plan igual que hacerlo desde el
+    // formulario completo: mismo `route()`, mismo camino (E15-8).
+    dashboard.setOnSaved(() => route(roots));
 
     // 5 · a rodar
     await route(roots);

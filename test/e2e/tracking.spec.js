@@ -152,6 +152,12 @@ test('registrar un check-in desde el formulario y verlo en el historial', async 
     await expect(page.locator('[data-field="weightKg"]')).toBeVisible();
 
     await page.fill('[data-field="weightKg"]', '73.6');
+
+    // La grasa vive dentro del detalle plegable desde E15-8: el formulario pedía
+    // dieciséis campos cada semana y por eso el almacén estaba vacío. Sigue ahí
+    // entera, a un clic. Que este test tuviera que cambiar es la prueba de que la
+    // portada del formulario cambió de verdad.
+    await page.click('[data-more] > summary');
     await page.fill('[data-field="fatPct"]', '18.5');
     await page.click('[data-save]');
 
@@ -275,4 +281,125 @@ test('recalibrar CONSERVA el músculo ganado también en un perfil estimado (V2-
         // Y es el que llevaba, no uno re-estimado desde cero.
         expect(Math.abs(despues.initial.muscleKg - musculoHoy)).toBeLessThan(1.5);
     }
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-8 · Un check-in son un peso y un botón
+ *
+ * La causa raíz de «las funcionalidades no están acabadas» no era el código: la
+ * aplicación estaba VACÍA —cero check-ins, cero ingesta, cero pasos— porque la
+ * única puerta de entrada era un formulario de dieciséis bloques. El peso ya era
+ * el único campo obligatorio; lo que faltaba era que fuera lo único que se ve, y
+ * que se pudiera apuntar sin salir de la pantalla de arranque.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('el formulario enseña fecha y peso, y pliega el resto', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
+    await page.click('[data-view="checkin"]');
+
+    // Lo obligatorio, a la vista.
+    await expect(page.locator('[data-field="dateISO"]')).toBeVisible();
+    await expect(page.locator('[data-field="weightKg"]')).toBeVisible();
+
+    // Lo demás, plegado pero PRESENTE: nada se ha quitado.
+    await expect(page.locator('[data-field="fatPct"]')).toBeHidden();
+    await expect(page.locator('[data-field="fatPct"]')).toHaveCount(1);
+    await expect(page.locator('[data-subjective]')).toHaveCount(4);
+    await expect(page.locator('[data-field="notes"]')).toHaveCount(1);
+
+    await page.click('[data-more] > summary');
+    await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
+});
+
+test('el detalle desplegado se recuerda entre visitas', async ({ page }) => {
+    // Quien SÍ mide perímetros no debería desplegarlo cada semana.
+    await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
+    await page.click('[data-view="checkin"]');
+    await page.click('[data-more] > summary');
+    await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
+
+    await page.reload();
+    await page.click('[data-view="checkin"]');
+    await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
+});
+
+test('el detalle se despliega si el registro TRAE detalle, no por editar', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
+
+    // 1. Un registro con SOLO peso se reabre PLEGADO: desplegarle catorce campos
+    //    vacíos sería devolverle el formulario del que esta etapa viene a
+    //    sacarlo. Se crea desde la entrada rápida de Hoy, que es el único camino
+    //    que produce un registro así: el formulario completo escribe siempre las
+    //    cuatro escalas subjetivas —nacen en 5 aunque nadie las toque—, de modo
+    //    que todo lo guardado desde ahí cuenta como «con detalle», y está bien
+    //    que así sea: el usuario estaba en el formulario detallado.
+    await page.fill('[data-quick-weight]', '73.6');
+    await page.click('[data-quick-save]');
+    await page.click('[data-view="checkin"]');
+    await expect(page.locator('[data-field="weightKg"]')).toBeVisible();
+    await expect(page.locator('[data-field="fatPct"]')).toBeHidden();
+
+    // 2. Uno CON grasa se reabre desplegado: si no, parecería que se han perdido.
+    await page.click('[data-more] > summary');
+    await page.fill('[data-field="fatPct"]', '18.5');
+    await page.click('[data-save]');
+    await page.reload();
+    await page.click('[data-view="checkin"]');
+    await page.click('[data-edit]');
+    await expect(page.locator('[data-field="fatPct"]')).toBeVisible();
+});
+
+test('desde HOY se apunta el peso sin salir de la pantalla', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
+    await expect(page.locator('#today-title')).toBeVisible();
+
+    await page.fill('[data-quick-weight]', '73.4');
+    await page.click('[data-quick-save]');
+
+    // Ha llegado al almacén por el mismo camino que el formulario completo.
+    await expect.poll(() => page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.length;
+    })).toBe(1);
+
+    await page.click('[data-view="checkin"]');
+    await expect(page.locator('.profile-item').first()).toContainText('73,4');
+});
+
+test('apuntar el peso desde HOY no borra lo que ya se registró ese día', async ({ page }) => {
+    // `checkins.save` conserva por su cuenta las cifras de báscula, pero la
+    // grasa, los perímetros, las escalas y las notas los reconstruye desde su
+    // entrada: sin devolvérselos, apuntar el peso por la tarde borraría los
+    // perímetros medidos por la mañana.
+    await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
+    await page.click('[data-view="checkin"]');
+    await page.fill('[data-field="weightKg"]', '73.6');
+    await page.click('[data-more] > summary');
+    await page.fill('[data-field="fatPct"]', '18.5');
+    await page.fill('[data-measure="waist"]', '84.2');
+    await page.click('[data-save]');
+
+    await page.click('[data-view="today"]');
+    await page.fill('[data-quick-weight]', '73.1');
+    await page.click('[data-quick-save]');
+
+    const registro = await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.at(-1);
+    });
+    expect(registro.weightKg).toBe(73.1);
+    expect(registro.fatPct).toBe(18.5);
+    expect(registro.measuresCm.waist).toBe(84.2);
+});
+
+test('el peso rápido rechaza lo que no es un peso, sin escribir nada', async ({ page }) => {
+    await seedProfile(page, { weeksAgo: 3, checkinWeights: [] });
+    await page.click('[data-quick-save]');
+    await expect(page.locator('.toast')).toContainText(/peso|weight/i);
+
+    const n = await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.checkins'));
+        return JSON.parse(localStorage.getItem(k ?? '') ?? '{"items":[]}').items.length;
+    });
+    expect(n).toBe(0);
 });

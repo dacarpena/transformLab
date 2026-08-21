@@ -45,6 +45,9 @@ test('backup → borrar el perfil → restaurar devuelve TODO lo del usuario', a
     // Datos de verdad en tres colecciones distintas
     await page.locator('[data-view="checkin"]').click();
     await page.fill('[data-field="weightKg"]', '74.1');
+    // La grasa vive tras el resorte desde E15-8: el formulario pedía dieciséis
+    // campos cada semana y por eso el almacén de la gente estaba vacío.
+    await page.locator('[data-more] > summary').click();
     await page.fill('[data-field="fatPct"]', '19.5');
     await page.locator('[data-save]').click();
 

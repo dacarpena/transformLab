@@ -33,6 +33,7 @@ const KEY = 'settings';
  * @property {string[]} activeMeasures
  * @property {boolean} fluctuationVisible
  * @property {{ weekday: number, hour: number } | null} reminder
+ * @property {boolean} [checkinDetailOpen] el detalle del check-in queda desplegado
  * @property {AnalysisSettings} [analysis]
  */
 
@@ -73,6 +74,11 @@ export function read() {
         activeMeasures: v.activeMeasures,
         fluctuationVisible: v.fluctuationVisible,
         reminder: v.reminder ?? null,
+        // OJO: esta función reconstruye el objeto campo a campo, así que un
+        // ajuste nuevo hay que añadirlo AQUÍ además de en el validador. Si no,
+        // se escribe y no se lee nunca — y el síntoma es que la preferencia
+        // «no se guarda», que manda a buscar el fallo en el sitio equivocado.
+        ...(typeof v.checkinDetailOpen === 'boolean' ? { checkinDetailOpen: v.checkinDetailOpen } : {}),
         ...(v.analysis ? { analysis: v.analysis } : {})
     };
 }

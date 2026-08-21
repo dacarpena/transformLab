@@ -22,6 +22,7 @@ import { renderPlanSummary } from '../plan-summary.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { error as errorState } from '../components/state.js';
 import { num } from '../format.js';
+import * as toast from '../components/toast.js';
 
 /** @type {(() => void) | null} */
 let onGoToCheckin = null;
@@ -98,10 +99,31 @@ function renderToday(data, today, /** @type {*} */ evaluations) {
             <div class="projection-note">
                 <span class="projection-note__tag">${t('today.projectionTag')}</span>
                 <p>${latest ? t(`deviation.explain${latest.signal.charAt(0).toUpperCase()}${latest.signal.slice(1)}`) : t('today.projectionNote')}</p>
-                <div class="btn-row">
-                    <button type="button" class="btn btn--sm" data-go-checkin>
-                        ${t(hasCheckins ? 'checkin.pendingAction' : 'today.firstCheckin')}
-                    </button>
+                <!-- APUNTAR EL PESO DESDE AQUÍ (E15-8).
+
+                     La app estaba vacía porque registrar costaba: navegar a
+                     Check-in y rellenar un formulario. Aquí es un número y un
+                     botón, en la pantalla de arranque.
+
+                     No son dos mecanismos: esto escribe por checkins.save, el
+                     mismo de siempre, con la misma validación. Lo que cambia es
+                     la distancia. Y el enlace al formulario completo se queda al
+                     lado, porque hay semanas en las que sí se miden perímetros. -->
+                <div class="quick-weight">
+                    <label class="field field--inline">
+                        <span class="field__label">${t('today.quickWeight.label')}</span>
+                        <input class="input" type="number" inputmode="decimal" step="0.1"
+                               data-quick-weight
+                               placeholder="${t('today.quickWeight.placeholder')}">
+                    </label>
+                    <div class="btn-row">
+                        <button type="button" class="btn btn--primary btn--sm" data-quick-save>
+                            ${t('action.save')}
+                        </button>
+                        <button type="button" class="btn btn--sm" data-go-checkin>
+                            ${t(hasCheckins ? 'checkin.pendingAction' : 'today.firstCheckin')}
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -303,6 +325,46 @@ export function mount(container) {
         if (onGoToProjection) onGoToProjection();
     });
 
+    // Guardar el peso de hoy sin salir de la pantalla de arranque (E15-8).
+    on(container, 'click', '[data-quick-save]', () => {
+        const input = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-quick-weight]'));
+        const weightKg = Number(input?.value);
+        if (!input || !Number.isFinite(weightKg) || weightKg <= 0) {
+            toast.error('today.quickWeight.invalid');
+            input?.focus();
+            return;
+        }
+        const hoy = plans.todayISO();
+        const previo = checkins.findByDate(hoy);
+        // Se guarda por `checkins.save`, el mismo camino y la misma validación
+        // que el formulario completo.
+        //
+        // Y se le DEVUELVEN los campos que ya hubiera de hoy. `save` conserva por
+        // su cuenta las cifras de báscula (`keepOptional` sobre scaleMuscleKg y
+        // boneKg), pero la grasa, los perímetros, las escalas y las notas los
+        // reconstruye desde `input`: sin esto, apuntar el peso por la tarde
+        // borraría los perímetros medidos por la mañana. Y no vale arreglarlo en
+        // `save` haciéndolo conservar todo, porque entonces vaciar un perímetro
+        // en el formulario dejaría de borrarlo.
+        const guardado = checkins.save({
+            dateISO: hoy,
+            weightKg,
+            ...(previo ? {
+                fatPct: previo.fatPct,
+                measuresCm: previo.measuresCm,
+                subjective: previo.subjective,
+                notes: previo.notes ?? ''
+            } : {})
+        }, { nowISO: new Date().toISOString() });
+        if (!guardado.ok) {
+            toast.fromErrorCode(String(guardado.error).split(':')[0]);
+            return;
+        }
+        input.value = '';
+        toast.success('checkin.saved');
+        if (onSaved) onSaved();
+    });
+
     on(container, 'click', '[data-go-checkin]', () => {
         if (onGoToCheckin) onGoToCheckin();
     });
@@ -321,6 +383,19 @@ export function mount(container) {
         const viewId = target.getAttribute('data-go-module');
         if (viewId && onGoToModule) onGoToModule(viewId);
     });
+}
+
+/** @type {(() => void) | null} */
+let onSaved = null;
+
+/**
+ * Qué hacer tras guardar el peso desde aquí. Lo cablea `main.js` al mismo
+ * `route()` que usa el formulario completo: el plan y la desviación se
+ * recalculan igual, venga el dato de donde venga.
+ * @param {() => void} fn
+ */
+export function setOnSaved(fn) {
+    onSaved = fn;
 }
 
 /** @type {(() => void) | null} */

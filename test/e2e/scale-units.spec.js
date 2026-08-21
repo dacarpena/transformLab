@@ -52,6 +52,24 @@ test.beforeEach(async ({ page }) => {
     await page.reload();
 });
 
+/**
+ * Despliega el detalle del check-in (E15-8). Grasa, cifras de báscula, medidas,
+ * escalas y notas viven ahí desde que el formulario dejó de pedir dieciséis
+ * campos de entrada: el peso era el único obligatorio y pasó a ser lo único que
+ * se ve. Idempotente y sin efecto en el onboarding, que no tiene detalle.
+ */
+async function abrirDetalleCheckin(page) {
+    // La vista de check-in es diferida (`import()`), así que hay que esperar a
+    // que exista antes de buscar el cajón: sin esto la comprobación de
+    // `count()` corre sobre la vista anterior, sale cero y el ayudante no hace
+    // nada — en silencio, que es lo peor.
+    await page.locator('[data-field="weightKg"]').first().waitFor({ state: 'visible', timeout: 15000 });
+    const detalle = page.locator('[data-more]');
+    if (await detalle.count() === 0) return;
+    const abierto = await detalle.first().evaluate((d) => /** @type {HTMLDetailsElement} */ (d).open);
+    if (!abierto) await detalle.first().locator('summary').click();
+}
+
 test('el objetivo de 60 kg que la app rechazaba ahora produce un plan', async ({ page }) => {
     await onboardWithScale(page);
 
@@ -121,6 +139,7 @@ test('el check-in pide músculo y hueso, comprueba que cuadran y aparece en Prog
     await expect(page.locator('#today-title')).toBeVisible();
 
     await page.click('[data-go-checkin]');
+    await abrirDetalleCheckin(page);
     await expect(page.locator('[data-field="scaleMuscleKg"]')).toBeVisible();
 
     // el hueso viene prellenado con el del perfil: no se teclea dos veces
@@ -204,6 +223,7 @@ test('un check-in sin hueso sigue sin tragarse un imposible', async ({ page }) =
     await expect(page.locator('#today-title')).toBeVisible();
 
     await page.click('[data-go-checkin]');
+    await abrirDetalleCheckin(page);
     await page.fill('[data-field="weightKg"]', '80.4');
     await page.fill('[data-field="boneKg"]', '');
     await page.fill('[data-field="scaleMuscleKg"]', '150');

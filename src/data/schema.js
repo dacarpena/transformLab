@@ -483,6 +483,16 @@ export const validateSettings = rootValidator({
     // índices de día que solo significan algo dentro de un plan concreto, y
     // restaurarlos sobre un plan recalibrado señalaría un tramo que ya no existe.
     // Al recargar se vuelve al plan entero, que es un sitio del que se sabe salir.
+    // ¿El usuario deja abierto el detalle del check-in? (E15-8). El formulario
+    // pasó a mostrar fecha + peso y a plegar el resto, porque teclear dieciséis
+    // campos cada semana es la razón por la que el almacén estaba vacío. Quien SÍ
+    // los rellena no debería tener que desplegarlo cada vez.
+    //
+    // `opt()` obligatorio, por lo mismo que `analysis`: hay `settings` guardados
+    // desde M3 y exigir esta clave los tumbaría todos.
+    checkinDetailOpen: opt(bool),
+    // Estado de la vista Analizar (E13). `opt()` obligatorio: hay `settings`
+    // guardados desde M3 y exigir esta clave los tumbaría todos.
     analysis: opt(objectOf({
         // 80 y no 40: las series parametrizadas componen su id como
         // `est_e1rm__<exerciseId>`, y el id de un ejercicio importado de un

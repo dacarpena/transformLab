@@ -13,6 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readFileSync } from 'node:fs';
 import { SCHEMA_VERSION, validateCollection } from '../src/data/schema.js';
 
 test('preferencias_antiguas_validan: un registro anterior a V2-M10 no se cae', () => {
@@ -88,4 +89,31 @@ test('la selección de series se acota: nueve no caben y los ids raros se caen',
     assert.equal(conAnalysis({
         seriesIds: [], window: 'custom', grain: 'week', normalize: 'raw'
     }).ok, false, 'una ventana «custom» no se guarda');
+});
+
+test('todo ajuste guardado se vuelve a LEER: read() no puede olvidarse de un campo (E15-8)', () => {
+    // `read()` reconstruye el objeto campo a campo. Eso está bien —solo salen
+    // claves conocidas—, pero tiene un modo de fallo silencioso: un ajuste nuevo
+    // añadido solo al validador se ESCRIBE y no se lee nunca. Pasó con
+    // `checkinDetailOpen`, y el síntoma («la preferencia no se guarda») manda a
+    // buscar el fallo justo al otro lado.
+    //
+    // Este test compara las dos listas: lo que el validador acepta y lo que
+    // `read()` devuelve. No hace falta acordarse de nada la próxima vez.
+    const source = readFileSync(new URL('../src/data/settings.js', import.meta.url), 'utf8');
+    const schema = readFileSync(new URL('../src/data/schema.js', import.meta.url), 'utf8');
+
+    const bloque = schema.match(/export const validateSettings = rootValidator\(\{([\s\S]*?)\n\}\);/);
+    assert.ok(bloque, 'no encuentro validateSettings');
+    const aceptados = [...bloque[1]
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+        .matchAll(/^\s{4}(\w+):/gm)].map((m) => m[1]);
+
+    assert.ok(aceptados.length >= 5, `solo ${aceptados.length} campos: ¿se rompió el extractor?`);
+
+    const leidos = source.slice(source.indexOf('export function read()'));
+    const olvidados = aceptados.filter((campo) => !leidos.includes(campo));
+    assert.deepEqual(olvidados, [],
+        `campos que el validador acepta y read() no devuelve: ${olvidados.join(', ')}`);
 });
