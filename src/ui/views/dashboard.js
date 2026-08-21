@@ -224,6 +224,9 @@ function renderChartSection(/** @type {*} */ data) {
                         role="img"
                         tabindex="0"
                         aria-label="${t('chart.title')}. ${t('chart.readoutHint')}"></canvas>
+                <!-- Hermano del lienzo, no sustituto (E15-5). Sin acentos
+                     graves aquí dentro: en una plantilla la CIERRAN. -->
+                <div data-chart-fallback hidden></div>
             </div>
 
             <p class="chart-readout" data-readout role="status" aria-live="polite"></p>
@@ -307,6 +310,9 @@ export function mount(container) {
     on(container, 'click', '[data-edit-target]', () => {
         if (onEditProfile) onEditProfile();
     });
+
+    // Reintentar la gráfica sin recargar la página (E15-5).
+    on(container, 'click', '[data-action="retry-chart"]', () => { void redraw(container); });
 
     // Cada línea del plan integral lleva a la vista de su módulo. Se delega al
     // router en vez de a un callback por módulo: siete `setOnGoToX` serían

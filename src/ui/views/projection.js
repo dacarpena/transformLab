@@ -268,6 +268,9 @@ function renderChart(/** @type {*} */ data) {
             <div class="chart-wrap chart-wrap--tall" data-chart-host>
                 <canvas data-canvas role="img" tabindex="0"
                         aria-label="${t('projection.chart.title')}. ${t('chart.readoutHint')}"></canvas>
+                <!-- Hermano del lienzo, no sustituto (E15-5). Sin acentos
+                     graves aquí dentro: en una plantilla la CIERRAN. -->
+                <div data-chart-fallback hidden></div>
             </div>
             <!-- La leyenda vive en DOM, no en el lienzo: así usa tokens, la lee
                  un lector de pantalla y refluye a 320 px. El lienzo dibujaba
@@ -732,6 +735,9 @@ export function mount(container) {
         return;
     }
     draw(container);
+
+    // Reintentar la gráfica sin recargar la página (E15-5).
+    on(container, 'click', '[data-action="retry-chart"]', () => { void redraw(container); });
 
     on(container, 'click', '[data-metric]', (_event, target) => {
         metric = /** @type {Metric} */ (target.getAttribute('data-metric'));

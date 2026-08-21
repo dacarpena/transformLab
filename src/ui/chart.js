@@ -1579,13 +1579,63 @@ export function unavailable() {
             <h3 class="state__title">${t('chart.unavailableTitle')}</h3>
             <p class="state__body">${t('chart.unavailableBody')}</p>
             <div class="state__actions">
-                <button type="button" class="btn btn--primary" data-action="reload">${t('action.reload')}</button>
+                <!-- Reintentar PRIMERO y recargar como segunda opción: el fallo
+                     típico es transitorio (el vendor que no llegó, una vista que
+                     se desmontó a media carga) y recargar la página entera para
+                     eso le cuesta al usuario todo lo que tuviera a medias. -->
+                <button type="button" class="btn btn--primary" data-action="retry-chart">${t('chart.retry')}</button>
+                <button type="button" class="btn" data-action="reload">${t('action.reload')}</button>
             </div>
         </div>
     `;
 }
 
-/** Render auxiliar para pruebas del módulo sin Chart.js. */
-export function renderFallback(/** @type {*} */ container) {
-    render(container, unavailable());
+/**
+ * Pinta el estado «no se pudo dibujar» SIN destruir el lienzo (E15-5).
+ *
+ * Antes esto era `render(container, unavailable())` sobre `[data-chart-host]`,
+ * que es el PADRE del `<canvas>`. `render` hace `innerHTML = …`, así que el
+ * lienzo desaparecía del DOM **y no volvía nunca**: los redibujados posteriores
+ * salían por `plan-chart.js` sin log, sin fallback y sin señal, y la única
+ * salida era el botón de recargar. Un fallo transitorio dejaba la vista sin
+ * gráfica para el resto de la sesión.
+ *
+ * Ahora el respaldo va a un HERMANO del lienzo y el lienzo solo se oculta. (Que
+ * `hidden` oculte de verdad es cosa de E15-1b: antes `.chart-wrap canvas` le
+ * ganaba por especificidad y este arreglo no habría funcionado.)
+ *
+ * @param {*} container el `[data-chart-host]` de la vista
+ */
+export function renderFallback(container) {
+    const slot = container?.querySelector?.('[data-chart-fallback]') ?? null;
+    if (!slot) {
+        // Sin hueco no hay lienzo que preservar: es un contenedor de prueba, no
+        // una vista. En el producto no puede pasar — `test/ui-chart.test.js`
+        // exige el hueco allí donde hay un `[data-chart-host]`.
+        render(container, unavailable());
+        return;
+    }
+    render(slot, unavailable());
+    slot.hidden = false;
+    const canvas = container.querySelector('[data-canvas]');
+    if (canvas) canvas.hidden = true;
+}
+
+/**
+ * Quita el respaldo y devuelve el lienzo. Se llama SIEMPRE antes de intentar
+ * dibujar, no solo tras un reintento: así un dibujado que sale bien limpia el
+ * error anterior sin que ninguna vista tenga que acordarse.
+ * @param {*} container
+ */
+export function clearFallback(container) {
+    const slot = container?.querySelector?.('[data-chart-fallback]') ?? null;
+    if (slot) {
+        // `render` y no `innerHTML =`: la regla de `test/security.test.js` es
+        // deliberadamente roma —prohíbe `innerHTML` fuera de `dom.js` sin mirar
+        // si el valor es seguro—, y esa rudeza es justo lo que la hace útil.
+        render(slot, '');
+        slot.hidden = true;
+    }
+    const canvas = container?.querySelector?.('[data-canvas]');
+    if (canvas) canvas.hidden = false;
 }

@@ -149,3 +149,51 @@ function pixelesOpacos(page, selector) {
         return n;
     }, selector);
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-5 · Un fallo transitorio ya no borra el lienzo para siempre
+ *
+ * `renderFallback` hacía `render()` sobre `[data-chart-host]`, que es el PADRE
+ * del `<canvas>`. `render` es `innerHTML = …`, así que el lienzo desaparecía del
+ * DOM y **no volvía nunca**: los redibujados posteriores salían por
+ * `plan-chart.js` sin log, sin respaldo y sin señal, y la única salida era
+ * recargar la página. Un vendor que tardara un instante de más dejaba la vista
+ * sin gráfica para el resto de la sesión.
+ *
+ * `serviceWorkers: 'block'` NO es opcional: `page.route` no intercepta lo que
+ * pide el service worker, y el vendor está precacheado.
+ * ──────────────────────────────────────────────────────────────────────────── */
+test.describe('respaldo de la gráfica', () => {
+    test.use({ serviceWorkers: 'block' });
+
+    test('si el vendor no llega, el lienzo SIGUE en el DOM y reintentar lo dibuja', async ({ page }) => {
+        // Se corta el vendor ANTES de tener plan, para que el primer dibujado falle.
+        await page.route('**/vendor/chart.umd.min.js', (route) => route.abort());
+        await conPlan(page);
+
+        const host = page.locator('[data-view-id="today"] [data-chart-host]');
+        await expect(host.locator('[data-chart-fallback]')).toBeVisible();
+
+        // LO QUE IMPORTA: el lienzo no se ha ido. Antes de E15-5, aquí había cero.
+        await expect(host.locator('[data-canvas]')).toHaveCount(1);
+        await expect(page.locator('[data-action="retry-chart"]')).toBeVisible();
+
+        // Se restablece el vendor y se reintenta SIN recargar la página.
+        await page.unroute('**/vendor/chart.umd.min.js');
+        await page.click('[data-action="retry-chart"]');
+
+        await expect.poll(async () => page.evaluate(() => {
+            const c = /** @type {HTMLCanvasElement|null} */ (
+                document.querySelector('[data-view-id="today"] [data-canvas]'));
+            if (!c) return -1;
+            const d = c.getContext('2d')?.getImageData(0, 0, c.width, c.height).data ?? new Uint8ClampedArray();
+            let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+            return n;
+        }), { timeout: 15000, message: 'el reintento no dibujó' }).toBeGreaterThan(1000);
+
+        // Y el respaldo se retira solo: no se queda un error encima de una
+        // gráfica que ya funciona.
+        await expect(host.locator('[data-chart-fallback]')).toBeHidden();
+        await expect(host.locator('[data-canvas]')).toBeVisible();
+    });
+});

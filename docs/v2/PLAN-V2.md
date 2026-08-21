@@ -1663,6 +1663,41 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   Reescrito para afirmar el invariante de verdad —dos filas de leyenda— y de paso
   las dos mitades honestas del contador.
 
+- [x] **E15-5 · Un fallo transitorio borraba el lienzo para siempre.**
+  `renderFallback` hacía `render()` sobre `[data-chart-host]`, que es el **padre**
+  del `<canvas>`. `render` es `innerHTML = …`, así que el lienzo desaparecía del
+  DOM y no volvía nunca: los redibujados posteriores salían por `plan-chart.js`
+  **sin log, sin respaldo y sin señal**, y la única salida era recargar la página.
+  Un vendor que tardara un instante de más —o una vista que se desmontara a media
+  carga— dejaba la vista sin gráfica para el resto de la sesión.
+
+  El respaldo va ahora a un **hermano** `[data-chart-fallback]` y el lienzo solo
+  se oculta. Que `hidden` oculte de verdad es cosa de E15-1b: antes
+  `.chart-wrap canvas` le ganaba por especificidad y este arreglo no habría
+  funcionado — las dos etapas se necesitan.
+
+  `clearFallback` se llama **siempre que se intenta dibujar**, no solo al
+  reintentar: si no, un dibujado que sale bien por otra vía —cambiar de métrica,
+  ampliar la ventana— dejaría el error en pantalla encima de una gráfica que ya
+  funciona. Y el estado ofrece **reintentar antes que recargar**: el fallo típico
+  es transitorio y recargar cuesta todo lo que el usuario tuviera a medias.
+
+  Los cuatro caminos mudos pasan por `console.error`. El peor era el de
+  `plan-chart.js` sin lienzo: con el lienzo ya borrado por el respaldo, ése era el
+  camino que se tomaba en CADA redibujado posterior, y no había forma de saber por
+  qué la vista se había quedado vacía.
+
+  El E2E corta el vendor con `page.route` —y `serviceWorkers: 'block'`, porque
+  `page.route` no intercepta lo que pide el service worker y el vendor está
+  precacheado—, comprueba que `[data-canvas]` **sigue en el DOM** (antes había
+  cero), reintenta sin recargar y cuenta píxeles.
+
+  De paso, dos trampas del propio proyecto mordieron otra vez: un comentario HTML
+  con acentos graves dentro de una plantilla `html\`\`` **la cierra** (lo
+  documenta E14-4), y `slot.innerHTML = ''` disparó el guardián de seguridad que
+  prohíbe `innerHTML` fuera de `dom.js` — una regla deliberadamente roma, y esa
+  rudeza es lo que la hace útil.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1710,13 +1745,22 @@ clave `analysis.series.countEmpty` en los dos diccionarios, E2E que reproduce la
 cifra exacta de producción, y el test de E13-5 corregido para que deje de afirmar
 el defecto. 852/852 unitarios, **209/209 E2E**, typecheck limpio.
 
-Siguiente paso concreto: **E15-5**, `renderFallback`. Hoy hace `render()` sobre
-`[data-chart-host]`, que es el PADRE del `<canvas>`, así que un fallo transitorio
-—el vendor que no llega, una vista que se desmonta a medias— borra el lienzo del
-DOM y no vuelve nunca: los redibujados posteriores salen por `plan-chart.js:99`
-en silencio. El respaldo debe ir a un HERMANO `[data-chart-fallback]`, con
-`clearFallback` al volver, una acción «reintentar» antes que «recargar», y los
-cuatro fallos mudos pasando por `console.error`.
+**2026-08-21 · E15-5.** Cerrada. Respaldo a un hermano, `clearFallback` en todo
+intento de dibujado, reintento antes que recarga, cuatro logs. Cuatro tests
+unitarios (incluido uno estático: toda vista con `data-chart-host` declara su
+`data-chart-fallback`) y un E2E que corta el vendor y comprueba la vuelta.
+**856/856 unitarios, 210/210 E2E** (dos pasadas seguidas), typecheck limpio.
+
+**Con esto cierra el bloque A: lo que el usuario ve roto.** Quedan los bloques de
+documentación (E15-6/7), el vacío de datos (E15-8/9/10) y la deuda previa al
+backend (E15-11…17).
+
+Siguiente paso concreto: **E15-6**, `test/i18n-usage.test.js` en las dos
+direcciones —ninguna clave usada puede faltar, ninguna sobrante puede quedarse—,
+derivando los prefijos dinámicos del propio fuente en vez de listarlos a mano.
+Presupuestar media etapa solo para afinar el extractor: tiene falsos positivos
+conocidos (`ellipsize` en `chart.js` usa acentos graves dentro de una plantilla;
+`est_e1rm${PARAM_SEP}` no es un prefijo con punto).
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa

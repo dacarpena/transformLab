@@ -162,6 +162,7 @@ export const es = {
     'chart.readout': 'Día {day}, {date}: {weight} kg, {fat} % de grasa, {muscle} kg de músculo. Fase: {phase}.',
     'chart.readoutHint': 'Recorre la gráfica con las flechas del teclado para oír cada punto.',
     'chart.unavailableTitle': 'No se ha podido cargar la gráfica',
+    'chart.retry': 'Reintentar',
     'chart.unavailableBody': 'La librería de gráficos no está disponible. El resto de la aplicación funciona con normalidad y tus datos están intactos.',
     'chart.milestoneModalTitle': 'Hito',
     'chart.milestoneDay': 'Día {day} · {date}',

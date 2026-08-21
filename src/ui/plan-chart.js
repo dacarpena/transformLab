@@ -98,12 +98,22 @@ export async function drawPlanChart(container, options = {}) {
     const host = /** @type {HTMLElement | null} */ (container.querySelector('[data-chart-host]'));
     const canvas = /** @type {HTMLCanvasElement | null} */ (container.querySelector('[data-canvas]'));
     const readout = /** @type {HTMLElement | null} */ (container.querySelector('[data-readout]'));
-    if (!host || !canvas || !readout) return fallo;
+    if (!host || !canvas || !readout) {
+        // Este camino era MUDO, y es el que se tomaba una y otra vez cuando el
+        // respaldo había borrado el lienzo: sin lienzo no hay dibujo, y sin log
+        // no hay forma de saber por qué la vista se quedó vacía (E15-5).
+        console.error('[plan-chart] falta el andamiaje de la gráfica',
+            { host: !!host, canvas: !!canvas, readout: !!readout });
+        return fallo;
+    }
 
     if (!await chart.ensureLoaded()) {
         chart.renderFallback(host);
         return fallo;
     }
+    // Un dibujado que sale bien limpia el error anterior, sin que ninguna vista
+    // tenga que acordarse de hacerlo.
+    chart.clearFallback(host);
     // El usuario puede haber cambiado de vista mientras llegaba el vendor: sin
     // esto se dibujaría sobre un lienzo ya desconectado del documento.
     if (!container.isConnected) return fallo;
@@ -153,7 +163,10 @@ export async function drawPlanChart(container, options = {}) {
         }
     });
 
-    if (!ok) chart.renderFallback(host);
+    if (!ok) {
+        console.error('[plan-chart] la gráfica del plan no se pudo dibujar', { metric });
+        chart.renderFallback(host);
+    }
     const drawn = checkinPoints.filter((c) => chart.checkinAppliesTo(metric, muscle.isScale, c));
     return { ok, checkinCount: drawn.length, chart: instance };
 }

@@ -20,6 +20,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createChart, milestoneLabel, unavailable, seriesAnchors, phaseSpansOf, legendEntriesOf, legendHeight } from '../src/ui/chart.js';
 
 /**
@@ -400,4 +401,56 @@ test('legendHeight crece con las filas y vale 0 sin entradas', () => {
     // Y en un lienzo estrecho, las mismas ocho necesitan más filas todavía.
     assert.ok(legendHeight(ocho, 320) > legendHeight(ocho, 1600),
         'a menos ancho, más filas de leyenda');
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-5 · El respaldo no puede matar el lienzo
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('el estado de respaldo ofrece REINTENTAR antes que recargar', () => {
+    // Recargar la página entera por un vendor que no llegó le cuesta al usuario
+    // todo lo que tuviera a medias. El reintento es la salida barata, y va
+    // primera; recargar se queda como segunda.
+    const html = String(unavailable());
+    const reintentar = html.indexOf('data-action="retry-chart"');
+    const recargar = html.indexOf('data-action="reload"');
+    assert.ok(reintentar > -1, 'falta la acción de reintentar');
+    assert.ok(recargar > -1, 'falta la acción de recargar');
+    assert.ok(reintentar < recargar, 'reintentar tiene que ir ANTES que recargar');
+});
+
+test('toda vista con lienzo declara el hueco del respaldo, o el respaldo lo borraría', () => {
+    // `renderFallback` pinta en `[data-chart-fallback]` y oculta el lienzo. Sin
+    // ese hueco cae al camino antiguo —`render()` sobre el contenedor—, que es
+    // exactamente el defecto que E15-5 cerró: el `<canvas>` desaparecía del DOM
+    // y no volvía nunca.
+    const dir = new URL('../src/ui/views/', import.meta.url);
+    const sinHueco = readdirSync(dir)
+        .filter((f) => f.endsWith('.js'))
+        .filter((f) => {
+            const src = readFileSync(new URL(f, dir), 'utf8');
+            return src.includes('data-chart-host') && !src.includes('data-chart-fallback');
+        });
+    assert.deepEqual(sinHueco, [], `vistas con lienzo y sin hueco de respaldo: ${sinHueco.join(', ')}`);
+});
+
+test('el respaldo se limpia SIEMPRE al dibujar, no solo al reintentar', () => {
+    // Si solo se limpiara en el reintento, un dibujado que sale bien por otra vía
+    // —cambiar de métrica, ampliar la ventana— dejaría el error en pantalla
+    // encima de una gráfica que ya funciona.
+    const planChart = readFileSync(new URL('../src/ui/plan-chart.js', import.meta.url), 'utf8');
+    assert.match(planChart, /clearFallback/, 'plan-chart.js debe limpiar el respaldo al dibujar');
+    const analysis = readFileSync(new URL('../src/ui/views/analysis.js', import.meta.url), 'utf8');
+    assert.match(analysis, /clearFallback/, 'analysis.js debe limpiar el respaldo al dibujar');
+});
+
+test('ningún camino de fallo de la gráfica es mudo', () => {
+    // El peor de todos era `plan-chart.js`: sin lienzo salía con `return fallo`
+    // sin log, sin respaldo y sin señal. Con el lienzo ya borrado por el
+    // respaldo, ése era el camino que se tomaba en CADA redibujado posterior, y
+    // no había forma de saber por qué la vista se había quedado vacía.
+    const planChart = readFileSync(new URL('../src/ui/plan-chart.js', import.meta.url), 'utf8');
+    assert.match(planChart, /console\.error\('\[plan-chart\]/);
+    const analysis = readFileSync(new URL('../src/ui/views/analysis.js', import.meta.url), 'utf8');
+    assert.match(analysis, /console\.error\('\[analysis\]/);
 });

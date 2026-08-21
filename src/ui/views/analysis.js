@@ -430,6 +430,9 @@ function view() {
                 <canvas data-canvas role="img" tabindex="0"
                         aria-label="${t('analysis.chart.label', { count: selected.length })}"
                         aria-describedby="analysis-keys"></canvas>
+                <!-- Hermano del lienzo, no sustituto (E15-5). Sin acentos
+                     graves aquí dentro: en una plantilla la CIERRAN. -->
+                <div data-chart-fallback hidden></div>
             </div>
             <div class="context-strip" data-context-strip hidden></div>
             <p id="analysis-keys" class="visually-hidden">${t('analysis.readout.hint')}</p>
@@ -667,9 +670,13 @@ async function redraw(/** @type {HTMLElement} */ container) {
     if (!data) return;
     const host = /** @type {HTMLElement | null} */ (container.querySelector('[data-chart-host]'));
     const canvas = /** @type {HTMLCanvasElement | null} */ (container.querySelector('[data-canvas]'));
-    if (!host || !canvas) return;
+    if (!host || !canvas) {
+        console.error('[analysis] falta el andamiaje de la gráfica', { host: !!host, canvas: !!canvas });
+        return;
+    }
 
     if (!await chart.ensureLoaded()) {
+        console.error('[analysis] el vendor de Chart.js no llegó');
         chart.renderFallback(host);
         return;
     }
@@ -699,7 +706,13 @@ async function redraw(/** @type {HTMLElement} */ container) {
         // A 320 px, ocho rótulos en el eje X se solapan.
         ...(isNarrow() ? { maxTicks: 4 } : {})
     });
-    if (!manifest.ok && manifest.status === 'noChart') chart.renderFallback(host);
+    if (!manifest.ok && manifest.status === 'noChart') {
+        console.error('[analysis] la gráfica no se pudo dibujar', manifest.status);
+        chart.renderFallback(host);
+    } else {
+        // Un dibujado que sale bien limpia el error anterior (E15-5).
+        chart.clearFallback(host);
+    }
 
     // La leyenda se REHACE desde el manifiesto, siempre. Es la regla que impide
     // que anuncie una serie que el lienzo no dibujó.
@@ -1111,6 +1124,10 @@ export async function mount(/** @type {HTMLElement} */ container) {
 }
 
 function wire(/** @type {HTMLElement} */ container) {
+    // El respaldo ofrece reintentar antes que recargar: el fallo típico es
+    // transitorio y recargar cuesta todo lo que el usuario tuviera a medias.
+    on(container, 'click', '[data-action="retry-chart"]', () => { void redraw(container); });
+
     // Dos selectores, un oyente. El botón de la barra lleva `data-open-picker`;
     // el del estado sin selección lo pinta `components/state.js`, que SIEMPRE
     // emite `data-action="<id>"`. Estaba declarado como `openPicker` y nadie lo
