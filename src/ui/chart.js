@@ -22,7 +22,7 @@ import { muscleUnitsFor } from './muscle-units.js';
 import { axisLabel, longDate } from './dates.js';
 import { num } from './format.js';
 import { UNITS } from '../core/series-catalog.js';
-import { planAxes, axisIdFor, styleFor, rebase, MAX_SERIES } from './series-style.js';
+import { planAxes, axisIdFor, styleFor, rebase, axisSpan, MAX_SERIES } from './series-style.js';
 
 /** @typedef {import('../core/generator.js').Projection} Projection */
 /** @typedef {import('../core/engine.js').PhasePlan} PhasePlan */
@@ -44,7 +44,7 @@ import { planAxes, axisIdFor, styleFor, rebase, MAX_SERIES } from './series-styl
  * @property {{ from: number, to: number }} range ventana visible, en índices de día
  * @property {(value: number, span: number) => string} xTickLabel rótulo del eje X
  * @property {(items: *[]) => string} [tooltipTitle]
- * @property {Array<{ id: string, position: 'left'|'right', beginAtZero?: boolean }>} [yAxes]
+ * @property {Array<{ id: string, position: 'left'|'right', beginAtZero?: boolean, minSpan?: number }>} [yAxes]
  *   omitido = UN eje `y` a la izquierda y **cero `yAxisID` en los datasets**, que
  *   es exactamente la configuración que produce hoy el camino de una métrica
  * @property {*[]} [extraPlugins]
@@ -531,6 +531,57 @@ export function seriesAnchors(projection, grain) {
  */
 
 /**
+ * La unidad del catálogo que corresponde a cada métrica del camino de UNA sola
+ * serie (`draw`).
+ *
+ * Existe para que ese camino comparta el suelo de eje con el de varias series
+ * en vez de tener su propia tabla de cifras: si divergieran, la misma serie se
+ * dibujaría con dos escalas mínimas distintas según la vista desde la que se
+ * mira, que es exactamente la clase de incoherencia que este proyecto persigue.
+ *
+ * @param {'weight'|'fatPct'|'muscle'|'kcal'} metric
+ * @param {boolean} isScale el perfil habla en unidades de báscula
+ * @returns {number | undefined}
+ */
+function minSpanForMetric(metric, isScale) {
+    if (metric === 'fatPct') return UNITS.pct?.minSpan;
+    if (metric === 'kcal') return UNITS.kcal?.minSpan;
+    if (metric === 'muscle') {
+        return (isScale ? UNITS.kgMuscleScale : UNITS.kgMuscleSkeletal)?.minSpan;
+    }
+    return UNITS.kgBody?.minSpan;
+}
+
+/**
+ * Recorrido real de los datos que van a parar a un eje.
+ *
+ * `singleAxis` existe porque con un solo eje los datasets NO llevan `yAxisID`
+ * —es una regla dura de `series-style.js`: escribirlo cambiaría la
+ * configuración que produce el camino de una sola métrica, cuyos contratos de
+ * test son posicionales—. Así que ahí valen todos.
+ *
+ * @param {*[]} datasets
+ * @param {string} axisId
+ * @param {boolean} singleAxis
+ * @returns {{ min: number, max: number } | null} `null` si no hay un solo valor finito
+ */
+function axisExtent(datasets, axisId, singleAxis) {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const ds of datasets ?? []) {
+        if (!singleAxis && (ds?.yAxisID ?? 'y') !== axisId) continue;
+        for (const point of ds?.data ?? []) {
+            const y = typeof point === 'number' ? point : point?.y;
+            if (!Number.isFinite(y)) continue;
+            if (y < min) min = y;
+            if (y > max) max = y;
+        }
+    }
+    return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
+}
+
+
+/**
  * Crea una gráfica con su PROPIO estado (V2-M8).
  *
  * POR QUÉ DEJÓ DE SER UN SINGLETON. Hasta aquí `chartInstance`, `cursor`,
@@ -857,6 +908,14 @@ export function createChart() {
             canvas: options.canvas,
             datasets,
             range,
+            // Se declara el eje explícitamente —antes se dejaba el implícito—
+            // solo para poder darle su suelo de recorrido. `id`, `position` y la
+            // ausencia de `beginAtZero` reproducen exactamente el que había.
+            yAxes: [{
+                id: 'y',
+                position: 'left',
+                minSpan: minSpanForMetric(metric, muscleUnits.isScale)
+            }],
             xTickLabel: (value, span) => {
                 const point = projection.daily[Math.round(value)];
                 return point ? axisLabel(point.dateISO, span) : '';
@@ -980,7 +1039,11 @@ export function createChart() {
                 // El cero solo se fuerza donde significa algo. Forzarlo en un
                 // peso corporal aplasta la serie contra el techo y esconde justo
                 // la variación que se quiere ver.
-                beginAtZero: options.normalize === 'delta' ? false : UNITS[a.unit]?.zeroMeaningful === true
+                beginAtZero: options.normalize === 'delta' ? false : UNITS[a.unit]?.zeroMeaningful === true,
+                // En modo «cambio desde el inicio» la unidad real del eje es el
+                // porcentaje, no la de la serie: usar el suelo de kilos ahí
+                // ensancharía el eje 2 puntos porcentuales por nada.
+                minSpan: options.normalize === 'delta' ? UNITS.pct?.minSpan : UNITS[a.unit]?.minSpan
             })),
             xTickLabel: (value, span) => {
                 const point = projection.daily[Math.round(value)];
@@ -1136,8 +1199,10 @@ export function createChart() {
         /** El eje Y implícito, o los que pida el llamador. Ver `yAxes`. */
         /** @type {Record<string, *>} */
         const yScales = {};
-        for (const axis of options.yAxes ?? [{ id: 'y', position: 'left' }]) {
-            yScales[axis.id] = {
+        const ejes = options.yAxes ?? [{ id: 'y', position: 'left' }];
+        for (const axis of ejes) {
+            /** @type {Record<string, *>} */
+            const scale = {
                 position: axis.position,
                 ticks: { color: muted },
                 // Dos rejillas superpuestas convierten el fondo en papel
@@ -1145,6 +1210,24 @@ export function createChart() {
                 grid: { color: grid, drawOnChartArea: axis.position !== 'right' },
                 ...(axis.beginAtZero === true ? { beginAtZero: true } : {})
             };
+
+            // Suelo de recorrido (E15-3). Sin esto, Chart.js autoescala al
+            // extent de los datos y una serie plana se dibuja como una montaña
+            // rusa de ruido de báscula. No aplica a los ejes que arrancan en
+            // cero: ésos ya tienen su recorrido acotado por la MAGNITUD del
+            // dato, no por su variación.
+            if (axis.beginAtZero !== true && Number.isFinite(axis.minSpan)) {
+                const extent = axisExtent(datasets, axis.id, ejes.length <= 1);
+                if (extent) {
+                    // `suggested*` y no `min`/`max`: ensancha cuando hace falta
+                    // pero deja a Chart.js elegir los ticks, y no impide que el
+                    // eje crezca más si los datos lo piden.
+                    const span = axisSpan(extent.min, extent.max, /** @type {number} */ (axis.minSpan));
+                    scale.suggestedMin = span.min;
+                    scale.suggestedMax = span.max;
+                }
+            }
+            yScales[axis.id] = scale;
         }
 
         chartInstance = new Chart(options.canvas, {

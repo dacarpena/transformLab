@@ -49,7 +49,9 @@ async function seedConObjetivo(page, targetMuscleKg) {
         }));
         localStorage.setItem(`${P}${PROFILE_ID}.settings`, JSON.stringify({
             schemaVersion: V, locale: 'es', activeMeasures: ['waist'],
-            fluctuationVisible: false, reminder: null
+            fluctuationVisible: false, reminder: null,
+            // Una sola serie, y la que se desploma: el músculo previsto.
+            analysis: { seriesIds: ['proj_muscle_kg'], window: 'all', grain: 'week', normalize: 'raw' }
         }));
         localStorage.setItem(`${P}${PROFILE_ID}.ui.activeView`, '"today"');
     }, { targetMuscleKg, PROFILE_ID, P, V });
@@ -94,4 +96,52 @@ test('el objetivo degenerado NO se corrige solo: sigue guardado tal cual (B9)', 
         JSON.parse(localStorage.getItem(`${P}${PROFILE_ID}.profile`) ?? '{}').target.muscleKg,
     { P, PROFILE_ID });
     expect(guardado).toBe(32.5);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-3 · El eje Y deja de convertir el ruido en un desplome
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Recorrido del eje Y de la única instancia de Chart.js viva. */
+async function recorridoEjeY(page) {
+    return page.evaluate(() => {
+        const insts = Object.values(window.Chart?.instances ?? {});
+        const y = insts[0]?.scales?.y;
+        return y && Number.isFinite(y.min) && Number.isFinite(y.max)
+            ? { min: y.min, max: y.max, span: y.max - y.min }
+            : null;
+    });
+}
+
+async function irAAnalizar(page) {
+    const directo = page.locator('[data-view="analysis"]');
+    if (await directo.count() === 0 || !(await directo.first().isVisible())) {
+        await page.locator('[data-nav-more]').click();
+    }
+    await directo.first().click();
+    await expect(page.locator('[data-view-id="analysis"] [data-canvas]')).toBeVisible({ timeout: 15000 });
+    // Chart.js anima 250 ms: sin esperar, `scales.y` todavía no está resuelto.
+    await expect.poll(async () => (await recorridoEjeY(page)) !== null, { timeout: 10000 }).toBe(true);
+}
+
+test('una serie de músculo plana NO se dibuja como un desplome: el eje tiene suelo', async ({ page }) => {
+    await seedConObjetivo(page, 32.5);
+    await irAAnalizar(page);
+
+    const eje = await recorridoEjeY(page);
+    expect(eje).not.toBeNull();
+    // Sin el suelo, el recorrido medido en producción era 0,4 kg: el ruido de la
+    // báscula ocupando el lienzo entero. `kgMuscleSkeletal.minSpan` son 2 kg.
+    expect(/** @type {*} */ (eje).span).toBeGreaterThanOrEqual(2);
+});
+
+test('el suelo no aplasta una serie que SÍ se mueve', async ({ page }) => {
+    // Con un objetivo real, el recorrido de los datos manda y el eje lo respeta:
+    // el suelo ensancha, nunca encoge.
+    await seedConObjetivo(page, 38);
+    await irAAnalizar(page);
+
+    const eje = await recorridoEjeY(page);
+    expect(eje).not.toBeNull();
+    expect(/** @type {*} */ (eje).span).toBeGreaterThan(2);
 });

@@ -178,6 +178,40 @@ export function axisIdFor(plan, index) {
 }
 
 /**
+ * Ensancha un recorrido de eje hasta un mínimo, centrado en su punto medio.
+ *
+ * Chart.js autoescala el eje Y al extent de los datos, y eso hace que la
+ * gráfica mienta al alza cuando la serie es plana: medido en producción, un
+ * músculo previsto de 32,487 a 32,500 kg produjo un eje `[32,10 – 32,50]` en el
+ * que 0,4 kg de oscilación —el ruido de cualquier báscula doméstica— llenaban
+ * el lienzo y se leían como un desplome catastrófico. No era un fallo de la
+ * gráfica: dibujaba fielmente unos datos sin señal, a toda página.
+ *
+ * El suelo se aplica **centrado**, no anclando el mínimo: mover solo un extremo
+ * desplazaría la serie hacia un borde y sugeriría una tendencia que no existe.
+ *
+ * Puro y sin DOM, para probarlo desde Node. El llamador decide si lo usa como
+ * `min`/`max` duros o como `suggestedMin`/`suggestedMax` —`chart.js` hace lo
+ * segundo, para que Chart.js siga eligiendo ticks bonitos y pueda crecer más si
+ * los datos lo piden.
+ *
+ * @param {number} min extremo inferior real de los datos
+ * @param {number} max extremo superior real
+ * @param {number} minSpan recorrido mínimo aceptable para esa unidad
+ * @returns {{ min: number, max: number }} sin tocar si ya era bastante ancho
+ */
+export function axisSpan(min, max, minSpan) {
+    // Entrada no numérica: se devuelve tal cual. Un eje mal escalado es un
+    // defecto visual; lanzar aquí dejaría la vista sin gráfica.
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return { min, max };
+    if (!Number.isFinite(minSpan) || minSpan <= 0) return { min, max };
+    if (max - min >= minSpan) return { min, max };
+    const mid = (min + max) / 2;
+    const half = minSpan / 2;
+    return { min: mid - half, max: mid + half };
+}
+
+/**
  * @typedef {'raw'|'delta'} NormalizeMode
  */
 

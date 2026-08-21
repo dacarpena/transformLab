@@ -107,23 +107,49 @@ import { e1rmSeries, tonnageSeries } from './training.js';
  * no un dato). Lo usa el planificador de ejes para decidir si el eje arranca en
  * cero: forzar el cero en un peso corporal aplasta la serie contra el techo y
  * esconde justo la variación que se quiere ver.
+ *
+ * `minSpan` es el recorrido MÍNIMO que puede ocupar el eje de esa unidad, y
+ * existe porque sin él la gráfica miente al alza (E15-3). Chart.js autoescala
+ * el eje al extent de los datos, así que una serie plana se dibuja como una
+ * montaña rusa: medido en producción, un músculo previsto que iba de 32,487 a
+ * 32,500 kg produjo un eje `[32,10 – 32,50]` en el que 0,4 kg de oscilación
+ * —que es el ruido de cualquier báscula doméstica— llenaban el lienzo entero y
+ * se leían como un desplome catastrófico.
+ *
+ * **La regla para fijar cada cifra: por debajo de `minSpan`, lo que el eje
+ * dibuja es error de medida, no señal.** Cada valor lleva su justificación.
  */
 export const UNITS = Object.freeze({
-    kgBody: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false }),
-    kgMuscleSkeletal: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false }),
-    kgMuscleScale: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false }),
-    kgMuscleGroup: Object.freeze({ key: 'unit.kg', decimals: 2, zeroMeaningful: false }),
-    kgLoad: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false }),
-    kgTonnage: Object.freeze({ key: 'unit.kg', decimals: 0, zeroMeaningful: true }),
-    kgDelta: Object.freeze({ key: 'unit.kg', decimals: 2, zeroMeaningful: true }),
-    pct: Object.freeze({ key: 'unit.pct', decimals: 1, zeroMeaningful: false }),
-    kcal: Object.freeze({ key: 'unit.kcal', decimals: 0, zeroMeaningful: false }),
-    kcalDelta: Object.freeze({ key: 'unit.kcal', decimals: 0, zeroMeaningful: true }),
-    g: Object.freeze({ key: 'unit.g', decimals: 0, zeroMeaningful: true }),
-    cm: Object.freeze({ key: 'unit.cm', decimals: 1, zeroMeaningful: false }),
-    steps: Object.freeze({ key: 'unit.steps', decimals: 0, zeroMeaningful: true }),
-    sets: Object.freeze({ key: 'unit.sets', decimals: 0, zeroMeaningful: true }),
-    ratio10: Object.freeze({ key: 'unit.ratio10', decimals: 0, zeroMeaningful: false })
+    // minSpan 2: el peso corporal oscila ~1 % intrasemanal por agua, glucógeno y contenido intestinal (Bhutani 2017, la misma fuente de `toleranceFloorPct`): a 85 kg son ~1,1 kg de puro ruido.
+    kgBody: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false, minSpan: 2 }),
+    // minSpan 2: mismo orden de magnitud que el peso, y ninguna estimación de músculo doméstica resuelve por debajo de 1 kg.
+    kgMuscleSkeletal: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false, minSpan: 2 }),
+    // minSpan 2: ídem en unidades de báscula: el offset con la esquelética es constante, así que el ruido es el mismo.
+    kgMuscleScale: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false, minSpan: 2 }),
+    // minSpan 0.5: un grupo muscular pesa entre 2 y 8 kg; medio kilo es el escalón por debajo del cual el reparto anatómico ya no distingue.
+    kgMuscleGroup: Object.freeze({ key: 'unit.kg', decimals: 2, zeroMeaningful: false, minSpan: 0.5 }),
+    // minSpan 5: los discos van de 1,25 en 1,25 kg y las progresiones saltan de 2,5 en 2,5: menos de 5 kg de eje es dibujar el grosor del disco.
+    kgLoad: Object.freeze({ key: 'unit.kg', decimals: 1, zeroMeaningful: false, minSpan: 5 }),
+    // minSpan 500: una sesión mueve varias toneladas; 500 kg es el orden de una serie de más o de menos.
+    kgTonnage: Object.freeze({ key: 'unit.kg', decimals: 0, zeroMeaningful: true, minSpan: 500 }),
+    // minSpan 1: un delta de peso por debajo de 1 kg está dentro del ruido de la báscula.
+    kgDelta: Object.freeze({ key: 'unit.kg', decimals: 2, zeroMeaningful: true, minSpan: 1 }),
+    // minSpan 2: ningún método doméstico de grasa corporal resuelve mejor de ±1–3 puntos porcentuales.
+    pct: Object.freeze({ key: 'unit.pct', decimals: 1, zeroMeaningful: false, minSpan: 2 }),
+    // minSpan 300: la incertidumbre de una estimación de TDEE ronda las ±200–300 kcal, y una comida normal ya son 500.
+    kcal: Object.freeze({ key: 'unit.kcal', decimals: 0, zeroMeaningful: false, minSpan: 300 }),
+    // minSpan 300: mismo argumento sobre la diferencia.
+    kcalDelta: Object.freeze({ key: 'unit.kcal', decimals: 0, zeroMeaningful: true, minSpan: 300 }),
+    // minSpan 20: los macros se prescriben redondeados a 5 g; 20 g es una ración pequeña.
+    g: Object.freeze({ key: 'unit.g', decimals: 0, zeroMeaningful: true, minSpan: 20 }),
+    // minSpan 4: la repetibilidad de una cinta métrica sobre el mismo perímetro ronda 1 cm entre tomas.
+    cm: Object.freeze({ key: 'unit.cm', decimals: 1, zeroMeaningful: false, minSpan: 4 }),
+    // minSpan 2000: dos mil pasos son ~15 minutos de caminar: por debajo de eso el eje dibuja en qué momento del día se miró el móvil.
+    steps: Object.freeze({ key: 'unit.steps', decimals: 0, zeroMeaningful: true, minSpan: 2000 }),
+    // minSpan 4: el volumen se prescribe en series enteras y los rangos semanales van de 10 a 20.
+    sets: Object.freeze({ key: 'unit.sets', decimals: 0, zeroMeaningful: true, minSpan: 4 }),
+    // minSpan 2: son escalas de 0 a 10 con un solo decimal de resolución humana: dos puntos es el escalón mínimo con sentido.
+    ratio10: Object.freeze({ key: 'unit.ratio10', decimals: 0, zeroMeaningful: false, minSpan: 2 })
 });
 
 /** Los perímetros que el usuario puede registrar. Espejo de `MEASURE_KEYS`. */

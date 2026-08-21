@@ -13,8 +13,7 @@ import assert from 'node:assert/strict';
 
 import {
     PROVENANCE_STYLE, SLOT_POINT_STYLE, MAX_SERIES, MIN_MARKERS_VISIBLE,
-    markerEvery, styleFor, planAxes, axisIdFor, rebase
-} from '../src/ui/series-style.js';
+    markerEvery, styleFor, planAxes, axisIdFor, rebase, axisSpan} from '../src/ui/series-style.js';
 import { translateSeries, muscleUnitsFor } from '../src/ui/muscle-units.js';
 
 const PALETA = ['#111111', '#222222', '#333333', '#444444'];
@@ -242,4 +241,54 @@ test('la aduana traduce también la banda, o la gráfica se descuadra', () => {
     // Y el extent se recalcula: si no, el eje se dimensionaría con las cifras
     // viejas y la línea se saldría del área.
     assert.equal(r.extent.min, BASCULA.toDisplay(30));
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-3 · El eje deja de amplificar el ruido de medida
+ *
+ * Chart.js autoescala el eje Y al extent de los datos. Con una serie plana eso
+ * dibuja una montaña rusa: medido en producción, un músculo previsto de 32,487
+ * a 32,500 kg produjo un eje `[32,10 – 32,50]` en el que 0,4 kg de oscilación
+ * —el ruido de cualquier báscula doméstica— llenaban el lienzo entero.
+ *
+ * No era un fallo de la gráfica: dibujaba fielmente unos datos sin señal, a
+ * toda página. `axisSpan` pone el suelo por debajo del cual el eje estaría
+ * dibujando error de medida.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('axisSpan no toca un recorrido que ya es bastante ancho', () => {
+    assert.deepEqual(axisSpan(70, 85, 2), { min: 70, max: 85 });
+    // Justo en el umbral tampoco: `>=` y no `>`.
+    assert.deepEqual(axisSpan(30, 32, 2), { min: 30, max: 32 });
+});
+
+test('axisSpan ensancha CENTRADO, no anclando un extremo', () => {
+    // El caso de producción: 32,487 → 32,500, suelo de 2 kg.
+    const r = axisSpan(32.1, 32.5, 2);
+    assert.equal(r.max - r.min, 2);
+    // El punto medio se conserva: mover un solo extremo desplazaría la serie
+    // contra un borde y sugeriría una tendencia que no existe.
+    assert.equal((r.min + r.max) / 2, (32.1 + 32.5) / 2);
+    assert.ok(r.min < 32.1 && r.max > 32.5, 'el recorrido real queda dentro');
+});
+
+test('axisSpan aguanta una serie constante', () => {
+    const r = axisSpan(80, 80, 2);
+    assert.deepEqual(r, { min: 79, max: 81 });
+});
+
+test('axisSpan devuelve la entrada tal cual si no puede hacer nada', () => {
+    // Un eje mal escalado es un defecto visual; lanzar aquí dejaría la vista
+    // entera sin gráfica, que es mucho peor.
+    assert.deepEqual(axisSpan(NaN, 10, 2), { min: NaN, max: 10 });
+    assert.deepEqual(axisSpan(0, Infinity, 2), { min: 0, max: Infinity });
+    assert.deepEqual(axisSpan(1, 1.1, 0), { min: 1, max: 1.1 });
+    assert.deepEqual(axisSpan(1, 1.1, -5), { min: 1, max: 1.1 });
+    assert.deepEqual(axisSpan(1, 1.1, NaN), { min: 1, max: 1.1 });
+});
+
+test('axisSpan funciona con recorridos negativos, que los deltas los tienen', () => {
+    const r = axisSpan(-0.2, 0.1, 2);
+    assert.equal(r.max - r.min, 2);
+    assert.ok(r.min < -0.2 && r.max > 0.1);
 });

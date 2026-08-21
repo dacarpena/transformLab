@@ -61,6 +61,16 @@ async function seedCheckins(page) {
  * lateral; a 320 px vive detrás de «más» (`primary: false`).
  */
 async function navToAnalysis(page) {
+    // ESPERAR A LA BARRA ANTES DE DECIDIR (E15-3). El arranque es asíncrono, y
+    // estos tests llaman aquí justo después de `page.reload()`. Con la barra a
+    // medio nacer, `[data-view="analysis"]` todavía no existe, así que se tomaba
+    // la rama de «pantalla estrecha» y se quedaba 30 s esperando a un
+    // `[data-nav-more]` que sí acabaría existiendo pero nunca sería visible en
+    // escritorio. Dos tests de esta suite fallaban así de forma intermitente
+    // desde antes de E15, y el mensaje —«element is not visible»— no apuntaba a
+    // la causa. `router.js:94-98` pone `navContainer.hidden = false` cuando la
+    // barra ya está pintada: ésa es la señal.
+    await expect(page.locator('[data-nav]')).toBeVisible();
     const directo = page.locator('[data-view="analysis"]');
     if (await directo.count() === 0 || !(await directo.first().isVisible())) {
         await page.locator('[data-nav-more]').click();

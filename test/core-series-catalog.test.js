@@ -364,3 +364,14 @@ test('el nombre de una serie NO repite su unidad ni su procedencia', () => {
         }
     }
 });
+
+test('toda unidad declara un suelo de eje: una unidad nueva no puede olvidarlo (E15-3)', () => {
+    // Sin `minSpan`, el eje de esa unidad vuelve a autoescalar al extent de los
+    // datos y una serie plana se dibuja como un desplome. El olvido sería
+    // silencioso —la gráfica se pinta igual, solo que mintiendo—, así que la
+    // única forma de que no ocurra es exigirlo aquí.
+    const sinSuelo = Object.entries(UNITS)
+        .filter(([, u]) => !(Number.isFinite(u.minSpan) && u.minSpan > 0))
+        .map(([id]) => id);
+    assert.deepEqual(sinSuelo, [], `unidades sin minSpan finito y positivo: ${sinSuelo.join(', ')}`);
+});

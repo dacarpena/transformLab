@@ -1586,6 +1586,60 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   «13 g» sí. Y el aviso lleva un botón al asistente, porque un aviso sin salida es
   la misma falta que cerró E15-1 (H-013).
 
+- [x] **E15-3 · El eje Y convertía el ruido de la báscula en un desplome.**
+  La otra mitad de «la gráfica no funciona», y la que se ve. Chart.js autoescala
+  el eje al extent de los datos, así que una serie plana se dibuja como una
+  montaña rusa. Medido en producción y reproducido en un test: con el músculo
+  previsto yendo de 32,487 a 32,500 kg, el eje salía **[32,10 – 32,50] — un
+  recorrido de 0,3999 kg** en el que la oscilación de medida llenaba el lienzo
+  entero de arriba abajo. La gráfica no estaba rota: dibujaba fielmente unos
+  datos sin señal, a toda página.
+
+  Cada unidad del catálogo declara ahora su `minSpan`, junto a `decimals` y
+  `zeroMeaningful`, con la regla escrita: **por debajo de ese recorrido, lo que
+  el eje dibuja es error de medida, no señal.** Cada cifra lleva su
+  justificación (el peso oscila ~1 % intrasemanal por agua y glucógeno; ningún
+  método doméstico de grasa resuelve mejor de ±1–3 puntos; una cinta métrica
+  repite con ~1 cm de holgura…), y un test exige que ninguna unidad nueva pueda
+  olvidarlo.
+
+  `axisSpan(min, max, minSpan)` en `series-style.js` es puro y ensancha
+  **centrado**: anclar un extremo desplazaría la serie contra un borde y
+  sugeriría una tendencia que no existe. `chart.js` lo aplica como
+  `suggestedMin`/`suggestedMax` y no como `min`/`max` duros, para que Chart.js
+  siga eligiendo ticks legibles y el eje pueda crecer más si los datos lo piden.
+  Los ejes que arrancan en cero quedan fuera: su recorrido ya lo acota la
+  magnitud del dato, no su variación.
+
+  Los dos caminos —una métrica (`draw`) y varias series (`drawMulti`)— pasan por
+  el mismo embudo `drawSeries`, así que comparten el suelo en vez de tener cada
+  uno su tabla de cifras.
+
+- [x] **E15-3b · Tres tests que solo pasaban por suerte del reloj.**
+  Encontrados porque el cambio de E15-3 movió el reloj lo justo para
+  destaparlos, y ninguno era culpa suya: dos ya fallaban de forma intermitente en
+  el commit anterior a toda esta épica.
+
+  `csp.spec.js` leía los píxeles del lienzo **en cuanto el `<canvas>` era
+  visible**. Pero `<canvas>` está visible desde que se pinta el marcado, con su
+  tamaño por defecto de 300×150 y sin una sola instancia de Chart.js: el vendor
+  se pide con `await` y luego la gráfica anima 250 ms. Medido con doce muestras a
+  250 ms: en la primera hay **0 píxeles y `Chart.instances` vacío**; en la
+  segunda, **271 824 píxeles**. Y el fallo no era cosmético — la aserción de
+  píxeles va ANTES que la de violaciones de CSP, así que **cada vez que la
+  carrera se perdía, la comprobación de CSP no llegaba a ejecutarse**. El test
+  que blinda la política se saltaba la política.
+
+  `analysis.spec.js#navToAnalysis` decidía qué botón pulsar con la barra de
+  navegación a medio nacer, justo después de un `page.reload()`. Sin
+  `[data-view="analysis"]` todavía en el DOM tomaba la rama de «pantalla
+  estrecha» y esperaba treinta segundos a un `[data-nav-more]` que existía pero
+  nunca sería visible en escritorio. Dos tests fallaban así, con un mensaje
+  —«element is not visible»— que no apuntaba a la causa. Ahora se espera a que
+  `[data-nav]` esté visible, que es la señal que `router.js` emite cuando la
+  barra ya está pintada. La suite de Analizar pasa de 2 minutos a 23 segundos:
+  el tiempo era esperas agotándose.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1620,11 +1674,24 @@ comprobado que falla al quitar la rama del motor. Verificado en navegador con el
 perfil real de producción reproducido: el aviso sale en Hoy y su botón abre el
 asistente.
 
-Siguiente paso concreto: **E15-3**, el suelo de rango del eje Y. `minSpan` por
-unidad en `UNITS` (`core/series-catalog.js`), junto a `decimals` y
-`zeroMeaningful`; `axisSpan(min, max, minSpan)` puro en `series-style.js`; y
-`chart.js#drawSeries` lo aplica al extent real de cada eje. Debajo de ese suelo,
-el eje dibuja error de medida, no señal.
+**2026-08-21 · E15-3 y E15-3b.** Cerradas. `minSpan` en las 15 unidades,
+`axisSpan` puro con seis tests, suelo aplicado en el embudo `drawSeries`, y dos
+E2E que comprueban el número exacto de producción (sin el suelo, el eje mide
+0,3999 kg; con él, ≥ 2). Más las tres carreras de test cerradas.
+
+**852/852 unitarios, 208/208 E2E y typecheck limpio: la suite entera en verde,
+que no lo estaba al empezar la sesión.**
+
+Siguiente paso concreto: **E15-4**, el contador de series. Hoy `[data-series-count]`
+lee `selected.length`, así que una serie seleccionada con CERO puntos cuenta como
+serie: se anuncian «3 de 8 series» y se dibujan dos líneas. Debe contar las
+DIBUJADAS, leyendo `manifest.rendered` —la misma regla que ya gobierna la
+leyenda— y decir aparte cuántas están vacías. La leyenda NO se toca: ya las marca
+«sin datos» con su motivo, y hay un E2E que lo protege desde E13-5.
+
+Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
+abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa
+en aislamiento y en paralelo (que es como corre CI). Es anterior a E15.
 
 #### Hallazgos de la verificación de E15-1
 

@@ -68,15 +68,26 @@ test('la aplicación arranca entera bajo la política, sin una sola violación',
     // La gráfica es el caso interesante: Chart.js llega bajo demanda desde
     // `vendor/`, y `script-src 'self'` la dejaría fuera si alguien la moviera
     // a un CDN «solo para probar».
+    //
+    // `expect.poll` y NO una lectura única (E15-3). `<canvas>` está VISIBLE
+    // desde que se pinta el marcado, con su tamaño por defecto de 300×150 y sin
+    // una sola instancia de Chart.js: el vendor se pide con `await` y luego la
+    // gráfica anima 250 ms. Medido: en la primera muestra el lienzo tiene 0
+    // píxeles y `Chart.instances` está vacío; en la siguiente, 271 824 píxeles.
+    // Este test leía en la primera y pasaba por suerte del reloj.
+    //
+    // No era un detalle cosmético: la aserción de píxeles va ANTES que la de
+    // violaciones, así que cada vez que la carrera se perdía, **la comprobación
+    // de CSP —que es para lo que existe este test— no llegaba a ejecutarse**.
     await expect(page.locator('canvas')).toBeVisible();
-    const pintado = await page.evaluate(() => {
-        const c = /** @type {HTMLCanvasElement} */ (document.querySelector('canvas'));
+    await expect.poll(async () => page.evaluate(() => {
+        const c = /** @type {HTMLCanvasElement | null} */ (document.querySelector('canvas'));
+        if (!c) return 0;
         const data = c.getContext('2d')?.getImageData(0, 0, c.width, c.height).data ?? new Uint8ClampedArray();
         let n = 0;
         for (let i = 3; i < data.length; i += 4) if (data[i] > 0) n++;
         return n;
-    });
-    expect(pintado, 'la gráfica no dibujó bajo la CSP').toBeGreaterThan(1000);
+    }), { timeout: 15000, message: 'la gráfica no dibujó bajo la CSP' }).toBeGreaterThan(1000);
 
     expect(violaciones, `violaciones de CSP:\n  ${violaciones.join('\n  ')}`).toEqual([]);
 });
