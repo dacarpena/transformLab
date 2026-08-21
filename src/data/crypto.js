@@ -208,13 +208,18 @@ export async function deriveRecoveryKek(recoveryCode, salt) {
  * el material que abre los datos. Separar usos de una misma clave maestra es
  * para lo que existe el `info` de HKDF.
  *
- * @param {CryptoKey} dk debe ser extraíble
+ * Se deriva de la clave EN CRUDO, no del `CryptoKey` guardado: el guardado es
+ * deliberadamente no extraíble —para que un XSS no pueda llevárselo— y de una
+ * clave no extraíble no se puede derivar nada. Así que se calcula en el único
+ * momento en que la DK está en crudo (el alta o el desbloqueo) y se guarda
+ * aparte, también no extraíble: firmar un HMAC no necesita extraer.
+ *
+ * @param {ArrayBuffer | Uint8Array} rawKey los 32 bytes de la DK
  * @returns {Promise<CryptoKey>}
  */
-export async function deriveIndexKey(dk) {
-    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', dk));
+export async function deriveIndexKey(rawKey) {
+    const raw = rawKey instanceof Uint8Array ? rawKey : new Uint8Array(rawKey);
     const material = await crypto.subtle.importKey('raw', copia(raw), 'HKDF', false, ['deriveKey']);
-    raw.fill(0);
     return crypto.subtle.deriveKey(
         {
             name: 'HKDF', hash: 'SHA-256',

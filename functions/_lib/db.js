@@ -55,20 +55,92 @@ export const ROTATION_GRACE_MS = 60 * 1000;
  * Se comprueba al EJECUTAR, no al revisar. Es lo que convierte «acuérdate de
  * poner el WHERE» en «no se puede olvidar».
  *
+ * Se exporta ÚNICAMENTE para poder probarla con las consultas defectuosas que
+ * tiene que rechazar. No debilita nada —es una función pura sobre una cadena, no
+ * da acceso a la base— y a cambio convierte «el código de la guarda menciona
+ * user_id» en «la guarda rechaza esto, y aquí está el esto».
+ *
  * @param {string} sql
  * @returns {string}
  */
-function scoped(sql) {
+export function scoped(sql) {
     // La tabla `users` se acota por su clave primaria, que se llama `id`; todas
     // las demás, por `user_id`. En ambos casos el parámetro es SIEMPRE `?1`, que
     // es el que `Scope` rellena con el usuario de la sesión.
     const esUsers = /\b(?:FROM|INTO|UPDATE)\s+users\b/i.test(sql);
-    const acotada = esUsers ? /\bid\s*=\s*\?1\b/.test(sql) : /\buser_id\s*=\s*\?1\b/.test(sql);
+
+    // Un INSERT ... VALUES no tiene WHERE donde acotar, así que se acota por
+    // dónde va el usuario: primera columna de la lista y primer parámetro de los
+    // valores. Es la única forma de escribir una fila nueva de un usuario, y
+    // sigue siendo imposible de olvidar — un INSERT que ponga otra cosa en la
+    // primera columna, o que ate ahí un `?2`, no llega a ejecutarse.
+    const insertaAcotado =
+        /^\s*INSERT\s+INTO\s+\w+\s*\(\s*user_id\b[^)]*\)\s*VALUES\s*\(\s*\?1\b/i.test(sql);
+
+    // Y un `SET user_id = …` deshace todo lo anterior: acotar la lectura no
+    // sirve de nada si la escritura puede mudar la fila a otra cuenta.
+    //
+    // Se mira SOLO la lista de asignaciones —de `SET` hasta `WHERE`, `RETURNING`
+    // o el final—, no la sentencia entera. La primera versión de esta guarda
+    // miraba todo lo que hubiera detrás de `SET`, y así el `WHERE user_id = ?1`
+    // que ES el acotamiento se leía como una reasignación: rechazaba cuatro
+    // consultas legítimas de la cuenta.
+    for (const trozo of sql.split(/\bSET\b/i).slice(1)) {
+        const asignaciones = trozo.split(/\b(?:WHERE|RETURNING)\b/i)[0];
+        if (/\buser_id\s*=/i.test(asignaciones)) {
+            throw new Error(`una consulta no puede reasignar user_id: ${sql.replace(/\s+/g, ' ').trim().slice(0, 80)}`);
+        }
+    }
+
+    const acotada = esUsers
+        ? /\bid\s*=\s*\?1\b/.test(sql)
+        : (/\buser_id\s*=\s*\?1\b/.test(sql) || insertaAcotado);
     if (!acotada) {
         throw new Error(`consulta sin acotar al usuario: ${sql.replace(/\s+/g, ' ').trim().slice(0, 80)}`);
     }
     return sql;
 }
+
+/**
+ * Copia la versión que va a perder, si la hay.
+ *
+ * `rev > ?5` es la detección del conflicto y la condición de la copia a la vez:
+ * si lo guardado va por delante de la revisión sobre la que el cliente editó, es
+ * que alguien escribió entremedias. Cuando no hay conflicto, esta sentencia
+ * inserta cero filas y no cuesta nada.
+ *
+ * `ON CONFLICT DO NOTHING` hace que reintentar un push no duplique: el mismo
+ * `rev` de la misma fila ya está archivado.
+ */
+const SQL_ARCHIVAR_PERDEDOR = `
+    INSERT INTO record_conflicts (user_id, profile_id, collection, item_tag,
+                                  ciphertext, rev, updated_at, deleted, detected_at)
+    SELECT user_id, profile_id, collection, item_tag,
+           ciphertext, rev, updated_at, deleted, ?5
+      FROM records
+     WHERE user_id = ?1 AND profile_id = ?2 AND collection = ?3 AND item_tag = ?4
+       AND rev > ?6
+    ON CONFLICT DO NOTHING
+    RETURNING rev`;
+
+/**
+ * Escribe la fila.
+ *
+ * `rev = records.rev + 1` en vez de la revisión que mande el cliente: así la
+ * revisión la lleva el servidor y es estrictamente monótona pase lo que pase.
+ * Un cliente que mintiera con su `baseRev` no puede hacer que una fila retroceda.
+ */
+const SQL_ESCRIBIR_FILA = `
+    INSERT INTO records (user_id, profile_id, collection, item_tag,
+                         ciphertext, rev, seq, updated_at, deleted)
+    VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?8)
+    ON CONFLICT (user_id, profile_id, collection, item_tag) DO UPDATE SET
+        ciphertext = excluded.ciphertext,
+        rev        = records.rev + 1,
+        seq        = excluded.seq,
+        updated_at = excluded.updated_at,
+        deleted    = excluded.deleted
+    RETURNING rev, seq`;
 
 /**
  * Abre el ámbito de un usuario. **Es la única forma de tocar sus datos.**
@@ -242,6 +314,93 @@ export function openUserScope(env, userId) {
         async lastSeq() {
             const u = /** @type {*} */ (await q('SELECT last_seq FROM users WHERE id = ?1').first());
             return u?.last_seq ?? 0;
+        },
+
+        /**
+         * Escribe un lote de filas (M9-4). Devuelve la revisión resultante de
+         * cada una y cuántas provocaron conflicto.
+         *
+         * ## Todo esto ocurre en UNA transacción, y por una razón
+         *
+         * Detectar el conflicto y sobrescribir al perdedor son dos operaciones
+         * sobre la misma fila. Hechas por separado —leer, decidir, escribir—
+         * cabe entre medias el push del otro dispositivo, y entonces se copia a
+         * `record_conflicts` una versión que ya no es la que se va a pisar: se
+         * archiva la equivocada y se pierde la buena. Por eso la copia del
+         * perdedor es una sentencia SQL con su propio `WHERE rev > baseRev`, y
+         * viaja en el mismo `batch` que el upsert.
+         *
+         * ## El bloque de `seq` se reserva antes
+         *
+         * `UPDATE … last_seq = last_seq + n RETURNING` da n números de una vez y
+         * de forma atómica. Pedirlos uno a uno haría n viajes y dejaría huecos
+         * si el lote fallara a la mitad.
+         *
+         * @param {{ rows: readonly *[], now: number }} lote
+         */
+        async pushRecords({ rows, now }) {
+            if (rows.length === 0) return { results: [], conflicts: 0, lastSeq: await this.lastSeq() };
+
+            // Reserva atómica del bloque de `seq`. Si la cuenta ya no existe
+            // —borrada mientras el push viajaba— no hay fila que actualizar y
+            // aquí se ve, en vez de escribir filas huérfanas.
+            const reserva = /** @type {*} */ (await q(
+                'UPDATE users SET last_seq = last_seq + ?2 WHERE id = ?1 RETURNING last_seq',
+                rows.length).all());
+            const fin = reserva.results?.[0]?.last_seq;
+            if (typeof fin !== 'number') return null;
+            const base = fin - rows.length;
+
+            /** @type {*[]} */ const sentencias = [];
+            rows.forEach((fila, i) => {
+                sentencias.push(q(SQL_ARCHIVAR_PERDEDOR,
+                    fila.profileId, fila.collection, fila.itemTag, now, fila.baseRev));
+                sentencias.push(q(SQL_ESCRIBIR_FILA,
+                    fila.profileId, fila.collection, fila.itemTag,
+                    fila.ciphertext, base + i + 1, now, fila.deleted ? 1 : 0));
+            });
+
+            const salida = /** @type {*[]} */ (await db.batch(sentencias));
+
+            /** @type {*[]} */ const results = [];
+            let conflicts = 0;
+            rows.forEach((fila, i) => {
+                // Las sentencias van en pares: la de archivar y la de escribir.
+                // Que la primera devuelva una fila ES la detección del conflicto.
+                if ((salida[i * 2]?.results?.length ?? 0) > 0) conflicts += 1;
+                const escrita = salida[i * 2 + 1]?.results?.[0];
+                results.push({
+                    itemTag: fila.itemTag_b64,
+                    rev: escrita?.rev ?? null,
+                    seq: escrita?.seq ?? null,
+                    conflict: (salida[i * 2]?.results?.length ?? 0) > 0
+                });
+            });
+
+            return { results, conflicts, lastSeq: fin };
+        },
+
+        /** Cuántas versiones perdedoras hay guardadas. */
+        async conflictCount() {
+            const r = /** @type {*} */ (await q(
+                'SELECT COUNT(*) AS n FROM record_conflicts WHERE user_id = ?1').first());
+            return r?.n ?? 0;
+        },
+
+        /**
+         * Las versiones que perdieron, más recientes primero. Cifradas: el
+         * servidor las devuelve tal cual las guardó y no sabe qué hay dentro.
+         *
+         * @param {{ limit: number }} opciones
+         */
+        async conflicts({ limit }) {
+            const r = await q(`SELECT profile_id, collection, item_tag, ciphertext, rev,
+                                      updated_at, deleted, detected_at
+                                 FROM record_conflicts
+                                WHERE user_id = ?1
+                             ORDER BY detected_at DESC, rev DESC
+                                LIMIT ?2`, limit).all();
+            return /** @type {*[]} */ (r.results);
         },
 
         /**

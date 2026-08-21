@@ -571,7 +571,13 @@ export const ERROR_KEYS = Object.freeze([
     'account.locked',
     'api.offline', 'api.timeout', 'api.badResponse', 'api.badPath', 'api.unknown',
     'credential.last', 'credential.notFound', 'auth.required', 'auth.failed',
-    'challenge.invalid', 'body.tooLarge', 'body.malformed'
+    'challenge.invalid', 'body.tooLarge', 'body.malformed',
+    // La sincronía (M9-4). `sync.massDelete` no es un fallo: es la guarda que
+    // se planta cuando un push iba a borrar más de lo que conserva, y su texto
+    // tiene que decir exactamente eso o la persona no sabrá qué confirmar.
+    'sync.locked', 'sync.writeFailed', 'sync.massDelete', 'sync.noProfiles',
+    'sync.badResponse', 'sync.badBody', 'sync.badRow', 'sync.tooManyRows',
+    'sync.noAccount', 'sync.badCursor'
 ]);
 
 /**

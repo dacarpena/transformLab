@@ -20,7 +20,10 @@ import assert from 'node:assert/strict';
 import { installIndexedDbMock, uninstallIndexedDbMock } from './helpers/indexed-db-mock.js';
 import * as account from '../src/data/account.js';
 import * as keys from '../src/data/keys-db.js';
-import { deriveRecoveryKek, unwrapDataKey, decryptBytes, encryptBytes, importDataKey } from '../src/data/crypto.js';
+import { readFileSync } from 'node:fs';
+import {
+    deriveRecoveryKek, unwrapDataKey, decryptBytes, encryptBytes, importDataKey, deriveIndexKey
+} from '../src/data/crypto.js';
 
 const ORIGEN = 'https://motifyer.com';
 
@@ -165,6 +168,56 @@ test('sin kit guardado se dice ESO, no «kit incorrecto»', async () => {
     rutas['/api/account/keys'] = () => ({ json: { recovery: null, devices: [] } });
     const r = await account.unlockWithRecoveryKit('u_ana', 'ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ');
     assert.equal(r.ok === false && r.error, 'account.noRecoveryKit');
+});
+
+/* ── Las DOS claves, en los tres caminos que las guardan ─────────────────── */
+
+test('desbloquear con el kit guarda TAMBIÉN la clave de índice', async () => {
+    // Sin ella el dispositivo se autentica bien y luego no puede sincronizar,
+    // diciendo que está bloqueado cuando no lo está. Es un fallo mudo, y el
+    // único sitio donde se ve es aquí.
+    /** @type {*} */ let subido = null;
+    rutas['/api/account/keys'] = (body) => body
+        ? (subido = body, { json: { protected: true } })
+        : { json: { recovery: { wrapped: subido.recovery.wrapped, salt: subido.recovery.salt }, devices: [] } };
+
+    const cruda = new Uint8Array(32).fill(9);
+    const kit = await account.saveRecoveryKit({ userId: 'u_ana', rawKey: cruda });
+    assert.equal(kit.ok, true);
+
+    keys.resetForTests();
+    const r = await account.unlockWithRecoveryKit('u_ana', /** @type {*} */ (kit).value.code);
+    assert.equal(r.ok, true, /** @type {*} */ (r).error);
+
+    const dk = await keys.get('u_ana');
+    const ik = await keys.getIndexKey('u_ana');
+    assert.ok(dk, 'no se guardó la clave de datos');
+    assert.ok(ik, 'no se guardó la clave de índice: este dispositivo no podrá sincronizar');
+    assert.equal(dk?.extractable, false, 'la clave de datos se guardó extraíble');
+    assert.equal(ik?.extractable, false, 'la clave de índice se guardó extraíble');
+
+    // Y es LA MISMA que se deriva de la clave original: si fuera otra, este
+    // dispositivo calcularía etiquetas distintas y duplicaría todas las filas.
+    const esperada = await deriveIndexKey(new Uint8Array(32).fill(9));
+    const dato = new TextEncoder().encode('la misma entrada');
+    assert.deepEqual(
+        new Uint8Array(await crypto.subtle.sign('HMAC', /** @type {*} */ (ik), dato)),
+        new Uint8Array(await crypto.subtle.sign('HMAC', esperada, dato)),
+        'la clave de índice no es la que corresponde a esta cuenta');
+});
+
+test('los tres caminos que guardan la clave pasan por el MISMO sitio', () => {
+    // Una guarda estática, porque el tercer camino —el alta y el desbloqueo con
+    // PRF— necesita un autenticador y solo se prueba en E2E. Lo que se exige es
+    // que ninguno llame a `keys.put` por su cuenta: si lo hiciera, se olvidaría
+    // la clave de índice exactamente como ocurrió al escribir esto.
+    const fuente = readFileSync(new URL('../src/data/account.js', import.meta.url), 'utf8');
+    const llamadas = [...fuente.matchAll(/keys\.put\(/g)];
+    assert.equal(llamadas.length, 1,
+        'hay más de un sitio guardando claves: uno de ellos se olvidará de la de índice');
+    const enHelper = fuente.indexOf('async function guardarClaves');
+    assert.ok(enHelper > 0 && fuente.indexOf('keys.put(', enHelper) > enHelper,
+        'la única llamada a keys.put ya no está en guardarClaves');
 });
 
 /* ── Salir ───────────────────────────────────────────────────────────────── */

@@ -53,6 +53,13 @@ async function sembrarCuenta(/** @type {*} */ db, /** @type {string} */ uid = 'u
             (user_id, profile_id, collection, item_tag, ciphertext, rev, seq, updated_at)
             VALUES (?1, ?2, 'checkins', ?3, ?4, 1, 1, ?5)`)
         .bind(uid, `perfil_${uid}`, bytes(16), bytes(64), 1_000).run();
+    // Y una versión PERDEDORA archivada (M9-4). Sobrevive a su fila —no tiene
+    // clave foránea a `records` a propósito—, así que si la cascada no la
+    // alcanzara quedaría un cuerpo cifrado del usuario tras darse de baja.
+    await db.prepare(`INSERT INTO record_conflicts
+            (user_id, profile_id, collection, item_tag, ciphertext, rev, updated_at, detected_at)
+            VALUES (?1, ?2, 'checkins', ?3, ?4, 1, ?5, ?5)`)
+        .bind(uid, `perfil_${uid}`, bytes(16), bytes(64), 1_000).run();
 }
 
 /** Cuántas filas hay en cada tabla. */
@@ -141,7 +148,9 @@ test('borrar la fila de users vacía la base entera (RGPD art. 17)', async () =>
     try {
         await sembrarCuenta(db);
         const antes = await censo(db, sqlite);
-        assert.deepEqual(antes, { challenges: 1, credentials: 1, records: 1, sessions: 1, users: 1 });
+        assert.deepEqual(antes, {
+            challenges: 1, credentials: 1, record_conflicts: 1, records: 1, sessions: 1, users: 1
+        });
 
         await db.prepare('DELETE FROM users WHERE id = ?1').bind('u_abc').run();
 
@@ -165,7 +174,7 @@ test('borrar UNA cuenta no toca la otra', async () => {
         await db.prepare('DELETE FROM users WHERE id = ?1').bind('u_uno').run();
 
         assert.deepEqual(await censo(db, sqlite),
-            { challenges: 0, credentials: 1, records: 0, sessions: 0, users: 1 });
+            { challenges: 0, credentials: 1, record_conflicts: 0, records: 0, sessions: 0, users: 1 });
         assert.equal(await db.prepare('SELECT user_id FROM credentials').first('user_id'), 'u_dos');
     } finally { close(); }
 });

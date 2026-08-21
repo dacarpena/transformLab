@@ -88,14 +88,40 @@ async function conAlmacen(mode, operacion) {
  *
  * @param {string} userId
  * @param {CryptoKey} dataKey
+ * @param {CryptoKey | null} [indexKey] la clave de las etiquetas de fila (M9-4)
  * @returns {Promise<boolean>} `false` si no se pudo guardar (sin IndexedDB)
  */
-export async function put(userId, dataKey) {
+export async function put(userId, dataKey, indexKey = null) {
     if (dataKey.extractable) {
         throw new Error('no se guarda una clave extraíble: usa importDataKey primero');
     }
-    const r = await conAlmacen('readwrite', (store) => store.put({ id: userId, dataKey }));
+    if (indexKey && indexKey.extractable) {
+        throw new Error('la clave de índice tampoco puede ser extraíble');
+    }
+    const fila = indexKey ? { id: userId, dataKey, indexKey } : { id: userId, dataKey };
+    const r = await conAlmacen('readwrite', (store) => store.put(fila));
     return r !== null;
+}
+
+/**
+ * La clave con la que se calculan las ETIQUETAS de fila, o `null`.
+ *
+ * Se guarda aparte de la DK porque no se puede derivar de ella: la DK guardada
+ * es no extraíble a propósito, y de una clave no extraíble no se deriva nada.
+ * Se calcula en el único momento en que la DK está en crudo —el alta o el
+ * desbloqueo— y se guarda aquí, también no extraíble.
+ *
+ * Que falte no es corrupción: es un dispositivo que guardó su clave antes de que
+ * existiera la sincronía. La salida es volver a desbloquear.
+ *
+ * @param {string} userId
+ * @returns {Promise<CryptoKey | null>}
+ */
+export async function getIndexKey(userId) {
+    const fila = /** @type {*} */ (await conAlmacen('readonly', (store) => store.get(userId)));
+    const clave = fila?.indexKey;
+    if (!clave || typeof clave !== 'object' || !('algorithm' in clave)) return null;
+    return /** @type {CryptoKey} */ (clave);
 }
 
 /**

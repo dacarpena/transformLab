@@ -109,7 +109,7 @@ test('4· db.js exporta exactamente lo previsto, y lo global está declarado', (
         closeSession: 'el token ES la prueba de propiedad, no hace falta acotar',
         sweepExpired: 'barrido de caducados, sin dueño'
     };
-    const OTRAS = ['openUserScope', 'ROTATE_AFTER_MS', 'ROTATION_GRACE_MS'];
+    const OTRAS = ['openUserScope', 'ROTATE_AFTER_MS', 'ROTATION_GRACE_MS', 'scoped'];
 
     assert.deepEqual(
         Object.keys(db).sort(),
@@ -224,10 +224,42 @@ test('scoped() LANZA ante una consulta sin acotar: la guarda corre, no se revisa
         await assert.doesNotReject(() => scope.sessions());
     } finally { close(); }
 
-    // Y la aduana rechaza de verdad lo que tiene que rechazar. Se comprueba
-    // sobre el propio texto de la función, que es lo que la guarda estática 3
-    // exige que se use.
-    const fuente = DB_JS.slice(DB_JS.indexOf('function scoped('));
-    assert.match(fuente, /user_id\\s\*=\\s\*\\\?1/, 'scoped ya no comprueba user_id = ?1');
-    assert.match(fuente, /throw new Error/, 'scoped ya no lanza');
+});
+
+test('scoped() rechaza cada forma de escapársele, probada con la consulta que se le escaparía', () => {
+    // Esto es la guarda de verdad: no se comprueba que su código MENCIONE
+    // `user_id`, se le dan las consultas que tiene que tumbar. La versión
+    // anterior de este test leía el texto de la función, y un texto que menciona
+    // lo correcto puede no comprobar nada.
+
+    // Lo legítimo pasa: las tres formas de acotar que existen.
+    assert.doesNotThrow(() => db.scoped('SELECT * FROM records WHERE user_id = ?1'));
+    assert.doesNotThrow(() => db.scoped('SELECT * FROM users WHERE id = ?1'));
+    assert.doesNotThrow(() => db.scoped('UPDATE users SET last_seq = last_seq + ?2 WHERE id = ?1'));
+    assert.doesNotThrow(() => db.scoped(
+        'INSERT INTO records (user_id, profile_id) VALUES (?1, ?2)'));
+
+    // Sin acotar: el fallo original que la guarda existe para impedir.
+    assert.throws(() => db.scoped('SELECT * FROM records'), /sin acotar/);
+    assert.throws(() => db.scoped('DELETE FROM records WHERE collection = ?1'), /sin acotar/);
+
+    // Acotada por un parámetro que NO es el que `Scope` rellena: la consulta
+    // devolvería las filas de quien dijera el segundo argumento.
+    assert.throws(() => db.scoped('SELECT * FROM records WHERE user_id = ?2'), /sin acotar/);
+
+    // Un INSERT que pone el usuario en cualquier otro sitio. Es la forma nueva
+    // (M9-4) y la que más fácil sería colar: `VALUES (?2, ?1, …)` escribe la
+    // fila en la cuenta que diga el segundo argumento.
+    assert.throws(() => db.scoped(
+        'INSERT INTO records (profile_id, user_id) VALUES (?1, ?2)'), /sin acotar/);
+    assert.throws(() => db.scoped(
+        'INSERT INTO records (user_id, profile_id) VALUES (?2, ?1)'), /sin acotar/);
+
+    // Y una reasignación: acotar la lectura no sirve de nada si la escritura
+    // puede mudar la fila a otra cuenta.
+    assert.throws(() => db.scoped(
+        'UPDATE records SET user_id = ?2 WHERE user_id = ?1'), /reasignar user_id/);
+    assert.throws(() => db.scoped(
+        `INSERT INTO records (user_id, seq) VALUES (?1, ?2)
+         ON CONFLICT (user_id) DO UPDATE SET user_id = ?3`), /reasignar user_id/);
 });

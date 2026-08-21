@@ -36,9 +36,55 @@
 import { request } from './api.js';
 import * as keys from './keys-db.js';
 import {
-    generateDataKey, importDataKey, wrapDataKey, unwrapDataKey,
+    generateDataKey, importDataKey, wrapDataKey, unwrapDataKey, deriveIndexKey,
     deriveDeviceKek, deriveRecoveryKek, generateRecoveryCode, RECOVERY_SALT_BYTES
 } from './crypto.js';
+
+/**
+ * Guarda las DOS claves del dispositivo a partir de la clave en crudo.
+ *
+ * Son dos y no una porque la de índice —la que calcula las etiquetas de fila de
+ * la sincronía— **no se puede derivar de la que se guarda**: la guardada es no
+ * extraíble a propósito, para que un XSS pueda usarla pero no llevársela. Así
+ * que las dos se calculan aquí, en el único momento en que la clave está en
+ * crudo: el alta, el desbloqueo con PRF y el desbloqueo con el kit.
+ *
+ * Si esto se olvidara en alguno de los tres caminos, ese dispositivo se
+ * autenticaría bien y luego no podría sincronizar, diciendo que está bloqueado
+ * cuando no lo está. Por eso hay un único sitio que lo hace.
+ *
+ * Los bytes en crudo se borran al salir. No es teatro: un `Uint8Array` vivo en
+ * el montón es lo que un volcado de memoria encuentra.
+ *
+ * @param {string} userId
+ * @param {Uint8Array} raw los 32 bytes de la clave de datos
+ * @returns {Promise<boolean>}
+ */
+async function guardarClaves(userId, raw) {
+    try {
+        const dk = await importDataKey(raw);
+        const ik = await deriveIndexKey(raw);
+        return await keys.put(userId, dk, ik);
+    } finally {
+        raw.fill(0);
+    }
+}
+
+/**
+ * Como `guardarClaves`, pero partiendo de un sobre. Desenvuelve una copia
+ * EXTRAÍBLE para este único uso, saca los bytes y guarda las dos claves
+ * definitivas, que no lo son.
+ *
+ * @param {string} userId
+ * @param {CryptoKey} kek
+ * @param {Uint8Array} sobre
+ * @returns {Promise<boolean>}
+ */
+async function abrirYGuardar(userId, kek, sobre) {
+    const copia = await unwrapDataKey(kek, sobre, { extractable: true });
+    if (!copia) return false;
+    return guardarClaves(userId, new Uint8Array(await crypto.subtle.exportKey('raw', copia)));
+}
 
 /** La sal del PRF: constante de la aplicación. Ver la cabecera. */
 const PRF_SALT = new TextEncoder().encode('tl.prf.v1.transformlab');
@@ -181,11 +227,9 @@ export async function register() {
         conPrf = guardado.ok;
     }
 
-    await keys.put(fin.value.userId, await importDataKey(raw));
-
-    // El kit, con la clave todavía en crudo. Ver la cabecera de la función.
+    // El kit se prepara ANTES de borrar los bytes; `guardarClaves` los borra.
     const kit = await prepareRecoveryKit(raw);
-    raw.fill(0);
+    await guardarClaves(fin.value.userId, raw);
 
     return {
         ok: true,
@@ -294,9 +338,9 @@ export async function login() {
             ? material.value.devices?.find((/** @type {*} */ d) => d.credentialId === aserto.id)
             : null;
         if (sobre) {
-            const dk = await unwrapDataKey(await deriveDeviceKek(prf), /** @type {*} */ (deB64u(sobre.wrapped)));
-            if (dk) {
-                await keys.put(userId, dk);
+            const abierto = await abrirYGuardar(userId, await deriveDeviceKek(prf),
+                /** @type {*} */ (deB64u(sobre.wrapped)));
+            if (abierto) {
                 return { ok: true, value: { userId, protected: fin.value.protected, needsRecovery: false } };
             }
         }
@@ -324,10 +368,9 @@ export async function unlockWithRecoveryKit(userId, code) {
     // el papel—.
     if (!kek) return err('account.badRecoveryKit');
 
-    const dk = await unwrapDataKey(kek, /** @type {*} */ (deB64u(recovery.wrapped)));
-    if (!dk) return err('account.badRecoveryKit');
-
-    await keys.put(userId, dk);
+    if (!await abrirYGuardar(userId, kek, /** @type {*} */ (deB64u(recovery.wrapped)))) {
+        return err('account.badRecoveryKit');
+    }
     return { ok: true, value: { unlocked: true } };
 }
 
