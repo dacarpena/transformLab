@@ -406,6 +406,10 @@ async function boot() {
     // 4 · cableado de las vistas que SÍ se cargan en el arranque. El resto lo
     // hace `afterLoad` cuando llega su módulo (ver `startApp`).
     onboarding.setOnComplete(() => route(roots));
+    // Entrar con una cuenta DESDE el asistente trae los datos y hay que salir de
+    // él: sin esto, la persona se queda mirando «vamos a construir tu plan» con
+    // su plan ya descargado detrás.
+    onboarding.setOnSignedIn(() => route(roots));
     dashboard.setOnGoToCheckin(() => router.navigate('checkin'));
     dashboard.setOnGoToProjection(() => router.navigate('projection'));
     // El plan integral (V2-M10) navega a la vista de cualquier módulo con un

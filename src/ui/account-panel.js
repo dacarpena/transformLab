@@ -55,6 +55,8 @@ import * as toast from './components/toast.js';
 import { longDate } from './dates.js';
 import * as syncLoop from './sync-loop.js';
 import * as sync from '../data/sync.js';
+import * as profiles from '../data/profiles.js';
+import { validateCollection } from '../data/schema.js';
 
 /**
  * @typedef {{ estado: 'sinSoporte' | 'sinCuenta' | 'cargando' | 'error'
@@ -81,6 +83,15 @@ let adopcionesAtendidas = 0;
  * almacén del perfil, fuera de las colecciones del esquema.
  */
 export const SEEN_KEY = 'ui.accountSeen';
+
+/**
+ * ¿Se le puede ofrecer a alguien entrar en este navegador?
+ *
+ * Solo si hay WebAuthn. Un botón «Entrar» que abre un diálogo del sistema que no
+ * existe es peor que ningún botón, y en el asistente sería lo primero que ve una
+ * persona.
+ */
+export const canSignIn = () => account.isSupported();
 
 /** ¿Merece la pena preguntarle al servidor? */
 export function hasAccountHere() {
@@ -150,14 +161,7 @@ export function mount(container) {
     });
 
     on(container, 'click', '[data-account-login]', async () => {
-        await conBoton('[data-account-login]', async () => {
-            const r = await account.login();
-            if (!r.ok) return toast.error(claveDeError(r.error));
-            storage.set(SEEN_KEY, true);
-            await refrescar();
-            if (r.value.needsRecovery) abrirDesbloqueo(r.value.userId);
-            else toast.success('account.loggedIn');
-        });
+        await conBoton('[data-account-login]', () => signIn());
     });
 
     on(container, 'click', '[data-account-kit]', () => {
@@ -494,6 +498,84 @@ function bloqueDeSincronia() {
     `;
 }
 
+/**
+ * Entrar con una passkey. **Es la única puerta, y la usan los dos sitios.**
+ *
+ * Vive aquí y se exporta porque el otro sitio que la necesita es el ASISTENTE, y
+ * ahí está el fallo que esto viene a arreglar: el panel de cuenta solo existe
+ * dentro de Ajustes, y a Ajustes no se llega hasta terminar de crear un plan. O
+ * sea que quien ya tenía cuenta y abría la aplicación en un móvil nuevo no veía
+ * ninguna forma de entrar; tenía que inventarse un perfil de mentira primero.
+ *
+ * Lo que hace, en orden: autenticar, desbloquear si hace falta, y **sincronizar
+ * de inmediato**. Ese último paso no es un adorno: sin él, entrar deja la
+ * pantalla exactamente igual que antes, y la persona no tiene forma de saber si
+ * ha funcionado.
+ *
+ * @param {{ onDone?: () => void }} [opciones] se llama cuando ya hay datos que
+ *   enseñar, para que quien invoque pueda redibujar lo que le toque
+ * @returns {Promise<void>}
+ */
+export async function signIn(opciones = {}) {
+    const r = await account.login();
+    if (!r.ok) { toast.error(claveDeError(r.error)); return; }
+
+    storage.set(SEEN_KEY, true);
+    await refrescar();
+
+    if (r.value.needsRecovery) {
+        // La clave no está en este dispositivo: sin ella no se puede descifrar
+        // nada, así que no tiene sentido sincronizar todavía.
+        abrirDesbloqueo(r.value.userId, opciones);
+        return;
+    }
+    toast.success('account.loggedIn');
+    await primeraSincronia(r.value.userId, opciones);
+}
+
+/**
+ * La primera sincronía tras entrar, y lo que hay que hacer con el perfil de
+ * relleno que quizá se creó por el camino.
+ *
+ * Si alguien entra desde el asistente, ya existe un perfil local vacío —lo crea
+ * el arranque para tener un namespace donde escribir—. Tras traerse los suyos,
+ * ese perfil de relleno **estorba**: aparece en la lista, no tiene datos y nadie
+ * sabe de dónde salió. Se retira, y solo si de verdad está vacío: el criterio es
+ * que su perfil de usuario no exista o no valide, o sea que el asistente nunca
+ * llegó a terminarse.
+ *
+ * @param {string} userId
+ * @param {{ onDone?: () => void }} opciones
+ */
+async function primeraSincronia(userId, { onDone }) {
+    syncLoop.start(userId);
+    const estado = await syncLoop.syncNow();
+    if (estado.state === 'error' && estado.error) toast.error(claveDeError(estado.error));
+
+    if ((estado.last?.adopted ?? 0) > 0) retirarPerfilDeRelleno();
+    await refrescar();
+    onDone?.();
+}
+
+/** Quita el perfil vacío que el arranque creó, si la sincronía trajo otros. */
+function retirarPerfilDeRelleno() {
+    const indice = profiles.readIndex();
+    if (!indice.ok || indice.value.profiles.length < 2) return;
+
+    const vacios = indice.value.profiles.filter((p) => {
+        const guardado = storage.getForProfile(p.id, 'profile');
+        if (!guardado.ok || guardado.value === null) return true;
+        return !validateCollection('profile', guardado.value).ok;
+    });
+    // Si TODOS estuvieran vacíos, no se toca nada: borrar sería adivinar.
+    if (vacios.length === 0 || vacios.length === indice.value.profiles.length) return;
+
+    const conDatos = indice.value.profiles.find((p) => !vacios.includes(p));
+    if (!conDatos) return;
+    profiles.setActive(conDatos.id);
+    for (const p of vacios) profiles.remove(p.id, p.name);
+}
+
 /* ── El kit ──────────────────────────────────────────────────────────────── */
 
 /**
@@ -619,7 +701,7 @@ function pintarCodigo(slot, code, alConfirmar) {
  * Pide el kit para abrir la clave en un dispositivo nuevo.
  * @param {string} userId
  */
-function abrirDesbloqueo(userId) {
+function abrirDesbloqueo(userId, opciones = {}) {
     const dialogo = modal.open({
         titleKey: 'account.unlock',
         size: 'md',
@@ -659,8 +741,10 @@ function abrirDesbloqueo(userId) {
             return;
         }
         modal.close();
-        await refrescar();
         toast.success('account.unlocked');
+        // Y AQUÍ se sincroniza, no antes: hasta este momento la clave no estaba
+        // en el dispositivo y lo que hubiera bajado no se habría podido abrir.
+        await primeraSincronia(userId, opciones);
     };
 
     boton?.addEventListener('click', () => { void intentar(); });

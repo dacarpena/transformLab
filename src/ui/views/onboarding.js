@@ -30,6 +30,7 @@ import * as toast from '../components/toast.js';
 import { num } from '../format.js';
 import * as preferencesStore from '../../data/preferences.js';
 import { CONTROL_LEVELS, DEFAULT_CONTROL_LEVEL, DEFAULT_ACTIVE, MODULES, blocksFor, questionCount } from '../../core/modules.js';
+import * as accountPanel from '../account-panel.js';
 
 const STEPS = ['profile', 'current', 'target', 'confirm'];
 
@@ -39,6 +40,14 @@ let stepIndex = 0;
 
 /** @type {(() => void) | null} */
 let onComplete = null;
+
+/**
+ * Se avisa cuando alguien entra con su cuenta DESDE aquí y ya tiene datos que
+ * enseñar. El arranque lo cablea a su `route()`: sin esto, entrar dejaría al
+ * usuario mirando el asistente con sus datos ya descargados detrás.
+ * @type {(() => void) | null}
+ */
+let onSignedIn = null;
 
 function defaultDraft() {
     return {
@@ -639,6 +648,16 @@ function draw(container) {
                 </div>
             </form>
 
+            ${stepIndex === 0 && accountPanel.canSignIn() ? html`
+                <div class="card" data-signin>
+                    <p class="secondary">${t('onboarding.haveAccount')}</p>
+                    <div class="btn-row">
+                        <button type="button" class="btn" data-signin-go>${t('account.login')}</button>
+                    </div>
+                    <p class="muted">${t('onboarding.haveAccountHint')}</p>
+                </div>
+            ` : ''}
+
             <aside class="card preview" data-preview aria-live="polite"></aside>
 
             <div class="card">
@@ -757,6 +776,24 @@ export function mount(container) {
         /** @type {HTMLElement | null} */ (container.querySelector('.card__title'))?.focus();
     });
 
+    // ENTRAR, desde el asistente. Es la puerta que faltaba: el panel de cuenta
+    // solo existe dentro de Ajustes, y a Ajustes no se llega hasta terminar de
+    // crear un plan. Quien ya tenía cuenta y abría la aplicación en un móvil
+    // nuevo no veía ninguna forma de entrar, y tenía que inventarse un perfil de
+    // mentira para llegar hasta ella.
+    on(container, 'click', '[data-signin-go]', async (_event, target) => {
+        const boton = /** @type {HTMLButtonElement} */ (target);
+        boton.disabled = true;
+        try {
+            await accountPanel.signIn({ onDone: () => onSignedIn?.() });
+        } finally {
+            // El botón puede haber desaparecido con el repintado: se busca otra
+            // vez en vez de guardar la referencia.
+            const vivo = /** @type {HTMLButtonElement | null} */ (container.querySelector('[data-signin-go]'));
+            if (vivo) vivo.disabled = false;
+        }
+    });
+
     on(container, 'click', '[data-next]', () => {
         const { errors } = validateStep();
         if (errors.length > 0) {
@@ -804,6 +841,11 @@ function finish() {
     draft = defaultDraft();
     stepIndex = 0;
     if (onComplete) onComplete();
+}
+
+/** @param {() => void} fn */
+export function setOnSignedIn(fn) {
+    onSignedIn = fn;
 }
 
 /** @param {() => void} fn */

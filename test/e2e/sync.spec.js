@@ -193,6 +193,64 @@ test('un dispositivo que lo pierde todo recupera sus datos Y LOS ENSEÑA', async
     expect(pesos).toContain(73.4);
 });
 
+/* ── La puerta de entrada ────────────────────────────────────────────────── */
+
+test('se puede ENTRAR desde el asistente, sin inventarse un perfil primero', async ({ page, context }) => {
+    // El fallo que esto arregla, y que solo se ve mirando la aplicación desde
+    // fuera: el panel de cuenta vive dentro de Ajustes, y a Ajustes no se llega
+    // hasta terminar de crear un plan. Quien ya tenía cuenta y abría la
+    // aplicación en un móvil nuevo no veía NINGUNA forma de entrar.
+    await conAutenticador(page);
+    await conPerfil(page, 'Ana');
+    await irAAjustes(page);
+    const codigo = await conCuenta(page);
+    await apuntarPeso(page, '73.4');
+    await irAAjustes(page);
+    await sincronizar(page);
+
+    // — móvil nuevo: ni datos, ni clave, ni sesión —
+    await page.evaluate(() => new Promise((resolve) => {
+        localStorage.clear();
+        const req = indexedDB.deleteDatabase('tl-keys');
+        req.onsuccess = () => resolve(null);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+    }));
+    await context.clearCookies();
+    await page.reload();
+
+    // Arranca en el asistente, y la puerta está ahí, en el primer paso.
+    await expect(page.locator('[data-field="name"]')).toBeVisible({ timeout: 20000 });
+    const entrar = page.locator('[data-signin-go]');
+    await expect(entrar).toBeVisible();
+    await entrar.click();
+
+    // Desbloquear con el kit, que es lo único que se le pide.
+    const dialogo = page.locator('[role="dialog"]');
+    await expect(dialogo.locator('[data-unlock-code]')).toBeVisible({ timeout: 20000 });
+    await dialogo.locator('[data-unlock-code]').fill(codigo.toLowerCase().replace(/-/g, ''));
+    await dialogo.locator('[data-unlock-go]').click();
+
+    // Y se sale del asistente directo a los datos, sin tocar nada más.
+    await expect(page.locator('#today-title')).toBeVisible({ timeout: 30000 });
+
+    // El perfil recuperado es el activo, y NO queda ningún perfil de relleno.
+    const indice = await page.evaluate(() => {
+        const k = Object.keys(localStorage).find((x) => x.endsWith('.profiles'));
+        return k ? JSON.parse(localStorage.getItem(k) ?? '{}') : null;
+    });
+    expect(indice.profiles.map((/** @type {*} */ p) => p.name)).toEqual(['Ana']);
+    expect(indice.activeProfileId).toBe(indice.profiles[0].id);
+
+    // Y el check-in está donde tiene que estar.
+    const pesos = await page.evaluate((id) => {
+        const k = Object.keys(localStorage).find((x) => x.includes(`.${id}.checkins`));
+        const v = k ? JSON.parse(localStorage.getItem(k) ?? '{}') : { items: [] };
+        return v.items.map((/** @type {*} */ i) => i.weightKg);
+    }, indice.profiles[0].id);
+    expect(pesos).toContain(73.4);
+});
+
 /* ── Lo que el servidor guarda ───────────────────────────────────────────── */
 
 test('lo que hay en el servidor son BYTES: ni una fecha, ni un peso, ni un nombre', async ({ page }) => {
