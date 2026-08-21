@@ -21,7 +21,7 @@
  * contador que colisione entre ramas.
  */
 
-const CACHE_VERSION = 'tl-d24a98ac145d';
+const CACHE_VERSION = 'tl-5149ca521304';
 
 /**
  * Todo lo que la aplicación necesita para arrancar. Sin bundler, cada módulo
@@ -192,7 +192,8 @@ self.addEventListener('fetch', (event) => {
             // './' y no 'index.html': ver el comentario de PRECACHE. Además,
             // devolver una respuesta REDIRIGIDA a una navegación es un error
             // que el navegador rechaza, y /index.html redirige.
-            const cached = await caches.match('./');
+            const cache = await caches.open(CACHE_VERSION);
+            const cached = await cache.match('./');
             if (cached && !cached.redirected) return cached;
             try {
                 return await fetch(request);
@@ -206,14 +207,26 @@ self.addEventListener('fetch', (event) => {
     }
 
     event.respondWith((async () => {
-        const cached = await caches.match(request, { ignoreSearch: true });
+        // SIEMPRE contra la caché de ESTA versión, nunca `caches.match()` a
+        // secas. `CacheStorage.match` busca en TODAS las cachés y devuelve la
+        // primera coincidencia por orden de CREACIÓN, así que una caché vieja
+        // que sobreviva gana a la actual. Medido en un navegador real: con
+        // `tl-cd1c3ad85fe2` (fósil) y `tl-5149ca521304` (actual) conviviendo,
+        // la búsqueda global servía el módulo VIEJO mientras el nuevo estaba a
+        // un palmo. Eso vacía de sentido a `CACHE_VERSION`, que existe justo
+        // para que no se mezclen versiones de módulos (§3 de la cabecera).
+        //
+        // Y no es hipotético: entre `install` y `activate` las dos cachés
+        // coexisten siempre, y aquí `activate` puede tardar lo que el usuario
+        // tarde en aceptar el aviso, porque NO se llama a `skipWaiting`.
+        const cache = await caches.open(CACHE_VERSION);
+        const cached = await cache.match(request, { ignoreSearch: true });
         if (cached) return cached;
         try {
             const response = await fetch(request);
             // Solo se guarda lo que salió bien y es de aquí: cachear un 404 o
             // un error de red deja la app rota hasta el siguiente despliegue.
             if (response.ok && response.type === 'basic') {
-                const cache = await caches.open(CACHE_VERSION);
                 cache.put(request, response.clone());
             }
             return response;

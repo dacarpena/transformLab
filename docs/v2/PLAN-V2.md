@@ -1465,3 +1465,70 @@ series y los hitos que dependen de ella no tienen nada que dibujar.
   pliega desde JS solo si la pantalla es estrecha. Si un día ese JS no llega a
   correr, lo que queda es todo a la vista, que es el fallo bueno. Y la regla
   queda fijada en las dos direcciones por un test propio.
+
+### E15 — saneamiento: lo que el usuario ve roto, y por qué
+
+Petición: «identifica por qué no está funcionando, por qué la gráfica no funciona
+y por qué las funcionalidades adicionales no están acabadas». El diagnóstico,
+medido en producción contra la instancia viva de Chart.js y contra el árbol,
+contradice la premisa en su parte técnica y la confirma en la de producto:
+
+- **El código no está roto.** 833 tests en verde, typecheck limpio, cero
+  `TODO`/`FIXME`, cero imports rotos, cero vistas stub, paridad i18n exacta.
+- **La gráfica funciona.** Chart.js 4.5.1, una sola instancia, canvas conectado,
+  ejes correctos, ticks monótonos. Lo que se ve roto son los datos: un perfil que
+  pide ganar **13 gramos** de músculo en 155 días, con el eje Y autoescalado a
+  `[32,10–32,50]`, convierte el ruido de báscula en un desplome catastrófico.
+- **La causa raíz es que la app está vacía**: cero check-ins, cero ingesta, cero
+  pasos, cero sesiones. Todas las «funcionalidades adicionales» son consumidoras
+  de datos que hay que teclear a diario, y la única puerta de entrada es un
+  formulario de dieciséis bloques.
+- Y trece defectos concretos verificados uno a uno, encabezados por tres botones
+  primarios muertos en el estado vacío y una clave i18n que no existe.
+
+- [x] **E15-0 · El service worker dejaba de servir código y pasaba a servir fósiles.**
+  `pwa.js` registraba en cualquier `isSecureContext` —y `localhost` lo es—, y
+  `sw.js` es cache-first **sin revalidar** y **sin `skipWaiting()`**, las dos cosas
+  a propósito y las dos correctas en producción. En `npm run serve` significaban
+  que editabas un módulo, recargabas, y el navegador seguía ejecutando el de antes
+  indefinidamente. No es una molestia: es la capacidad de verificar cualquier cosa
+  en local, perdida y en silencio. Va antes que todo lo demás porque arreglar el
+  resto sin poder comprobarlo es trabajo tirado.
+
+  `swPolicy({hostname, port, isSecureContext})` es ahora la decisión entera, pura
+  y exportada, probada como tabla de verdad sin navegador. En cualquier host de
+  bucle local **desinstala** el service worker y tira las cachés `tl-*`; el único
+  origen local que sigue registrando es `127.0.0.1:8081` (`tools/serve-csp.mjs`),
+  porque ahí corre `pwa.spec.js` y es donde el modo sin conexión se prueba de
+  verdad. Ese puerto queda atado a `playwright.config.js` por un test, el mismo
+  candado que `sw.lock.json` pone sobre `CACHE_VERSION`.
+
+  **Y la verificación en un navegador real destapó un defecto mayor que el que
+  venía a arreglar.** Con dos cachés conviviendo —`tl-cd1c3ad85fe2` fósil y
+  `tl-5149ca521304` actual— el service worker servía el módulo VIEJO teniendo el
+  nuevo cacheado a un palmo. La causa: `caches.match()` a secas recorre **todas**
+  las cachés y devuelve la primera por orden de **creación**, así que la vieja
+  gana. Eso vacía de sentido a `CACHE_VERSION`, que existe justo para que no se
+  mezclen versiones de módulos. Y no es un caso raro: entre `install` y `activate`
+  las dos cachés coexisten SIEMPRE, durante todo el tiempo que el usuario tarde en
+  aceptar el aviso de versión nueva, porque no hay `skipWaiting`. Las dos
+  búsquedas pasan a hacerse contra `caches.open(CACHE_VERSION)`, y un test estático
+  —que descarta comentarios antes de mirar, porque la explicación contiene la
+  cadena— impide que la global vuelva.
+
+#### Bitácora E15
+
+**2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
+acotado a `CACHE_VERSION` en `sw.js`, cuatro tests nuevos en `test/pwa.test.js`
+(tabla de verdad de doce casos, candado del puerto de paridad, filtro `tl-` de la
+limpieza, y la prohibición de la búsqueda global). 837/837 en verde, typecheck
+limpio, `sw:bump` ejecutado. Verificado en navegador real sobre `localhost:8080`:
+se reprodujo el estado infectado registrando el SW a mano, se confirmó que servía
+el `pwa.js` viejo, y tras el arreglo el origen queda con cero registros, cero
+cachés y el fuente NUEVO servido de red, con la app arrancando igual.
+
+Siguiente paso concreto: **E15-1**, los tres callejones sin salida — añadir
+`today.createPlan` a los dos diccionarios, cablear `go-onboarding` y `add-intake`,
+reescribir `test/e2e/shopping.spec.js:117` (que nunca navega a Compra), y crear
+`test/ui-state-actions.test.js`, que cruza toda `action:` declarada contra los
+`[data-action]` escuchados.

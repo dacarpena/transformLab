@@ -16,6 +16,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { isICloudDuplicate } from './helpers/tree.js';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
+import { swPolicy, PROD_PARITY_PORT } from '../src/ui/pwa.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -85,9 +86,9 @@ test('PRECACHE no contiene index.html: Cloudflare lo redirige y tumba el precach
     assert.ok(cached.includes('./'), 'falta el shell (./) en PRECACHE');
 
     // Y la navegación tiene que servirse de './', no de 'index.html'
-    assert.match(swSource, /caches\.match\('\.\/'\)/,
-        'la navegación debe resolverse con caches.match(\'./\')');
-    assert.ok(!/caches\.match\('index\.html'\)/.test(swSource),
+    assert.match(swSource, /\bcache\.match\('\.\/'\)/,
+        'la navegación debe resolverse con match(\'./\')');
+    assert.ok(!/match\('index\.html'\)/.test(swSource),
         'devolver index.html a una navegación sirve una respuesta redirigida, que el navegador rechaza');
 });
 
@@ -188,4 +189,102 @@ test('el precache pide los ficheros con `cache: reload`', () => {
     // sirve de nada si precachea los módulos VIEJOS desde la caché HTTP.
     const source = readFileSync(join(ROOT, 'sw.js'), 'utf8');
     assert.match(source, /cache:\s*'reload'/);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-0 · El service worker no puede secuestrar el desarrollo
+ *
+ * `sw.js` es cache-first SIN revalidar y no llama a `skipWaiting()` (las dos
+ * cosas, a propósito). En producción eso es lo correcto. En `npm run serve`
+ * significaba que editabas un módulo, recargabas, y el navegador seguía
+ * ejecutando el de antes indefinidamente: la capacidad de verificar cualquier
+ * cosa en local, perdida, y en silencio.
+ *
+ * `swPolicy` es la decisión entera, y es pura para poder probarla como una
+ * tabla de verdad. El único origen local que sigue registrando es el que
+ * reproduce producción, porque ahí corre `test/e2e/pwa.spec.js`, que es lo que
+ * comprueba el precache y el modo avión.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('swPolicy: producción registra, desarrollo limpia, y el 8081 sigue siendo producción', () => {
+    /** @type {Array<[string, string, boolean, 'register'|'skip'|'cleanup', string]>} */
+    const casos = [
+        // hostname          port    seguro   esperado     por qué
+        ['motifyer.com',     '',     true,    'register',  'producción'],
+        ['transformlab.pages.dev', '', true,  'register',  'el despliegue de Pages'],
+        ['127.0.0.1',        '8081', true,    'register',  'serve-csp.mjs reproduce producción; ahí corre pwa.spec.js'],
+        ['localhost',        '8081', true,    'register',  'el mismo servidor por su otro nombre'],
+        ['localhost',        '8080', true,    'cleanup',   'npm run serve: aquí nacía el módulo fósil'],
+        ['127.0.0.1',        '8080', true,    'cleanup',   'npm run serve por IP'],
+        ['127.0.0.1',        '8082', true,    'cleanup',   'el servidor sin cabeceras de dom-security.spec.js'],
+        ['[::1]',            '8080', true,    'cleanup',   'bucle local en IPv6'],
+        ['app.localhost',    '3000', true,    'cleanup',   'subdominio de localhost, que también es contexto seguro'],
+        ['motifyer.com',     '',     false,   'skip',      'sin contexto seguro no hay service worker que registrar'],
+        ['127.0.0.1',        '8080', false,   'skip',      'ni que limpiar: la API no existe'],
+        ['',                 '',     false,   'skip',      'file://']
+    ];
+
+    for (const [hostname, port, isSecureContext, esperado, porque] of casos) {
+        assert.equal(
+            swPolicy({ hostname, port, isSecureContext }),
+            esperado,
+            `${hostname || 'file://'}:${port || '-'} (seguro=${isSecureContext}) debería dar «${esperado}» — ${porque}`
+        );
+    }
+});
+
+test('PROD_PARITY_PORT es el puerto que levanta Playwright, no el de npm run serve', () => {
+    // Dos escrituras del mismo número atadas por un test: el mismo candado que
+    // `sw.lock.json` pone sobre `CACHE_VERSION`. Si alguien mueve el puerto en
+    // `playwright.config.js` y no aquí, `pwa.spec.js` se quedaría sin service
+    // worker que probar y sus tests fallarían de una forma incomprensible.
+    const playwright = readFileSync(join(ROOT, 'playwright.config.js'), 'utf8');
+    assert.ok(
+        playwright.includes(`serve-csp.mjs ${PROD_PARITY_PORT}`),
+        `playwright.config.js debe levantar serve-csp.mjs en el puerto ${PROD_PARITY_PORT}`
+    );
+    assert.ok(
+        playwright.includes(`baseURL: 'http://127.0.0.1:${PROD_PARITY_PORT}'`),
+        `los E2E deben apuntar al puerto ${PROD_PARITY_PORT}`
+    );
+
+    // Y el servidor de desarrollo NO puede coincidir con él, o volveríamos a
+    // registrar el service worker justo donde estorba.
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+    assert.ok(
+        !pkg.scripts.serve.includes(PROD_PARITY_PORT),
+        `npm run serve no puede usar el puerto ${PROD_PARITY_PORT}: ahí sí se registra el service worker`
+    );
+});
+
+test('la limpieza de desarrollo solo borra cachés de TransformLab', () => {
+    // Un `caches.delete` sin filtro en un origen compartido —localhost lo es,
+    // y ahí conviven todos los proyectos de la máquina— borraría las cachés de
+    // otra aplicación. El prefijo `tl-` es la frontera.
+    const source = readFileSync(join(ROOT, 'src/ui/pwa.js'), 'utf8');
+    assert.match(source, /startsWith\('tl-'\)/,
+        'cleanup() debe filtrar por el prefijo tl- antes de borrar cachés');
+});
+
+test('el service worker sirve SOLO de la caché de su versión, nunca de la búsqueda global', () => {
+    // `CacheStorage.match()` recorre TODAS las cachés y devuelve la primera por
+    // orden de creación. Con una caché vieja superviviente, eso sirve el módulo
+    // fósil aunque el actual esté cacheado — y entre `install` y `activate` las
+    // dos coexisten SIEMPRE, durante todo el tiempo que el usuario tarde en
+    // aceptar el aviso de versión nueva, porque no hay `skipWaiting`.
+    //
+    // Comprobado en un navegador real antes de escribir este test: la búsqueda
+    // global devolvía el `pwa.js` viejo teniendo el nuevo delante. Es el mismo
+    // fallo que `CACHE_VERSION` existe para impedir, colado por la puerta de al
+    // lado.
+    // Sin comentarios: la explicación de por qué NO se usa contiene la cadena.
+    const code = swSource
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const global = [...code.matchAll(/(?<![.\w])caches\.match\s*\(/g)];
+    assert.deepEqual(global.map((m) => m[0]), [],
+        'usa `(await caches.open(CACHE_VERSION)).match(...)`, no `caches.match(...)`');
+
+    // Y que de verdad se abre la caché versionada antes de responder.
+    assert.match(swSource, /caches\.open\(CACHE_VERSION\)/);
 });

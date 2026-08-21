@@ -10,9 +10,87 @@
  *
  * Degrada en silencio: sin `serviceWorker` (Safari en privado, `file://`,
  * http sin localhost) la aplicación funciona igual, solo que sin offline.
+ *
+ * Y **en desarrollo no se registra** (E15-0). `sw.js` es cache-first sin
+ * revalidar, así que en `npm run serve` servía módulos fósiles: editabas un
+ * fichero, recargabas, y el navegador seguía ejecutando el de antes hasta que
+ * alguien se acordaba de `npm run sw:bump`. Eso no es una molestia, es la
+ * pérdida de la capacidad de verificar nada. La excepción es el origen que
+ * reproduce producción, donde el modo sin conexión SÍ tiene que probarse.
  */
 
 import * as toast from './components/toast.js';
+
+/**
+ * Puerto del servidor que reproduce producción (`tools/serve-csp.mjs`, que
+ * sirve las cabeceras reales de `_headers`). Es el ÚNICO origen local donde el
+ * service worker debe registrarse: ahí corre `test/e2e/pwa.spec.js`, que
+ * comprueba el precache completo y el modo avión.
+ *
+ * Está atado a `playwright.config.js` por `test/pwa.test.js`: si uno de los dos
+ * cambia el número y el otro no, el test se cae. Es el mismo candado que
+ * `sw.lock.json` pone sobre `CACHE_VERSION`.
+ */
+export const PROD_PARITY_PORT = '8081';
+
+/**
+ * Hosts de bucle local. El navegador los considera contexto seguro sin TLS, así
+ * que `isSecureContext` no los distingue de producción: hay que mirarlos.
+ * @param {string} hostname
+ * @returns {boolean}
+ */
+function isLoopback(hostname) {
+    return hostname === 'localhost'
+        || hostname.endsWith('.localhost')
+        || hostname === '127.0.0.1'
+        || hostname === '[::1]'
+        || hostname === '::1';
+}
+
+/**
+ * Qué hacer con el service worker en este origen. Pura a propósito: es la
+ * decisión entera del módulo y se prueba como una tabla de verdad, sin
+ * navegador.
+ *
+ * - `skip`     el origen no admite service worker; no hay nada que hacer.
+ * - `register` producción, y el servidor local que la reproduce.
+ * - `cleanup`  desarrollo: además de no registrar, hay que DESINSTALAR el que
+ *              ya estuviera puesto. Sin esto, quien abrió el 8080 alguna vez
+ *              arrastra su caché para siempre, que es justo el fallo a cerrar.
+ *
+ * @param {{ hostname: string, port: string, isSecureContext: boolean }} origin
+ * @returns {'register' | 'skip' | 'cleanup'}
+ */
+export function swPolicy(origin) {
+    if (!origin.isSecureContext) return 'skip';
+    if (!isLoopback(origin.hostname)) return 'register';
+    return origin.port === PROD_PARITY_PORT ? 'register' : 'cleanup';
+}
+
+/**
+ * Desinstala el service worker de este origen y tira sus cachés.
+ *
+ * Solo avisa si de verdad había algo que quitar: un mensaje en cada recarga de
+ * cada sesión de desarrollo es ruido, y el ruido se deja de leer.
+ * @returns {Promise<void>}
+ */
+async function cleanup() {
+    try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+
+        const stale = (await caches.keys()).filter((name) => name.startsWith('tl-'));
+        await Promise.all(stale.map((name) => caches.delete(name)));
+
+        if (registrations.length > 0 || stale.length > 0) {
+            console.info('[pwa] service worker de desarrollo desinstalado; recarga para servir de red');
+        }
+    } catch (err) {
+        // Que la limpieza falle no puede tumbar el arranque: como mucho se
+        // sigue viendo código viejo, que es exactamente el estado de antes.
+        console.warn('[pwa] no se pudo limpiar el service worker de desarrollo', err);
+    }
+}
 
 /** Evita registrar dos veces si `boot()` se repite. */
 let registered = false;
@@ -102,12 +180,24 @@ function watchForUpdate(registration) {
 export async function register() {
     if (registered) return;
     if (!('serviceWorker' in navigator)) return;
-    // Un SW solo se registra en origen seguro; en `file://` ni se intenta.
-    if (!globalThis.isSecureContext) return;
+
+    const policy = swPolicy({
+        hostname: globalThis.location?.hostname ?? '',
+        port: globalThis.location?.port ?? '',
+        isSecureContext: Boolean(globalThis.isSecureContext)
+    });
+    // `registered` se marca en los tres caminos: significa «ya se decidió y se
+    // actuó», no «hay un service worker». Sin esto, un `boot()` repetido
+    // volvería a barrer cachés en desarrollo en cada arranque.
+    if (policy !== 'register') {
+        registered = true;
+        if (policy === 'cleanup') await cleanup();
+        return;
+    }
     registered = true;
 
     // Se espera a que la página esté quieta. Instalar el service worker
-    // descarga y guarda las 55 piezas de golpe, y medido contra el despliegue
+    // descarga y guarda TODO el precache de golpe, y medido contra el despliegue
     // real eso bloqueaba el hilo principal 3,4 s en la primera visita desde un
     // móvil: la aplicación ya se veía, pero no respondía al dedo. El offline
     // es para la segunda visita; no hay ninguna prisa por tenerlo en la

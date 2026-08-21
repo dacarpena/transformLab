@@ -109,6 +109,18 @@ seguirá ejecutando el módulo viejo junto a los nuevos que sí pidió de red. E
 lo impone `test/views-manifest.test.js` contra `sw.lock.json`; cuando falle,
 `npm run sw:bump` es la respuesta.
 
+**En `npm run serve` (8080) NO hay service worker** (E15-0). Esa misma regla de
+cache-first sin revalidar hacía que en desarrollo editaras un módulo, recargaras
+y siguieras ejecutando el de antes, indefinidamente y sin aviso. `src/ui/pwa.js`
+decide con `swPolicy()`: en cualquier host de bucle local **desinstala** el
+service worker y tira las cachés `tl-*`; el único origen local que sigue
+registrando es `127.0.0.1:8081` (`tools/serve-csp.mjs`, que sirve las cabeceras
+reales de `_headers`), porque ahí corre `test/e2e/pwa.spec.js` y es donde el
+modo sin conexión tiene que probarse de verdad. `test/pwa.test.js` ata ese
+puerto a `playwright.config.js`. Consecuencia práctica: para verificar el
+comportamiento de PWA, `npm run e2e` o `node tools/serve-csp.mjs 8081`, nunca el
+8080.
+
 **Trabajo en paralelo (worktrees):** desde E13-11, `CACHE_VERSION` se **deriva del
 `precacheHash`** (`tl-<12 hex>`): mismo árbol → misma versión, y dos ramas ya no pueden
 colisionar en un número compartido. La regla sigue siendo la misma y ahora es inocua:
