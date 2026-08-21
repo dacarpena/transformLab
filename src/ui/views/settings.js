@@ -14,6 +14,7 @@ import { t, getLocale, setLocale, availableLocales } from '../../i18n/i18n.js';
 import * as storage from '../../data/storage.js';
 import * as profiles from '../../data/profiles.js';
 import * as backup from '../../data/backup.js';
+import * as settingsStore from '../../data/settings.js';
 import * as importWeights from '../../data/import-weights.js';
 import * as demoProfile from '../../data/demo-profile.js';
 import * as checkins from '../../data/checkins.js';
@@ -358,10 +359,16 @@ export function mount(container) {
         document.documentElement.lang = locale;
         document.title = t('app.title');
 
-        const stored = storage.get('settings');
-        const base = stored.ok && stored.value ? /** @type {object} */ (stored.value) : {};
-        const saved = storage.set('settings', { ...base, schemaVersion: 5, locale });
-        if (!saved.ok) toast.fromErrorCode(saved.error.split(':')[0]);
+        // Por `settingsStore.patch`, no por `storage.set` con un objeto raíz
+        // armado a mano (E15-16). Aquí había un `schemaVersion: 5` literal con
+        // `SCHEMA_VERSION` ya en 6: el ÚNICO de todo `src/` fuera de
+        // `src/data/`. Quedaba enmascarado porque `validateCollection` migra en
+        // memoria al releer, así que nada fallaba — pero el registro persistido
+        // se quedaba con la versión vieja cada vez que alguien cambiaba de
+        // idioma. El arreglo no es cambiar el 5 por un 6: es que la vista deje
+        // de construir un objeto raíz, que para eso está la capa de datos.
+        const saved = settingsStore.patch({ locale });
+        if (!saved.ok) toast.fromErrorCode(String(saved.error).split(':')[0]);
 
         // Cambiar de idioma repinta la vista y la navegación; NO vuelve a
         // enrutar la aplicación entera. Un re-enrutado completo remontaba el

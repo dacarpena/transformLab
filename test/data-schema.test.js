@@ -9,6 +9,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join, relative } from 'node:path';
+import { isICloudDuplicate } from './helpers/tree.js';
+
+const ROOT_DIR = fileURLToPath(new URL('..', import.meta.url));
 import {
     SCHEMA_VERSION,
     COLLECTIONS,
@@ -289,4 +295,37 @@ test('los campos de texto pasan por sanitizeText al validar', () => {
     const r = validateProfile({ ...PROFILE_OK, name: '  Dani   ' });
     assert.ok(r.ok);
     assert.equal(r.value.name, 'Dani');
+});
+
+test('ningún schemaVersion escrito a mano fuera de src/data (E15-16)', () => {
+    // `settings.js` de la interfaz armaba un objeto raíz con `schemaVersion: 5`
+    // teniendo `SCHEMA_VERSION` en 6 — el único literal así de todo `src/`.
+    // Quedaba enmascarado porque `validateCollection` migra en memoria al
+    // releer, así que nada fallaba: solo se persistía un registro con la versión
+    // vieja cada vez que alguien cambiaba de idioma.
+    //
+    // La regla es la de `CLAUDE.md`: la versión tiene UNA fuente,
+    // `src/data/version.js`, y quien la necesite la importa.
+    const infractores = [];
+    const walk = (/** @type {string} */ current) => {
+        for (const entry of readdirSync(current, { withFileTypes: true })) {
+            if (isICloudDuplicate(entry.name)) continue;
+            const full = join(current, entry.name);
+            if (entry.isDirectory()) {
+                if (entry.name === 'data') continue;   // su casa
+                walk(full);
+                continue;
+            }
+            if (!entry.name.endsWith('.js')) continue;
+            const code = readFileSync(full, 'utf8')
+                .replace(/\/\*[\s\S]*?\*\//g, ' ')
+                .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+            for (const m of code.matchAll(/schemaVersion:\s*(\d+)/g)) {
+                infractores.push(`${relative(ROOT_DIR, full)}: schemaVersion: ${m[1]}`);
+            }
+        }
+    };
+    walk(join(ROOT_DIR, 'src'));
+    assert.deepEqual(infractores, [],
+        `la versión de esquema tiene una sola fuente:\n  ${infractores.join('\n  ')}`);
 });

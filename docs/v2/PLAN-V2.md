@@ -1963,6 +1963,19 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   y la asimetría desaparece entera con una línea en un sitio. Hay test estático
   que exige que siga habiendo **una sola** limpieza y que esté ahí dentro.
 
+- [x] **E15-16 · El último `schemaVersion` escrito a mano.**
+  La vista de Ajustes armaba `{ ...base, schemaVersion: 5, locale }` con
+  `SCHEMA_VERSION` ya en 6: el ÚNICO literal así de todo `src/` fuera de
+  `src/data/`. Quedaba enmascarado porque `validateCollection` migra en memoria
+  al releer, así que nada fallaba nunca — solo se persistía un registro de la
+  versión anterior cada vez que alguien cambiaba de idioma. Por eso duró.
+
+  El arreglo no es cambiar el 5 por un 6: es que la vista **deje de construir un
+  objeto raíz**, que para eso está `settingsStore.patch`. Y un test estático
+  recorre `src/` fuera de `src/data/` exigiendo que no quede ni un
+  `schemaVersion:` seguido de un número — la regla de `CLAUDE.md` escrita como
+  código en vez de como costumbre.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -2052,8 +2065,9 @@ carrera de píxeles de `release.spec.js`, hermana de la de `csp.spec.js`.
 
 Quedan: **E15-15** (los cinco
 módulos sin test unitario, empezando por `recalibrate.js`, que reescribe el
-perfil), **E15-16** (el último `schemaVersion` literal) y **E15-17** (los hitos en
-Proyección). Y luego M8 y M9.
+perfil), **E15-17** (los hitos en Proyección). Y luego M8 y M9.
+
+**2026-08-21 · E15-16.** Cerrada. **905 unitarios y 233 E2E**, typecheck limpio.
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa

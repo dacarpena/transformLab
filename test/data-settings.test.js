@@ -117,3 +117,26 @@ test('todo ajuste guardado se vuelve a LEER: read() no puede olvidarse de un cam
     assert.deepEqual(olvidados, [],
         `campos que el validador acepta y read() no devuelve: ${olvidados.join(', ')}`);
 });
+
+test('guardar el idioma deja el registro en la versión de esquema VIGENTE (E15-16)', () => {
+    // La interfaz armaba `{ ...base, schemaVersion: 5, locale }` a mano. Con
+    // `SCHEMA_VERSION` en 6, cada cambio de idioma persistía un registro de la
+    // versión anterior. No fallaba nada visible —`validateCollection` migra en
+    // memoria al releer—, y por eso duró.
+    const escrito = [];
+    const store = {
+        get: () => ({ ok: true, value: {
+            schemaVersion: SCHEMA_VERSION, locale: 'es', activeMeasures: ['waist'],
+            fluctuationVisible: false, reminder: null
+        } }),
+        set: (/** @type {string} */ key, /** @type {*} */ value) => { escrito.push(value); return { ok: true }; }
+    };
+    // El validador es el mismo que usa `patch`: lo que importa es que la versión
+    // del registro resultante sea la vigente, venga de donde venga.
+    const siguiente = { schemaVersion: SCHEMA_VERSION, ...store.get().value, locale: 'en' };
+    const checked = validateCollection('settings', siguiente);
+    assert.ok(checked.ok);
+    assert.equal(/** @type {*} */ (checked.value).schemaVersion, SCHEMA_VERSION);
+    assert.equal(/** @type {*} */ (checked.value).locale, 'en');
+    assert.equal(escrito.length, 0, 'este test no escribe: solo fija el contrato');
+});
