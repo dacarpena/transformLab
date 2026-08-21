@@ -1090,9 +1090,17 @@ de la milestone:
 - **`readMigrationBackup` existe y no lo llama nadie en `src/`.** Una red de
   seguridad a la que solo se llega desde la consola del navegador no es una red:
   hace falta un botón de «descargar mis datos anteriores» en Ajustes.
-- **`views/photos.js:95` descarta en silencio una foto que no encuentra.**
-  Preexistente y contrario a §D9: debería contar los fallos y decir «N fotos no
-  se pudieron recuperar».
+- ~~**`views/photos.js:95` descarta en silencio una foto que no encuentra.**~~
+  **Cerrado en M9-5.** Se cuenta y se dice. Y por el camino apareció un caso
+  legítimo que antes no existía —el móvil nuevo, cuyos blobs están en R2—, así
+  que primero se intenta bajar la foto y solo se avisa de las que de verdad no
+  están en ninguna parte: confundir «todavía no la he bajado» con «esta foto se
+  perdió» habría sido alarmar por nada.
+- **Miniaturas de las fotos.** M9-5 decidió no hacerlas: con la imagen ya
+  recortada a 1600 px y la galería bajando de una en una y solo lo que pide, el
+  ahorro no compensa duplicar objetos, cuota, barrido y modos de fallo. Se mide
+  primero; si el gasto de datos en un móvil nuevo con cincuenta fotos resulta
+  molesto, entonces sí.
 - **`navigator.locks` para la migración.** Cerraría la ventana entre pestañas del
   todo, pero obligaría a volver asíncrono el arranque antes de leer nada.
 - **La caché de `menuSeed` en `nutrition.js:322`**, preexistente y ajena a esto.
