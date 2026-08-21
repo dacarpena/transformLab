@@ -506,7 +506,7 @@ function emptySelection() {
         ${empty({
             titleKey: 'analysis.emptySelection.title',
             bodyKey: 'analysis.emptySelection.body',
-            actions: [{ labelKey: 'analysis.series.choose', action: 'openPicker', primary: true }]
+            actions: [{ labelKey: 'analysis.series.choose', action: 'open-picker', primary: true }]
         })}
         <div class="btn-row">
             ${PRESETS.map((p) => html`
@@ -1074,7 +1074,12 @@ export async function mount(/** @type {HTMLElement} */ container) {
 }
 
 function wire(/** @type {HTMLElement} */ container) {
-    on(container, 'click', '[data-open-picker]', () => openPicker(container));
+    // Dos selectores, un oyente. El botón de la barra lleva `data-open-picker`;
+    // el del estado sin selección lo pinta `components/state.js`, que SIEMPRE
+    // emite `data-action="<id>"`. Estaba declarado como `openPicker` y nadie lo
+    // escuchaba: deseleccionabas todas las series y el botón principal —el único
+    // camino de vuelta— no hacía nada.
+    on(container, 'click', '[data-open-picker], [data-action="open-picker"]', () => openPicker(container));
 
     on(container, 'click', '[data-preset]', async (_event, target) => {
         const preset = PRESETS.find((p) => p.id === target.getAttribute('data-preset'));

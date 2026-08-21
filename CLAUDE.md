@@ -96,7 +96,7 @@ Estos invariantes viven como **tests con nombre** en `test/` y deben estar en ve
 ## 6. Comandos
 
 ```bash
-npm run serve       # servidor local (python3 -m http.server 8080)
+npm run serve       # servidor local en 8080 (node tools/serve-csp.mjs: CSP y cabeceras reales)
 npm test            # node --test test/  (motor y datos)
 npm run typecheck   # tsc --noEmit (checkJs sobre src/core y src/data)
 npm run e2e         # Playwright smoke (requiere serve en marcha o webServer configurado)

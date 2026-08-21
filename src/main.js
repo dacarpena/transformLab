@@ -90,6 +90,12 @@ function wiringFor(roots) {
     return {
         checkin: (m) => m.setOnSaved(() => route(roots)),
         progress: (m) => m.setOnGoToCheckin(() => router.navigate('checkin')),
+        // `editProfile` ya cae a `startOnboarding` cuando no hay plan, así que
+        // la misma línea sirve para «crear el primero» y para «reeditar el que
+        // hay». Sin esto, los estados vacíos de Gasto y Compra eran callejones
+        // sin salida: el botón existía, era primario, y no hacía nada.
+        expenditure: (m) => m.setOnCreatePlan(() => editProfile(roots)),
+        shopping: (m) => m.setOnCreatePlan(() => editProfile(roots)),
         settings: (m) => {
             m.setOnProfilesChanged(() => route(roots));
             m.setOnEditProfile(() => editProfile(roots));

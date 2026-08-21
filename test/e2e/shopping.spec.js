@@ -33,12 +33,21 @@ async function completeOnboarding(page) {
     await expect(page.locator('#today-title')).toBeVisible();
 }
 
-async function goToShopping(page) {
+/**
+ * Pulsa la entrada de navegación de Compra, abriendo antes la hoja «Más» si la
+ * pestaña no está a la vista. NO afirma nada sobre lo que se pinta: sin plan, la
+ * vista es un estado vacío y no tiene `#shopping-title`.
+ */
+async function navegarACompra(page) {
     const directo = page.locator('[data-view="shopping"]');
     if (await directo.count() === 0 || !(await directo.first().isVisible())) {
         await page.locator('[data-nav-more]').click();
     }
     await directo.first().click();
+}
+
+async function goToShopping(page) {
+    await navegarACompra(page);
     await expect(page.locator('#shopping-title')).toBeVisible({ timeout: 15000 });
 }
 
@@ -115,14 +124,43 @@ test('cambiar el orden no cambia las cantidades', async ({ page }) => {
     await expect(totales).toHaveText(antes);
 });
 
-test('sin plan, la compra ofrece crear uno en vez de fallar', async ({ page }) => {
-    await page.evaluate(() => localStorage.clear());
-    await page.reload();
-    // Sin plan aparece el onboarding; la vista de compra no debe reventar si se
-    // llega a ella igualmente.
-    const estado = await page.evaluate(() => document.querySelector('.onboarding') !== null
-        || document.body.innerText.includes('plan'));
-    expect(estado).toBe(true);
+test('sin plan, la compra ofrece crear uno y el botón LLEVA al asistente', async ({ page }) => {
+    // Este test se llamaba así y no navegaba a Compra (E15-1). Vaciaba
+    // `localStorage`, recargaba, y comprobaba
+    // `.onboarding !== null || innerText.includes('plan')`: sin almacén la app
+    // sale al asistente, la primera rama se cumple SIEMPRE, y el test pasaba sin
+    // haber pintado jamás el estado que decía comprobar. Debajo de ese verde
+    // vivían dos defectos: el botón mostraba el literal `today.createPlan`
+    // porque la clave no existía en ningún diccionario, y no tenía oyente.
+    //
+    // Vaciar el almacén NO sirve para reproducirlo: `route()` manda al asistente
+    // antes de montar ninguna vista, así que Compra no llega a existir. Hay que
+    // entrar en Compra CON plan y quitarle el plan a la vista.
+    await goToShopping(page);
+    await expect(page.locator('[data-view-id="shopping"]')).toBeVisible();
+
+    await page.evaluate(async () => {
+        const plans = await import('/src/ui/plan-state.js');
+        plans.clear();
+    });
+    // Repintar la vista sin plan: se sale y se vuelve, que es lo que haría un
+    // usuario cuyo perfil dejó de poder construirse. Sin `goToShopping`, porque
+    // ese ayudante espera `#shopping-title` y el estado vacío no lo tiene.
+    await page.locator('[data-view="today"]').click();
+    await navegarACompra(page);
+
+    const boton = page.locator('[data-view-id="shopping"] [data-action="go-onboarding"]');
+    await expect(boton).toBeVisible();
+
+    // 1. La etiqueta está traducida: si la clave faltara, el botón mostraría
+    //    literalmente `today.createPlan`, que es lo que hacía.
+    await expect(boton).not.toHaveText(/today\.createPlan/);
+    await expect(boton).toHaveText(/plan/i);
+
+    // 2. Y lleva a alguna parte. Sin oyente, esto se queda en Compra para
+    //    siempre: un callejón sin salida (ficha H-013).
+    await boton.click();
+    await expect(page.locator('#onboarding-title')).toBeVisible({ timeout: 5000 });
 });
 
 test('a 320 px la lista no desborda a lo ancho', async ({ page }) => {

@@ -11,7 +11,7 @@
     "url": "https://github.com/dacarpena/transformLab.git"
   },
   "scripts": {
-    "serve": "python3 -m http.server 8080",
+    "serve": "node tools/serve-csp.mjs 8080",
     "test": "node --test \"test/**/*.test.js\"",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",

@@ -130,6 +130,7 @@ export const es = {
     'today.projectionTag': 'Proyección',
     'today.projectionNote': 'Estas cifras son lo que el plan predice para hoy, no una medición. Registra un check-in para comparar tu realidad con el plan.',
     'today.firstCheckin': 'Registrar mi primer check-in',
+    'today.createPlan': 'Crear mi plan',
     'today.seeProjection': 'Ver la proyección completa',
     'today.plan.title': 'Tu plan',
     'today.plan.start': 'Inicio',

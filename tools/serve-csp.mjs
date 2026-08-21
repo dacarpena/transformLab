@@ -15,6 +15,21 @@
  * Las cabeceras se LEEN de `_headers`, no se copian: la política que se prueba
  * es literalmente la que despliega Cloudflare Pages.
  *
+ * **Y desde E15-0 es también el servidor de `npm run serve`, en el 8080.**
+ * `python3 -m http.server` no manda `Cache-Control`, así que el navegador
+ * aplicaba caché HEURÍSTICA a los módulos: medido en un navegador real, tras
+ * editar `expenditure.js` y recargar con el service worker ya desinstalado, la
+ * página seguía ejecutando el módulo anterior —sin `setOnCreatePlan` en sus
+ * exports—. Es el mismo fósil que E15-0 fue a matar, por la otra puerta: la del
+ * caché HTTP en vez de la del service worker. `_headers` trae `no-cache`, este
+ * servidor lo sirve, y además nunca responde 304, así que lo que se ejecuta es
+ * siempre lo que hay en disco.
+ *
+ * El 8080 y el 8081 son el mismo servidor a propósito, y solo se distinguen en
+ * el puerto: `src/ui/pwa.js#swPolicy` registra el service worker en el 8081
+ * (paridad con producción, donde corre `pwa.spec.js`) y lo DESINSTALA en el
+ * 8080. Un solo servidor, dos políticas de service worker.
+ *
  * Uso manual: node tools/serve-csp.mjs [puerto]
  */
 

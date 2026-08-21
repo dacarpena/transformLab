@@ -42,6 +42,9 @@ function gather() {
     };
 }
 
+/** @type {(() => void) | null} */
+let onCreatePlan = null;
+
 /** Tarjeta del gasto medido, con la aritmética a la vista. */
 function renderMeasured(/** @type {*} */ measured, /** @type {number|null} */ formulaKcal) {
     if (measured === null) {
@@ -264,6 +267,23 @@ function draw(container) {
 export function mount(container) {
     draw(container);
 
+    // Sin plan, la vista entera es un estado vacío cuyo botón principal lleva
+    // aquí. Estuvo declarado y sin oyente: un callejón sin salida, que es justo
+    // lo que la ficha H-013 prohíbe.
+    on(container, 'click', '[data-action="go-onboarding"]', () => {
+        if (onCreatePlan) onCreatePlan();
+    });
+
+    // «Apuntar lo que como» no navega a ningún sitio: el formulario de ingesta
+    // YA está en pantalla, debajo de este mismo estado vacío (lo pinta `draw`).
+    // Lo que faltaba era llevar el foco hasta él.
+    on(container, 'click', '[data-action="add-intake"]', () => {
+        const kcal = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-field="kcal"]'));
+        if (!kcal) return;
+        kcal.scrollIntoView({ block: 'center', behavior: 'auto' });
+        kcal.focus();
+    });
+
     on(container, 'click', '[data-save-intake]', () => {
         const dateInput = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-field="dateISO"]'));
         const kcalInput = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-field="kcal"]'));
@@ -319,4 +339,13 @@ export function mount(container) {
 
 export function unmount() {
     // Sin timers ni gráficas propias: nada que soltar.
+}
+
+/**
+ * Qué hacer cuando el usuario, sin plan, pide crearlo. Lo cablea `main.js`,
+ * igual que `progress.setOnGoToCheckin`.
+ * @param {() => void} fn
+ */
+export function setOnCreatePlan(fn) {
+    onCreatePlan = fn;
 }

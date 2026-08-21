@@ -1516,6 +1516,48 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   —que descarta comentarios antes de mirar, porque la explicación contiene la
   cadena— impide que la global vuelva.
 
+- [x] **E15-1 · Cuatro botones primarios que no hacían nada.**
+  `components/state.js` pinta las acciones como `<button data-action="<id>">`, y
+  quien las declara y quien las escucha son ficheros distintos. Nada ataba las
+  dos mitades, así que un `action:` sin su `on(...)` compilaba, pasaba el
+  typecheck, pasaba los 833 tests y llegaba a producción como un botón principal
+  inerte. La ficha H-013 dice que un estado vacío nunca puede ser un callejón sin
+  salida; había cuatro.
+
+  - `go-onboarding` en **Gasto** y en **Compra**, con la etiqueta `today.createPlan`
+    que **no existía en ninguno de los dos diccionarios**: el botón mostraba la
+    clave cruda.
+  - `add-intake` en **Gasto**. No necesitaba navegar a ningún sitio: el formulario
+    de ingesta ya está en pantalla debajo del propio estado vacío. Faltaba llevar
+    el foco.
+  - `openPicker` en **Analizar**, que no sabíamos que estaba roto: **lo encontró
+    el test nuevo**. El único oyente escuchaba `[data-open-picker]`, otro atributo
+    distinto. Deseleccionabas todas las series y el único camino de vuelta no
+    hacía nada. Era además el único identificador en camelCase de todo el
+    proyecto: no es casualidad, un identificador que no sigue la convención es uno
+    que se escribió sin mirar los demás.
+
+  En Compra el oyente se registra **antes** del `await foodsDb.load()`, no con los
+  demás: si esa carga falla, `mount` sale antes y el estado vacío se quedaría otra
+  vez sin salida, justo en el caso de fallo.
+
+  **El test que debía cazar todo esto existía y mentía.** `shopping.spec.js:117`
+  se llamaba «sin plan, la compra ofrece crear uno en vez de fallar» y **nunca
+  navegaba a Compra**: vaciaba `localStorage`, recargaba, y comprobaba
+  `.onboarding !== null || innerText.includes('plan')`. Sin almacén, `route()`
+  manda al asistente antes de montar ninguna vista, así que la primera rama se
+  cumple siempre y el test pasaba sin haber pintado jamás lo que decía comprobar.
+  Reescrito: entra en Compra CON plan, le quita el plan a la vista, y afirma que
+  la etiqueta no es la clave cruda y que pulsar el botón abre el asistente.
+  Comprobado que falla al reintroducir cada defecto.
+
+  Y la guarda para que no vuelva: `test/ui-state-actions.test.js` cruza toda
+  `action:` declarada dentro de un `actions: [...]` contra los `[data-action]`
+  escuchados, **por fichero**. Lo de «por fichero» no es un detalle: `on()`
+  delega acotado al contenedor de SU vista, así que un oyente en Compra no
+  atiende al botón de Gasto — y la primera versión de este test, que solo miraba
+  un conjunto global, daba por bueno exactamente ese fallo.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1527,8 +1569,37 @@ se reprodujo el estado infectado registrando el SW a mano, se confirmó que serv
 el `pwa.js` viejo, y tras el arreglo el origen queda con cero registros, cero
 cachés y el fuente NUEVO servido de red, con la app arrancando igual.
 
-Siguiente paso concreto: **E15-1**, los tres callejones sin salida — añadir
-`today.createPlan` a los dos diccionarios, cablear `go-onboarding` y `add-intake`,
-reescribir `test/e2e/shopping.spec.js:117` (que nunca navega a Compra), y crear
-`test/ui-state-actions.test.js`, que cruza toda `action:` declarada contra los
-`[data-action]` escuchados.
+**2026-08-21 · E15-1.** Cerrada. Cuatro botones cableados (uno de ellos,
+`openPicker` en Analizar, descubierto por el test nuevo), `today.createPlan` en
+los dos diccionarios, `test/e2e/shopping.spec.js` reescrito, y
+`test/ui-state-actions.test.js` como guarda. 841/841 en verde, typecheck limpio,
+43 E2E de shopping+analysis en verde. Verificado en navegador real: el foco cae
+en el campo de kcal y el selector de series abre desde el estado vacío.
+
+**Y verificar E15-1 destapó dos cosas más, las dos anotadas abajo.** La primera
+se arregla ya porque es de la misma familia —una interfaz que dice algo falso— y
+cuesta una línea de CSS; la segunda va al BACKLOG.
+
+Siguiente paso concreto: **E15-1b**, `[hidden]` que no oculta.
+
+#### Hallazgos de la verificación de E15-1
+
+- **`hidden` no oculta nada en esta aplicación.** No existe **ninguna** regla
+  `[hidden]` en `css/`, y 88 reglas de clase fijan `display`. La hoja del
+  navegador trae `[hidden] { display: none }`, pero un selector de clase le gana.
+  Efecto medido en el selector de series con cero series elegidas: el aviso
+  `.notice[data-picker-limit]` —que SÍ tiene el atributo `hidden` puesto— se
+  pinta y dice «Ya tienes 8 series. Quita una para añadir otra.» tres líneas
+  encima de «0 de 8 series · Todavía no has elegido ninguna serie». Afecta
+  además a `data-effective-hint`, `data-marks-note`, `data-context-strip` y
+  `data-mixed-notice`, los cuatro en `analysis.js`. Se cierra en **E15-1b**.
+
+- **El caché HTTP fosiliza los módulos igual que el service worker.** E15-0
+  cerró una de las dos puertas; ésta es la otra. Medido: con el SW ya
+  desinstalado, tras editar `expenditure.js` y recargar, `import()` seguía
+  devolviendo el módulo anterior —sin `setOnCreatePlan` entre sus exports— porque
+  `python3 -m http.server` no manda `Cache-Control` y el navegador aplica caché
+  heurística. `npm run serve` pasa a ser `node tools/serve-csp.mjs 8080`, que
+  sirve el `no-cache` de `_headers` y nunca responde 304. Bonus: la CSP de
+  producción queda activa también en desarrollo, así que una violación se ve el
+  día que se escribe. Ya hecho, dentro de E15-1.

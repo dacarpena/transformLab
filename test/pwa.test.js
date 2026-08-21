@@ -257,6 +257,28 @@ test('PROD_PARITY_PORT es el puerto que levanta Playwright, no el de npm run ser
     );
 });
 
+test('npm run serve manda las cabeceras de _headers, o el caché HTTP fosiliza igual', () => {
+    // Desinstalar el service worker cierra UNA de las dos puertas por las que
+    // entra un módulo fósil. La otra es el caché HTTP del navegador:
+    // `python3 -m http.server` no manda `Cache-Control`, así que el navegador
+    // aplica caché HEURÍSTICA. Medido en un navegador real con el SW ya
+    // desinstalado: tras editar `expenditure.js` y recargar, la página seguía
+    // ejecutando el módulo anterior — `import()` devolvía un objeto sin
+    // `setOnCreatePlan` entre sus exports.
+    //
+    // `_headers` trae `Cache-Control: no-cache` y `tools/serve-csp.mjs` lo
+    // sirve, además de no responder 304 nunca. Bonus: la CSP de producción pasa
+    // a estar activa también en desarrollo, así que una violación se ve el día
+    // que se escribe y no el día que se despliega.
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+    assert.match(pkg.scripts.serve, /serve-csp\.mjs/,
+        'npm run serve debe usar tools/serve-csp.mjs: un servidor sin Cache-Control fosiliza los módulos');
+
+    const headers = readFileSync(join(ROOT, '_headers'), 'utf8');
+    assert.match(headers, /Cache-Control:\s*no-cache/,
+        '_headers debe seguir trayendo no-cache: es lo que el servidor de desarrollo sirve');
+});
+
 test('la limpieza de desarrollo solo borra cachés de TransformLab', () => {
     // Un `caches.delete` sin filtro en un origen compartido —localhost lo es,
     // y ahí conviven todos los proyectos de la máquina— borraría las cachés de

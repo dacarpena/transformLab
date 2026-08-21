@@ -114,6 +114,9 @@ function renderLine(/** @type {*} */ line) {
     `;
 }
 
+/** @type {(() => void) | null} */
+let onCreatePlan = null;
+
 /** @param {HTMLElement} container */
 function draw(container) {
     if (plans.get() === null) {
@@ -207,6 +210,15 @@ function draw(container) {
 export async function mount(container) {
     draw(container);
 
+    // ANTES del trabajo asíncrono, y a propósito. El botón principal del estado
+    // sin plan estaba declarado y sin oyente —un callejón sin salida, que es lo
+    // que prohíbe la ficha H-013—, y registrarlo abajo con los demás no bastaba:
+    // si `foodsDb.load()` falla, `mount` sale antes de llegar allí y el estado
+    // vacío se quedaría otra vez sin salida, justo en el caso de fallo.
+    on(container, 'click', '[data-action="go-onboarding"]', () => {
+        if (onCreatePlan) onCreatePlan();
+    });
+
     if (catalog === null) {
         const loaded = await foodsDb.load();
         if (!loaded.ok) {
@@ -272,4 +284,12 @@ export function unmount() {
     // no, porque depende del plan y de la despensa, y ambos pueden haber
     // cambiado mientras el usuario estaba en otra pantalla.
     list = null;
+}
+
+/**
+ * Qué hacer cuando el usuario, sin plan, pide crearlo. Lo cablea `main.js`.
+ * @param {() => void} fn
+ */
+export function setOnCreatePlan(fn) {
+    onCreatePlan = fn;
 }
