@@ -1942,6 +1942,27 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   correcto o no—, así que medir eso no dice nada sobre si el ancla era el bueno.
   Comprobado saboteando el arreglo: deriva idéntica, 0,206 días en los dos casos.
 
+- [x] **E15-14 · Analizar acumulaba una gráfica por repintado, y el tema no repintaba.**
+  Dos defectos hermanos, los dos por lo mismo: una limpieza escrita en uno de los
+  dos caminos en vez de en el embudo por el que pasan ambos.
+
+  **La fuga.** `refresh()` re-renderiza el `<canvas>` y `chartFor` crea una
+  instancia nueva por lienzo a través de un `WeakMap`. Sin destruir la anterior,
+  cada toque de un control dejaba una instancia de Chart.js viva colgada de un
+  nodo desconectado, retenida por el registro interno de la librería. Y `refresh`
+  se llama desde **once** sitios —métrica, ventana, granularidad, normalización,
+  cada filtro de hito, el selector, la tabla—, así que tras veinte toques la
+  vista se volvía pegajosa. Medido con el E2E: **nueve instancias vivas** tras
+  diez repintados; ahora una. `unmount()` ya lo hacía bien; `refresh` era el
+  camino que se olvidó. Proyección no lo sufre porque usa `redraw()` sin
+  re-renderizar el lienzo.
+
+  **El caché de tokens.** `tokenCache.clear()` estaba en `draw()`, así que
+  `drawMulti` no lo vaciaba nunca y en Analizar un cambio de tema dejaba los
+  colores del lienzo congelados. Se mueve a `drawSeries`, que es el embudo único,
+  y la asimetría desaparece entera con una línea en un sitio. Hay test estático
+  que exige que siga habiendo **una sola** limpieza y que esté ahí dentro.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -2027,7 +2048,9 @@ carrera de píxeles de `release.spec.js`, hermana de la de `csp.spec.js`.
 **Estado de E15:** cerradas E15-0, 1, 1b, 2, 3, 3b, 4, 5, 6, 7, 8, 9, 10, 11 y 12.
 **2026-08-21 · E15-13.** Cerrada. **902 unitarios y 232 E2E**, typecheck limpio.
 
-Quedan: **E15-14** (fuga de instancias en Analizar y `tokenCache`), **E15-15** (los cinco
+**2026-08-21 · E15-14.** Cerrada. **903 unitarios y 233 E2E**, typecheck limpio.
+
+Quedan: **E15-15** (los cinco
 módulos sin test unitario, empezando por `recalibrate.js`, que reescribe el
 perfil), **E15-16** (el último `schemaVersion` literal) y **E15-17** (los hitos en
 Proyección). Y luego M8 y M9.

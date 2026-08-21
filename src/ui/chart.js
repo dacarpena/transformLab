@@ -744,7 +744,6 @@ export function createChart() {
         // dejaría una instancia viva colgada de un nodo que se va a descartar.
         if (!options.canvas?.isConnected) return false;
         destroy();
-        tokenCache.clear();
     
         const { projection, metric, range } = options;
         muscleUnits = options.muscle ?? muscleUnitsFor(null);
@@ -1186,6 +1185,14 @@ export function createChart() {
         // `destroyInstance` y NO `destroy`: en el camino de `draw()` la métrica
         // de anuncio ya está fijada, y `destroy()` la devolvería a 'weight'.
         destroyInstance();
+
+        // El caché de tokens CSS se vacía aquí y solo aquí (E15-14). Estaba en
+        // `draw()`, que es uno de los dos caminos: `drawMulti` no lo vaciaba
+        // nunca, así que en Analizar un cambio de tema dejaba los colores del
+        // lienzo congelados en los de antes. `drawSeries` es el embudo por el
+        // que pasan LOS DOS, y por eso la asimetría desaparece entera con una
+        // línea en un sitio.
+        tokenCache.clear();
 
         const { datasets, range } = options;
         if (options.clickDatasetIndex !== undefined && options.clickDatasetIndex >= 0

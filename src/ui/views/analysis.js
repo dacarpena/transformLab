@@ -1076,6 +1076,20 @@ async function refresh(/** @type {HTMLElement} */ container) {
     const data = plans.get();
     if (!data) return;
     resolveSelection(data);
+
+    // Destruir ANTES de repintar (E15-14). `render` reemplaza el `<canvas>`, y
+    // `chartFor` crea una instancia nueva por lienzo a través de un `WeakMap`:
+    // sin esto, cada repintado dejaba una instancia de Chart.js viva colgada de
+    // un nodo desconectado, retenida por el registro interno de la librería.
+    // Y `refresh` se llama desde ONCE sitios —métrica, ventana, granularidad,
+    // normalización, cada filtro de hito, el selector, la tabla—, así que tras
+    // veinte toques la vista se volvía pegajosa.
+    //
+    // `unmount()` ya lo hacía; `refresh` es el camino que se olvidó. Proyección
+    // no lo sufre porque usa `redraw()` sin re-renderizar el lienzo.
+    chartInstance?.destroy();
+    chartInstance = null;
+
     render(container, selected.length === 0 ? emptySelection() : view());
     collapseDrawer(container);
     if (selected.length === 0) return;

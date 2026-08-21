@@ -1104,3 +1104,28 @@ test('el día bajo el cursor es el MISMO antes y después de hacer zoom', async 
         `el día bajo el cursor se movió de ${antes.toFixed(2)} a ${despues.toFixed(2)}`)
         .toBeLessThan(1.5);
 });
+
+/* ---------------------------------------------------------------------- *
+ * E15-14 · Analizar deja de acumular una gráfica por repintado
+ * ---------------------------------------------------------------------- */
+
+test('tras diez repintados sigue habiendo UNA sola instancia de Chart.js', async ({ page }) => {
+    // `refresh()` re-renderiza el `<canvas>` y `chartFor` crea una instancia
+    // nueva por lienzo. Sin destruir la anterior, cada toque de un control
+    // dejaba una instancia viva colgada de un nodo desconectado, retenida por el
+    // registro interno de Chart.js. Y `refresh` se llama desde once sitios.
+    await goToAnalysis(page);
+
+    const presets = ['shape', 'planVsReal', 'energy', 'body'];
+    for (let i = 0; i < 10; i++) {
+        const p = presets[i % presets.length];
+        const boton = page.locator(`[data-preset="${p}"]`);
+        if (await boton.count() === 0) continue;
+        await boton.click();
+        await page.waitForTimeout(120);
+    }
+
+    const vivas = await page.evaluate(() =>
+        Object.keys(/** @type {*} */ (globalThis).Chart?.instances ?? {}).length);
+    expect(vivas, 'una instancia por repintado se queda viva y retenida').toBe(1);
+});

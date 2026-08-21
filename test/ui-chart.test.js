@@ -511,3 +511,26 @@ test('todo lo que la factoría expone está declarado en el typedef ChartInstanc
     assert.deepEqual(declarados, Object.keys(createChart()).sort(),
         'el typedef y lo que la factoría devuelve tienen que decir lo mismo');
 });
+
+test('el caché de tokens se vacía en el EMBUDO, no en uno de los dos caminos (E15-14)', () => {
+    // Estaba en `draw()`. `drawMulti` no lo vaciaba nunca, así que en Analizar
+    // un cambio de tema dejaba los colores del lienzo congelados en los de
+    // antes. `drawSeries` es por donde pasan los dos, y ahí una línea arregla la
+    // asimetría entera.
+    const source = readFileSync(new URL('../src/ui/chart.js', import.meta.url), 'utf8');
+    const code = source
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+    const limpiezas = [...code.matchAll(/tokenCache\.clear\(\)/g)];
+    assert.equal(limpiezas.length, 1, 'el caché de tokens se vacía en un solo sitio');
+
+    // Y ese sitio es `drawSeries`: se comprueba que la llamada cae DENTRO de su
+    // cuerpo, entre su cabecera y la de la función siguiente.
+    const inicio = code.indexOf('function drawSeries(');
+    assert.ok(inicio > -1);
+    const posicion = code.indexOf('tokenCache.clear()');
+    assert.ok(posicion > inicio, 'la limpieza tiene que estar en drawSeries, no antes');
+    const siguienteFuncion = code.indexOf('\n    function ', inicio + 1);
+    assert.ok(posicion < siguienteFuncion, 'la limpieza se ha salido de drawSeries');
+});
