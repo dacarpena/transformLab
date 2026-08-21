@@ -164,3 +164,55 @@ test('CACHE_VERSION sube cuando cambia lo precacheado', () => {
     assert.ok(!precacheList().includes('sw.js'),
         'sw.js no puede estar en su propio PRECACHE: la versión derivada dejaría de ser estable');
 });
+
+test('todo módulo de src/data y src/ui lo importa algún test, o está declarado (E15-15)', () => {
+    // Cinco módulos llegaron a producción sin un solo test unitario, y uno de
+    // ellos —`recalibrate.js`— es el que REESCRIBE el perfil del usuario.
+    // `exercises-db.js` no tenía ni una referencia en todo `test/`.
+    //
+    // La lista de excepciones existe para que decir «este no» cueste escribir un
+    // motivo, no para engordarla cuando el test moleste.
+    const SIN_TEST_UNITARIO = new Map([
+        ['src/ui/muscle-grid.js',
+            'componente de presentación puro: pinta una rejilla SVG a partir del informe de volumen, '
+            + 'que sí tiene sus tests. Lo que aquí podría romperse son píxeles, y eso lo cubre '
+            + 'test/e2e/muscle-grid.spec.js']
+    ]);
+
+    /** @param {string} dir @returns {string[]} */
+    const modulosDe = (dir) => readdirSync(join(ROOT, dir), { withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith('.js') && !isICloudDuplicate(e.name))
+        .map((e) => `${dir}/${e.name}`);
+
+    /** Todo el fuente de los tests, en una sola cadena. */
+    const testSources = (() => {
+        /** @type {string[]} */ const out = [];
+        const walk = (/** @type {string} */ current) => {
+            for (const entry of readdirSync(current, { withFileTypes: true })) {
+                if (isICloudDuplicate(entry.name)) continue;
+                const full = join(current, entry.name);
+                if (entry.isDirectory()) walk(full);
+                else if (entry.name.endsWith('.js')) out.push(readFileSync(full, 'utf8'));
+            }
+        };
+        walk(join(ROOT, 'test'));
+        return out.join('\n');
+    })();
+
+    const candidatos = [...modulosDe('src/data'), ...modulosDe('src/ui')];
+    assert.ok(candidatos.length > 20, `solo ${candidatos.length} módulos: ¿se rompió el barrido?`);
+
+    const huerfanos = candidatos
+        .filter((m) => !SIN_TEST_UNITARIO.has(m))
+        // Basta con que algún test lo mencione por su ruta: es como se importa.
+        .filter((m) => !testSources.includes(m.replace(/^src\//, '')));
+
+    assert.deepEqual(huerfanos, [],
+        `módulos sin un solo test que los importe:\n  ${huerfanos.join('\n  ')}`);
+
+    // Y las excepciones tienen que seguir siendo ciertas: una que deje de serlo
+    // tapa un hueco real.
+    for (const [modulo] of SIN_TEST_UNITARIO) {
+        assert.ok(candidatos.includes(modulo), `${modulo} ya no existe: sobra de la lista`);
+    }
+});

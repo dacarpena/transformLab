@@ -25,7 +25,12 @@ import * as toast from './components/toast.js';
 import { num, signed } from './format.js';
 
 /** Clave donde se recuerda el rechazo, para no insistir. */
-const DECLINED_KEY = 'ui.recalDeclinedFingerprint';
+/**
+ * Dónde se recuerda un «no». Exportada porque es parte del CONTRATO de
+ * persistencia, no un detalle interno: quien haga copias, sincronización o un
+ * test necesita saber que esta clave existe y qué guarda.
+ */
+export const DECLINED_KEY = 'ui.recalDeclinedFingerprint';
 
 /**
  * Cuántas recalibraciones se conservan. Cada una archiva el plan completo, y

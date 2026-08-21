@@ -1976,6 +1976,37 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   `schemaVersion:` seguido de un número — la regla de `CLAUDE.md` escrita como
   código en vez de como costumbre.
 
+- [x] **E15-15 · Cinco módulos sin un solo test unitario.**
+  `recalibrate.js`, `plan-summary.js`, `marks.js`, `data/preferences.js` y
+  `data/exercises-db.js` sumaban 700 líneas de decisiones que solo verificaba un
+  navegador — y `exercises-db.js` **no tenía ni una referencia en todo `test/`**.
+  Un E2E ve el resultado; un unitario ve la decisión.
+
+  **El peor con diferencia era `recalibrate.js`**: es la única pieza que muta
+  datos que el usuario tecleó —archiva el plan, infiere una composición corporal
+  nueva y sobrescribe `profile`—, y es justo lo que un backend empezará a
+  sincronizar entre dispositivos. Diez tests le fijan las decisiones, incluidas
+  las dos que más han costado en la historia del proyecto: que `otherLeanKg` se
+  conserva y que el origen del músculo no se degrada (A3/E11/V2-M9). Y uno que
+  no se le suele poner a nada: **`check()` no escribe NADA en el almacén** —se
+  llama en cada arranque y en cada render de Hoy, así que mirar no puede tener
+  efectos.
+
+  De paso, `DECLINED_KEY` pasa a exportarse: es parte del contrato de
+  persistencia, no un detalle interno, y un test que la escriba a mano se pudre
+  en cuanto alguien la renombre.
+
+  **La fijación del estancamiento se midió, no se supuso.** Ocho semanas de peso
+  plano NO disparan la oferta con este perfil —proyecta ~0,23 kg/semana y la
+  tolerancia ronda 1,15 kg, así que la racha llega a 3 y se queda ahí—; hacen
+  falta doce. Un test escrito a ojo habría pasado por casualidad o fallado sin
+  explicar por qué.
+
+  Y la guarda para que no vuelva: `views-manifest.test.js` exige que **todo**
+  módulo de `src/data/` y `src/ui/` lo importe algún test, o esté en
+  `SIN_TEST_UNITARIO` con su motivo escrito. Queda una sola excepción,
+  `muscle-grid.js`, que es presentación pura sobre un informe que sí tiene tests.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -2063,9 +2094,9 @@ carrera de píxeles de `release.spec.js`, hermana de la de `csp.spec.js`.
 
 **2026-08-21 · E15-14.** Cerrada. **903 unitarios y 233 E2E**, typecheck limpio.
 
-Quedan: **E15-15** (los cinco
-módulos sin test unitario, empezando por `recalibrate.js`, que reescribe el
-perfil), **E15-17** (los hitos en Proyección). Y luego M8 y M9.
+**2026-08-21 · E15-15.** Cerrada. **939 unitarios y 233 E2E**, typecheck limpio.
+
+Queda: **E15-17** (los hitos en Proyección). Y luego M8 y M9.
 
 **2026-08-21 · E15-16.** Cerrada. **905 unitarios y 233 E2E**, typecheck limpio.
 
