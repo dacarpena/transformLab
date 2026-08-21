@@ -1580,11 +1580,19 @@ en el campo de kcal y el selector de series abre desde el estado vacío.
 se arregla ya porque es de la misma familia —una interfaz que dice algo falso— y
 cuesta una línea de CSS; la segunda va al BACKLOG.
 
-Siguiente paso concreto: **E15-1b**, `[hidden]` que no oculta.
+**2026-08-21 · E15-1b.** Cerrada. `[hidden] { display: none !important }` en
+`css/app.css` + `test/css-hidden.test.js`. 843/843 en verde, typecheck limpio,
+`sw:bump` ejecutado.
+
+Siguiente paso concreto: **E15-2**, el objetivo de músculo degenerado —
+`core/ranges.js#checkTarget` gana `target.muscleNoGain` para `0 ≤ Δ < 0,2 kg`, el
+aviso viaja por `plan.warnings` (que `dashboard.js` ya pinta y traduce, así que
+todo perfil ya guardado lo verá al siguiente arranque) y su botón lleva al
+asistente. Nunca corrección silenciosa (B9).
 
 #### Hallazgos de la verificación de E15-1
 
-- **`hidden` no oculta nada en esta aplicación.** No existe **ninguna** regla
+- [x] **`hidden` no ocultaba nada en esta aplicación** (E15-1b, cerrado). No existe **ninguna** regla
   `[hidden]` en `css/`, y 88 reglas de clase fijan `display`. La hoja del
   navegador trae `[hidden] { display: none }`, pero un selector de clase le gana.
   Efecto medido en el selector de series con cero series elegidas: el aviso
@@ -1592,7 +1600,16 @@ Siguiente paso concreto: **E15-1b**, `[hidden]` que no oculta.
   pinta y dice «Ya tienes 8 series. Quita una para añadir otra.» tres líneas
   encima de «0 de 8 series · Todavía no has elegido ninguna serie». Afecta
   además a `data-effective-hint`, `data-marks-note`, `data-context-strip` y
-  `data-mixed-notice`, los cuatro en `analysis.js`. Se cierra en **E15-1b**.
+  `data-mixed-notice`, los cuatro en `analysis.js`.
+
+  Arreglado con `[hidden] { display: none !important; }` en `css/app.css`. El
+  `!important` está justificado y no es un parche: `hidden` es una declaración de
+  intención del MARCADO, y ninguna regla de presentación debería poder
+  contradecirla. El marcado ya lo hacía bien; era el CSS el que no cumplía su
+  parte. `test/css-hidden.test.js` lo blinda —descartando comentarios antes de
+  mirar, porque el que explica la regla la cita literalmente—. Verificado en
+  navegador: el diálogo ya solo dice «0 de 8 series · Todavía no has elegido
+  ninguna serie».
 
 - **El caché HTTP fosiliza los módulos igual que el service worker.** E15-0
   cerró una de las dos puertas; ésta es la otra. Medido: con el SW ya

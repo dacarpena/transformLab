@@ -13,6 +13,24 @@
     box-sizing: border-box;
 }
 
+/* `hidden` NO ocultaba nada, y por eso este `!important` está justificado.
+
+   La hoja del navegador trae `[hidden] { display: none }`, pero es un selector
+   de atributo y CUALQUIERA de las 88 reglas de clase que aquí fijan `display`
+   le gana por especificidad. Medido en el selector de series con cero series
+   elegidas: `.notice[data-picker-limit]`, con el atributo `hidden` puesto de
+   verdad en el DOM, se pintaba y decía «Ya tienes 8 series. Quita una para
+   añadir otra.» tres líneas encima de «0 de 8 series · Todavía no has elegido
+   ninguna serie». Afectaba también a `data-effective-hint`, `data-marks-note`,
+   `data-context-strip` y `data-mixed-notice`.
+
+   `!important` es aquí lo correcto y no un parche: `hidden` es una declaración
+   de intención del marcado y ninguna regla de presentación debería poder
+   contradecirla. Es la recomendación estándar de todo reset moderno. */
+[hidden] {
+    display: none !important;
+}
+
 html {
     height: 100%;
 }
