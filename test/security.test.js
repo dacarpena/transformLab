@@ -131,26 +131,65 @@ test('nadie toca localStorage fuera de src/data/storage.js', () => {
     assert.deepEqual(offenders, []);
 });
 
-test('nadie llama a fetch fuera de src/data/api.js (M8-5c)', () => {
-    // Hasta M8, `src/` no tenía ni un `fetch`: la aplicación no hablaba con
-    // nadie y eso se comprobaba de un vistazo. Con la cuenta opcional hay red,
-    // y la forma de no perder la propiedad es la misma que con `localStorage`:
-    // UNA sola puerta, que además es el punto de auditoría de qué sale del
-    // dispositivo.
+test('todo lo que habla con la red está DECLARADO, y solo api.js manda datos', () => {
+    // Hasta M8, `src/` no tenía ni un `fetch` propio. Con la cuenta opcional hay
+    // red, y la forma de no perder la propiedad es la misma que con
+    // `localStorage`: una lista corta y explícita de quién sale, y por qué.
     //
-    // Sin esta guarda, la segunda llamada a red la escribiría cualquiera en
-    // cualquier vista, y nadie volvería a poder responder «¿a dónde manda datos
-    // esta aplicación?» sin leerla entera.
+    // LA PRIMERA VERSIÓN DE ESTE TEST MENTÍA. Decía «nadie llama a fetch fuera
+    // de api.js» y pasaba en verde con DOS módulos llamando a la red, porque el
+    // regex era `(?<![.\w])fetch\s*\(` y ni `globalThis.fetch` —lleva punto
+    // delante— ni `const doFetch = …; doFetch(…)` —lleva letra— lo activaban. Un
+    // guardián que afirma más de lo que comprueba es peor que ninguno: se confía
+    // en él.
+    //
+    // `exercises-db` y `foods-db` piden ficheros VENDORIZADOS del propio origen
+    // (`vendor/data/*.json`), que son catálogo, no datos de nadie: no mandan
+    // nada, solo leen. Están aquí para que sigan siendo dos y no cinco.
+    const PERMITIDOS = {
+        'src/data/api.js': 'la única puerta por la que salen datos del usuario',
+        'src/data/exercises-db.js': 'lee `vendor/data/exercises.json`, catálogo del propio origen',
+        'src/data/foods-db.js': 'lee el catálogo de alimentos vendorizado, ídem'
+    };
+
     const culpables = FILES
-        .filter(({ path }) => path !== 'src/data/api.js')
-        // `source`, no `code`: es como se llama el campo aquí, y con el nombre
-        // equivocado `regex.test(undefined)` prueba la cadena «undefined» y el
-        // test pasa SIEMPRE. Pasó en la primera versión de esta guarda.
-        .filter(({ source }) => /(?<![.\w])fetch\s*\(|new\s+XMLHttpRequest|navigator\.sendBeacon|new\s+WebSocket|new\s+EventSource/
-            .test(source))
+        .filter(({ path }) => !Object.hasOwn(PERMITIDOS, path))
+        .filter(({ source }) =>
+            /(?<![.\w])fetch\s*\(/.test(source)
+            || /\b(?:globalThis|window|self)\s*\.\s*fetch\b/.test(source)
+            // Los alias, en los DOS sentidos. La primera versión solo miraba
+            // `fetch ??` y dejaba pasar `opciones.fetchImpl ?? fetch`, que es
+            // justo la forma que usan los dos módulos permitidos.
+            || /\bfetch\b\s*(?:\?\?|\|\|)/.test(source)
+            || /(?:\?\?|\|\|)\s*fetch\b/.test(source)
+            || /=\s*fetch\b/.test(source)
+            || /\bnew\s+XMLHttpRequest\b/.test(source)
+            || /\bnavigator\s*\.\s*sendBeacon\b/.test(source)
+            || /\bnew\s+WebSocket\b/.test(source)
+            || /\bnew\s+EventSource\b/.test(source))
         .map(({ path }) => path);
     assert.deepEqual(culpables, [],
-        `hablan con la red por su cuenta: ${culpables.join(', ')}`);
+        `hablan con la red sin estar declarados: ${culpables.join(', ')}`);
+
+    // Y la lista no puede pudrirse: si un permitido desaparece, hay que quitarlo.
+    const rutas = new Set(FILES.map((f) => f.path));
+    for (const path of Object.keys(PERMITIDOS)) {
+        assert.ok(rutas.has(path), `${path} ya no existe: sobra de la lista`);
+    }
+});
+
+test('los catálogos vendorizados no mandan NADA, solo leen', () => {
+    // Es lo que justifica que estén en la lista. Un `fetch` con cuerpo, con
+    // método o con credenciales ya no sería leer un catálogo.
+    for (const path of ['src/data/exercises-db.js', 'src/data/foods-db.js']) {
+        const code = FILES.find((f) => f.path === path)?.source ?? '';
+        assert.ok(code.length > 0, `no se encontró ${path}`);
+        assert.doesNotMatch(code, /method\s*:\s*['"`](?:POST|PUT|PATCH|DELETE)/i, `${path} manda algo`);
+        assert.doesNotMatch(code, /\bbody\s*:/, `${path} lleva cuerpo en una petición`);
+        assert.doesNotMatch(code, /credentials\s*:/, `${path} manda credenciales`);
+        // Y solo piden rutas relativas del propio origen.
+        assert.doesNotMatch(code, /https?:\/\//, `${path} apunta a un origen ajeno`);
+    }
 });
 
 test('src/data/api.js solo habla con el propio origen', () => {
