@@ -27,25 +27,31 @@ pages_build_output_dir = "."
 
 # ── Enlaces ────────────────────────────────────────────────────────────────────
 #
-# ESTÁN COMENTADOS A PROPÓSITO hasta M8-2. `database_id` no se puede inventar:
-# lo devuelve `wrangler d1 create`, y un id inventado hace que el despliegue
-# falle en el arranque, no en la petición. Mientras tanto `GET /api/health`
-# informa de que los enlaces faltan, que es la respuesta honesta.
+# `--location=weur` al crear la base no es cosmética: fija que los datos
+# —cifrados, pero datos personales al fin— se alojen en Europa occidental.
 #
-# Cuando se creen (M8-2), los comandos son:
+# El `database_id` NO es un secreto: es un identificador, no una credencial, y
+# sin un token de la cuenta no sirve para nada. Cloudflare espera encontrarlo
+# aquí, en el fichero versionado.
 #
-#   npx wrangler d1 create transformlab --location=weur
+# CUIDADO CON `--remote`. `npm run serve:api` levanta `wrangler pages dev` contra
+# una copia LOCAL de esta base, que es lo que se quiere para desarrollar. Añadir
+# `--remote` para «probar de verdad» escribiría en la base de producción, con los
+# datos de gente real dentro. Si hace falta mirar producción, se mira con
+# `wrangler d1 execute --remote` y un `SELECT`.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "transformlab"
+database_id = "4712b8a1-fc69-4838-ad78-edb77a394067"
+migrations_dir = "migrations"
+
+# R2 llega en M9-5, que es cuando habrá fotos que subir. Hasta entonces el bucket
+# no existe y `GET /api/health` informa de que el enlace falta, que es la
+# respuesta honesta — mejor que un enlace declarado que apunta a nada.
+#
 #   npx wrangler r2 bucket create transformlab-photos --jurisdiction=eu
 #
-# `--jurisdiction=eu` en R2 y `--location=weur` en D1 no son cosmética: fijan que
-# los datos —cifrados, pero datos personales al fin— no salgan de la UE.
-
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "transformlab"
-# database_id = "<lo devuelve `wrangler d1 create`>"
-# migrations_dir = "migrations"
-
 # [[r2_buckets]]
 # binding = "PHOTOS"
 # bucket_name = "transformlab-photos"
