@@ -23,7 +23,9 @@ import * as toast from '../components/toast.js';
 import { empty, error as errorState } from '../components/state.js';
 import { listDate } from '../dates.js';
 import { num, int } from '../format.js';
-import { measuredExpenditure, compareWithFormula, MIN_DAYS } from '../../core/expenditure.js';
+import { measuredExpenditure, compareWithFormula, activityLevelFor, MIN_DAYS } from '../../core/expenditure.js';
+import { bmr } from '../../core/engine.js';
+import * as recalibrate from '../recalibrate.js';
 import { neatAverage, tradeOff, dailyTarget, MAX_DAILY_STEPS } from '../../core/steps.js';
 import * as stepsStore from '../../data/steps.js';
 
@@ -45,8 +47,27 @@ function gather() {
 /** @type {(() => void) | null} */
 let onCreatePlan = null;
 
+/**
+ * El nivel de actividad que mejor explica el gasto medido, o `null`.
+ *
+ * Se calcula sobre el BMR del peso REAL más reciente, no el del perfil: el
+ * metabolismo basal baja con el peso, y usar el de hace cuatro meses metería un
+ * error sistemático justo en la cifra que estamos corrigiendo.
+ * @param {*} data
+ * @param {number | null} measuredKcal
+ */
+function targetActivityFor(data, measuredKcal) {
+    if (!data || measuredKcal === null) return null;
+    const today = plans.todayIndex(data, plans.todayISO());
+    const point = data.projection.daily[today.dayIndex];
+    const pesoActual = checkins.list().at(-1)?.weightKg ?? point?.weightKg;
+    const basal = bmr(data.profile.user, pesoActual);
+    if (!Number.isFinite(basal)) return null;
+    return activityLevelFor(measuredKcal, basal);
+}
+
 /** Tarjeta del gasto medido, con la aritmética a la vista. */
-function renderMeasured(/** @type {*} */ measured, /** @type {number|null} */ formulaKcal) {
+function renderMeasured(/** @type {*} */ measured, /** @type {number|null} */ formulaKcal, /** @type {*} */ target, /** @type {string} */ currentLevel) {
     if (measured === null) {
         return empty({
             icon: '⚖',
@@ -102,11 +123,24 @@ function renderMeasured(/** @type {*} */ measured, /** @type {number|null} */ fo
                             ? 'expenditure.offerHigher'
                             : 'expenditure.offerLower', { gap: int(Math.abs(verdict.gapKcal ?? 0)) })}</span>
                     </p>
-                    <div class="btn-row">
-                        <button type="button" class="btn btn--primary" data-recalibrate>
-                            ${t('expenditure.recalibrate')}
-                        </button>
-                    </div>
+                    ${target && target.level !== currentLevel ? html`
+                        <p class="muted">${t('expenditure.recalibrateExplain', {
+                            level: t(`onboarding.field.activity.${target.level}`)
+                        })}</p>
+                        <div class="btn-row">
+                            <button type="button" class="btn btn--primary" data-recalibrate>
+                                ${t('expenditure.recalibrate')}
+                            </button>
+                        </div>
+                    ` : html`
+                        <!-- Sin botón, y con el motivo escrito. El motor obtiene
+                             el TDEE de BMR × multiplicador, y solo hay cinco
+                             multiplicadores: cuando lo medido cae en el mismo
+                             escalón que ya usa el plan, no hay nada que aplicar.
+                             Decirlo es mejor que ofrecer un botón que no movería
+                             una sola caloría. -->
+                        <p class="muted">${t('expenditure.recalibrateNoLever')}</p>
+                    `}
                 `
                 : html`<p class="muted">${t('expenditure.agrees')}</p>`}
 
@@ -252,7 +286,8 @@ function draw(container) {
         // mismo id y los selectores de los E2E resolvían a dos.
         render(container, html`
             <h1 class="visually-hidden">${t('expenditure.title')}</h1>
-            ${renderMeasured(measured, formulaTdee(data))}
+            ${renderMeasured(measured, formulaTdee(data),
+                targetActivityFor(data, measured?.tdeeKcal ?? null), data.profile.user.activityLevel)}
             ${renderSteps(data)}
             ${renderIntakeForm()}
         `);
@@ -328,12 +363,19 @@ export function mount(container) {
     });
 
     on(container, 'click', '[data-recalibrate]', () => {
-        // La oferta llega hasta aquí; APLICARLA es de V2-M10, cuando exista la
-        // superficie única de recalibración que coordina las tres fuentes
-        // (calorías, volumen y gasto). Ofrecer algo que luego no hace nada sería
-        // la clase de promesa incumplida que M7-1 tuvo que ir a cerrar, así que
-        // por ahora se dice con todas las letras.
-        toast.success('expenditure.recalibrateComingSoon');
+        const data = plans.get();
+        if (!data) return;
+        const measured = measuredExpenditure(gather());
+        const verdict = compareWithFormula(measured, formulaTdee(data) ?? 0);
+        const target = targetActivityFor(data, measured?.tdeeKcal ?? null);
+        if (!verdict.offer || !target) return;
+        // Se delega en `recalibrate.js`, que es la superficie ÚNICA: archiva el
+        // plan, conserva `otherLeanKg` y regenera desde el estado real. Aquí
+        // solo se aporta lo que esta fuente sabe y las otras no — qué nivel de
+        // actividad explica el gasto medido.
+        recalibrate.offerFromExpenditure(verdict, target, () => {
+            if (onRecalibrated) onRecalibrated();
+        });
     });
 }
 
@@ -348,4 +390,16 @@ export function unmount() {
  */
 export function setOnCreatePlan(fn) {
     onCreatePlan = fn;
+}
+
+/** @type {(() => void) | null} */
+let onRecalibrated = null;
+
+/**
+ * Qué hacer tras aplicar la recalibración por gasto: recargar el plan, que ha
+ * cambiado. Lo cablea `main.js` al mismo `route()` de siempre.
+ * @param {() => void} fn
+ */
+export function setOnRecalibrated(fn) {
+    onRecalibrated = fn;
 }

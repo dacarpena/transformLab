@@ -17,6 +17,8 @@ import { SCHEMA_VERSION, validateCollection } from '../data/schema.js';
 import * as checkins from '../data/checkins.js';
 import { evaluateSeries, recalibrationOffer, inferFatPct } from '../core/tracking.js';
 import { muscleOffsetKg } from '../core/scale.js';
+import { MEANINGFUL_GAP_KCAL, measuredExpenditure, compareWithFormula } from '../core/expenditure.js';
+import * as intakeLog from '../data/intake-log.js';
 import * as plans from './plan-state.js';
 import * as modal from './components/modal.js';
 import * as toast from './components/toast.js';
@@ -60,10 +62,19 @@ export function check() {
 
 /**
  * Archiva el plan vigente y regenera desde el peso real más reciente.
+ *
+ * `userPatch` existe para la recalibración por GASTO MEDIDO (E15-12): allí lo
+ * que hay que corregir no es el punto de partida sino el nivel de actividad del
+ * perfil, porque el motor calcula el TDEE como `BMR × multiplicador` y no admite
+ * una cifra a mano. Todo lo demás —archivar, inferir la composición, conservar
+ * `otherLeanKg`, podar el historial— es idéntico, y por eso se comparte en vez
+ * de escribirse dos veces.
+ *
  * @param {import('../core/tracking.js').Evaluation} latest
+ * @param {{ patch?: Record<string, *>, reason?: string }} [options]
  * @returns {{ ok: true } | { ok: false, error: string }}
  */
-function applyRecalibration(latest) {
+function applyRecalibration(latest, options = {}) {
     const data = plans.get();
     if (!data) return { ok: false, error: 'recal.noPlan' };
 
@@ -95,6 +106,7 @@ function applyRecalibration(latest) {
 
     const nextProfile = {
         ...parsed.value,
+        user: options.patch ? { ...parsed.value.user, ...options.patch } : parsed.value.user,
         initial: {
             ...parsed.value.initial,
             weightKg: latest.actualKg,
@@ -193,7 +205,7 @@ function applyRecalibration(latest) {
         plan: data.plan,
         params: { startDateISO: data.startDateISO, seed: 0, fluctuation: data.fluctuation },
         archivedAtISO: new Date().toISOString(),
-        reason: 'recalibration'
+        reason: options.reason ?? 'recalibration'
     };
     const nextPlanRecord = {
         schemaVersion: SCHEMA_VERSION,
@@ -279,6 +291,124 @@ export function offer(verdict, onDone) {
 
     dialog.querySelector('[data-accept]')?.addEventListener('click', () => {
         const applied = applyRecalibration(latest);
+        modal.close();
+        if (!applied.ok) {
+            toast.error(applied.error.startsWith('ranges.') ? applied.error : 'recal.failed');
+            return;
+        }
+        toast.success('recal.done');
+        onDone();
+    });
+}
+
+/**
+ * Las fuentes que pueden pedir recalibrar AHORA, para que `coordinate()` decida
+ * cuál se enseña (E15-11).
+ *
+ * Dos de las tres. La tercera —la descarga de entrenamiento— necesita el
+ * catálogo de ejercicios, que llega por `import()` asíncrono, y un informe de
+ * volumen sobre todas las sesiones. Eso no cabe en el camino de render de Hoy,
+ * que es sincrónico y es la primera pantalla; y Entreno ya la enseña en su
+ * vista, donde ese trabajo se está haciendo de todos modos. Queda declarada en
+ * `collectOffers` para cuando haya dónde encajarla.
+ *
+ * Las dos que sí están son justo las que se pisan: ambas tocan la palanca de
+ * CALORÍAS, y `SUPERSEDES` dice que el gasto medido gana a la desviación de peso
+ * porque se apoya en dos señales —ingesta registrada y peso— frente a una.
+ *
+ * @returns {{ weightDeviation: *, measuredExpenditure: *, deload: null }}
+ */
+export function sources() {
+    const verdict = check();
+    const data = plans.get();
+
+    /** @type {*} */ let gasto = null;
+    if (data) {
+        const medido = measuredExpenditure({
+            intake: intakeLog.list().map((/** @type {*} */ e) => ({ dateISO: e.dateISO, kcal: e.kcal })),
+            weights: checkins.list().map((/** @type {*} */ c) => ({ dateISO: c.dateISO, weightKg: c.weightKg }))
+        });
+        const hoy = plans.todayIndex(data, plans.todayISO());
+        const formula = data.projection.daily[hoy.dayIndex]?.kcal?.tdeeKcal ?? 0;
+        gasto = compareWithFormula(medido, formula);
+    }
+
+    return {
+        weightDeviation: verdict.offer
+            ? {
+                offer: true,
+                reasonKey: verdict.reason === 'magnitude'
+                    ? 'recalibration.weightMagnitude'
+                    : 'recalibration.weightPersistence',
+                params: { side: t(`recal.side.${verdict.side}`), count: verdict.streakOutside }
+            }
+            : null,
+        measuredExpenditure: gasto,
+        deload: null
+    };
+}
+
+/**
+ * La oferta de recalibrar por el GASTO MEDIDO (E15-12).
+ *
+ * Hasta ahora este botón era un `toast.success` sobre un no-op, con un
+ * comentario que lo aplazaba a V2-M10 — una milestone cerrada el 2026-08-08. La
+ * excusa caducó, y felicitar al usuario por una acción que no ocurre es
+ * exactamente la clase de promesa incumplida que M7-1 tuvo que ir a cerrar.
+ *
+ * QUÉ HACE, DICHO CON PRECISIÓN: el motor obtiene el TDEE de `BMR ×
+ * multiplicador` y no admite una cifra a mano, así que aplicar un gasto medido
+ * significa **corregir el nivel de actividad del perfil** y rehacer el plan
+ * desde el estado real. Se dice así en el diálogo, con las dos cifras y el
+ * residuo, en vez de «ajusto tus calorías», que sonaría a magia.
+ *
+ * @param {import('../core/expenditure.js').ExpenditureVerdict} verdict
+ * @param {{ level: string, residualKcal: number }} target el nivel que mejor explica lo medido
+ * @param {() => void} onDone
+ */
+export function offerFromExpenditure(verdict, target, onDone) {
+    if (!verdict?.offer || !target) return;
+    const evaluations = check().evaluations;
+    if (evaluations.length === 0) return;
+    const latest = evaluations[evaluations.length - 1];
+
+    const dialog = modal.open({
+        titleKey: 'expenditure.recalibrateTitle',
+        body: html`
+            <p>${t(verdict.reason === 'higher' ? 'expenditure.offerHigher' : 'expenditure.offerLower', {
+                gap: Math.abs(Math.round(verdict.gapKcal ?? 0))
+            })}</p>
+
+            <p>${t('expenditure.recalibrateExplain', {
+                level: t(`onboarding.field.activity.${target.level}`)
+            })}</p>
+
+            ${Math.abs(target.residualKcal) >= MEANINGFUL_GAP_KCAL ? html`
+                <p class="notice notice--warning">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <!-- El modelo tiene cinco escalones y lo medido cae entre
+                         dos: se dice cuánto se queda fuera en vez de prometer
+                         una precisión que no hay. -->
+                    <span>${t('expenditure.recalibrateResidual', {
+                        residual: Math.abs(target.residualKcal)
+                    })}</span>
+                </p>
+            ` : ''}
+
+            <p class="muted">${t('recal.explain')}</p>
+
+            <div class="modal__actions">
+                <button type="button" class="btn" data-modal-close>${t('action.cancel')}</button>
+                <button type="button" class="btn btn--primary" data-accept>${t('recal.accept')}</button>
+            </div>
+        `
+    });
+
+    dialog.querySelector('[data-accept]')?.addEventListener('click', () => {
+        const applied = applyRecalibration(latest, {
+            patch: { activityLevel: target.level },
+            reason: 'expenditure'
+        });
         modal.close();
         if (!applied.ok) {
             toast.error(applied.error.startsWith('ranges.') ? applied.error : 'recal.failed');

@@ -172,6 +172,12 @@ export function renderCoordinatedOffer(sources) {
         <p class="notice notice--warning">
             <span class="notice__icon" aria-hidden="true">⚠</span>
             <span>${t(primary.reasonKey, primary.params ?? {})}</span>
+            <!-- La acción va DENTRO del aviso, y solo la de la oferta principal.
+                 Un aviso sin salida es la falta que cerró E15-1; dos botones
+                 sería volver a las dos ofertas vivas que esto viene a impedir. -->
+            <button type="button" class="btn btn--sm" data-recal-source="${primary.source}">
+                ${t('recalibration.act')}
+            </button>
         </p>
         ${superseded.length > 0
             ? html`<p class="muted">${t('recalibration.superseded', {

@@ -281,17 +281,23 @@ test('el recorrido de humo completo no deja ningún error de consola', async ({ 
 
     // la gráfica, que ahora carga Chart.js bajo demanda
     await page.locator('[data-view="today"]').click();
+    // `expect.poll` y no una lectura única: el `<canvas>` está VISIBLE desde que
+    // se pinta el marcado, con su tamaño por defecto y sin instancia de
+    // Chart.js —el vendor llega bajo demanda y luego anima 250 ms—. Leer ahí
+    // daba cero de forma intermitente, y como esta aserción va ANTES que la de
+    // errores de consola, al perderla el test dejaba sin ejecutar justo la
+    // comprobación para la que existe. Es el mismo defecto que E15-3b cerró en
+    // `csp.spec.js`.
     await expect(page.locator('canvas')).toBeVisible();
-    const painted = await page.evaluate(() => {
-        const c = /** @type {HTMLCanvasElement} */ (document.querySelector('canvas'));
+    await expect.poll(async () => page.evaluate(() => {
+        const c = /** @type {HTMLCanvasElement|null} */ (document.querySelector('canvas'));
         const ctx = c?.getContext('2d');
-        if (!ctx) return 0;
+        if (!c || !ctx) return 0;
         const d = ctx.getImageData(0, 0, c.width, c.height).data;
         let n = 0;
         for (let i = 3; i < d.length; i += 400) if (d[i] > 0) n += 1;
         return n;
-    });
-    expect(painted, 'la gráfica no dibujó nada').toBeGreaterThan(100);
+    }), { timeout: 15000, message: 'la gráfica no dibujó nada' }).toBeGreaterThan(100);
 
     expect(errors).toEqual([]);
 });

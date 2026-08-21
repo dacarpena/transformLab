@@ -18,7 +18,8 @@ import { muscleUnitsOf } from '../muscle-units.js';
 import * as chart from '../chart.js';
 import { drawPlanChart } from '../plan-chart.js';
 import * as checkins from '../../data/checkins.js';
-import { renderPlanSummary } from '../plan-summary.js';
+import { renderPlanSummary, renderCoordinatedOffer } from '../plan-summary.js';
+import * as recalibrate from '../recalibrate.js';
 import { evaluateSeries } from '../../core/tracking.js';
 import { error as errorState } from '../components/state.js';
 import { num } from '../format.js';
@@ -299,6 +300,13 @@ export function mount(container) {
 
     render(container, html`
         ${renderToday(data, today, evaluations)}
+        <!-- UNA sola oferta de recalibración, decidida por core/recalibration.js
+             (E15-11). Tres fuentes pueden pedirlo y dos de ellas tocan la misma
+             palanca —las calorías—, así que sin coordinar el usuario recibiría
+             dos avisos contradictorios sobre lo mismo. Lo desplazado se NOMBRA,
+             no se esconde: descubrir el segundo aviso una semana después sin
+             saber por qué no salió antes es peor que no darlo. -->
+        ${renderCoordinatedOffer(recalibrate.sources())}
         ${renderPlanSummary({ ...data, todayIndex: today.dayIndex })}
         ${renderPlan(data)}
         ${renderChartSection(data)}
@@ -375,6 +383,19 @@ export function mount(container) {
 
     // Reintentar la gráfica sin recargar la página (E15-5).
     on(container, 'click', '[data-action="retry-chart"]', () => { void redraw(container); });
+
+    // La acción de la oferta coordinada. Cada fuente lleva a SU sitio: la
+    // desviación de peso abre su diálogo aquí mismo; el gasto medido lleva a
+    // Gasto, donde está la aritmética a la vista y el botón de aplicar. Enseñar
+    // aquí un resumen del gasto sería el segundo sitio contando lo mismo.
+    on(container, 'click', '[data-recal-source]', (_event, target) => {
+        const source = target.getAttribute('data-recal-source');
+        if (source === 'weightDeviation') {
+            recalibrate.offer(recalibrate.check(), () => { if (onSaved) onSaved(); });
+            return;
+        }
+        if (source === 'measuredExpenditure' && onGoToModule) onGoToModule('expenditure');
+    });
 
     // Cada línea del plan integral lleva a la vista de su módulo. Se delega al
     // router en vez de a un callback por módulo: siete `setOnGoToX` serían

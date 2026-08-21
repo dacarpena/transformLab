@@ -13,8 +13,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     measuredExpenditure, weightTrend, compareWithFormula,
-    MIN_DAYS, MEANINGFUL_GAP_KCAL, MAX_PLAUSIBLE_DAILY_KG
-} from '../src/core/expenditure.js';
+    MIN_DAYS, MEANINGFUL_GAP_KCAL, MAX_PLAUSIBLE_DAILY_KG, activityLevelFor} from '../src/core/expenditure.js';
 import { KCAL_PER_KG_FAT } from '../src/core/constants.js';
 
 const DIA = 86400000;
@@ -221,4 +220,50 @@ test('el umbral y los mínimos están documentados como constantes, no incrustad
     assert.ok(MIN_DAYS >= 14, 'menos de dos semanas no separa señal de agua');
     assert.ok(MEANINGFUL_GAP_KCAL >= 100);
     assert.ok(MAX_PLAUSIBLE_DAILY_KG > 0 && MAX_PLAUSIBLE_DAILY_KG <= 3);
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * E15-12 · Qué significa APLICAR un gasto medido
+ *
+ * El motor obtiene el TDEE de `BMR × multiplicador` y no admite una cifra a
+ * mano, así que aplicar un gasto medido significa exactamente una cosa:
+ * corregir el nivel de actividad del perfil. Hasta E15-12, el botón que lo
+ * ofrecía era un `toast.success` sobre un no-op.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+test('activityLevelFor elige el nivel cuyo multiplicador mejor explica lo medido', () => {
+    const bmr = 1800;
+    // Justo encima de cada multiplicador: 1,2 · 1,375 · 1,55 · 1,725 · 1,9
+    assert.equal(activityLevelFor(1800 * 1.2, bmr)?.level, 'sedentary');
+    assert.equal(activityLevelFor(1800 * 1.375, bmr)?.level, 'light');
+    assert.equal(activityLevelFor(1800 * 1.55, bmr)?.level, 'moderate');
+    assert.equal(activityLevelFor(1800 * 1.725, bmr)?.level, 'active');
+    assert.equal(activityLevelFor(1800 * 1.9, bmr)?.level, 'veryActive');
+});
+
+test('activityLevelFor DEVUELVE el residuo: el modelo tiene cinco escalones', () => {
+    // Lo medido cae entre «moderate» (1,55) y «active» (1,725). Se elige el más
+    // cercano y se dice cuánto se queda fuera, en vez de prometer una precisión
+    // que el modelo no tiene.
+    const bmr = 1800;
+    const r = activityLevelFor(bmr * 1.6, bmr);
+    assert.equal(r?.level, 'moderate');
+    assert.equal(r?.residualKcal, Math.round(bmr * 1.6 - bmr * 1.55));
+    assert.ok(Math.abs(/** @type {*} */ (r).residualKcal) > 0);
+});
+
+test('activityLevelFor satura en los extremos, sin inventarse un nivel', () => {
+    const bmr = 1800;
+    // Por debajo del suelo del modelo y muy por encima del techo.
+    assert.equal(activityLevelFor(bmr * 0.9, bmr)?.level, 'sedentary');
+    const alto = activityLevelFor(bmr * 2.6, bmr);
+    assert.equal(alto?.level, 'veryActive');
+    // Y el residuo lo DICE: un atleta de resistencia no cabe en la rejilla.
+    assert.ok(/** @type {*} */ (alto).residualKcal > 1000);
+});
+
+test('activityLevelFor devuelve null con entradas imposibles, sin lanzar', () => {
+    for (const [tdee, bmr] of [[NaN, 1800], [2500, 0], [2500, NaN], [null, null], ['x', 'y']]) {
+        assert.equal(activityLevelFor(/** @type {*} */ (tdee), /** @type {*} */ (bmr)), null);
+    }
 });

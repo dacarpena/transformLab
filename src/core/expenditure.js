@@ -29,7 +29,7 @@
  *   `null`, no una cifra mala: media docena de días no distinguen señal de agua.
  */
 
-import { KCAL_PER_KG_FAT } from './constants.js';
+import { KCAL_PER_KG_FAT, ACTIVITY_MULTIPLIERS} from './constants.js';
 
 /**
  * Días mínimos de registro antes de dar una cifra.
@@ -236,5 +236,45 @@ export function compareWithFormula(measured, formulaKcal) {
         measuredKcal: measured.tdeeKcal,
         formulaKcal: formula,
         gapKcal
+    };
+}
+
+/**
+ * El nivel de actividad cuyo multiplicador mejor explica el gasto MEDIDO.
+ *
+ * El motor no admite un TDEE a mano: lo calcula como `BMR × multiplicador`
+ * (Mifflin-St Jeor + los multiplicadores de Harris-Benedict). Así que aplicar un
+ * gasto medido significa exactamente una cosa —corregir el nivel de actividad
+ * del perfil— y no otra. Decirlo así, y no «ajusto tus calorías», es lo que
+ * permite que el usuario entienda qué se le va a cambiar.
+ *
+ * **Devuelve también el residuo**, y ése es el punto. Los cinco multiplicadores
+ * son una rejilla gruesa: un gasto medido cae entre dos escalones y algo se
+ * queda fuera. Callarlo sería prometer una precisión que el modelo no tiene, así
+ * que se devuelve y la interfaz lo dice cuando importa.
+ *
+ * @param {number} measuredTdeeKcal el gasto medido
+ * @param {number} bmrKcal el metabolismo basal del perfil
+ * @returns {{ level: string, multiplier: number, ratio: number, residualKcal: number } | null}
+ */
+export function activityLevelFor(measuredTdeeKcal, bmrKcal) {
+    if (!isFinite_(measuredTdeeKcal) || !isFinite_(bmrKcal) || bmrKcal <= 0) return null;
+    const ratio = measuredTdeeKcal / bmrKcal;
+
+    /** @type {{ level: string, multiplier: number } | null} */ let best = null;
+    let mejorDistancia = Infinity;
+    for (const [level, multiplier] of Object.entries(ACTIVITY_MULTIPLIERS)) {
+        const distancia = Math.abs(multiplier - ratio);
+        if (distancia < mejorDistancia) {
+            mejorDistancia = distancia;
+            best = { level, multiplier };
+        }
+    }
+    if (best === null) return null;
+    return {
+        level: best.level,
+        multiplier: best.multiplier,
+        ratio,
+        residualKcal: Math.round(measuredTdeeKcal - bmrKcal * best.multiplier)
     };
 }

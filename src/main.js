@@ -25,6 +25,7 @@ import * as onboarding from './ui/views/onboarding.js';
 import * as dashboard from './ui/views/dashboard.js';
 import { VIEWS, EAGER_VIEW_ID } from './ui/views/_manifest.js';
 import * as recalibrate from './ui/recalibrate.js';
+import { coordinate, collectOffers } from './core/recalibration.js';
 import * as pwa from './ui/pwa.js';
 import * as reminder from './ui/reminder.js';
 import * as toast from './ui/components/toast.js';
@@ -127,7 +128,12 @@ function wiringFor(roots) {
         // la misma línea sirve para «crear el primero» y para «reeditar el que
         // hay». Sin esto, los estados vacíos de Gasto y Compra eran callejones
         // sin salida: el botón existía, era primario, y no hacía nada.
-        expenditure: (m) => m.setOnCreatePlan(() => editProfile(roots)),
+        expenditure: (m) => {
+            m.setOnCreatePlan(() => editProfile(roots));
+            // Aplicar la recalibración por gasto rehace el plan: mismo `route()`
+            // que la recalibración por desviación de peso (E15-12).
+            m.setOnRecalibrated(() => route(roots));
+        },
         shopping: (m) => m.setOnCreatePlan(() => editProfile(roots)),
         settings: (m) => {
             m.setOnProfilesChanged(() => route(roots));
@@ -161,8 +167,18 @@ async function startApp(/** @type {*} */ roots) {
 
     // Tras montar, se comprueba si procede OFRECER una recalibración (E1a).
     // Nunca se aplica sola: solo se abre el diálogo y el usuario decide.
+    //
+    // Y solo si la desviación de peso es la oferta PRINCIPAL (E15-11). Cuando el
+    // gasto medido la desplaza —se apoya en la ingesta registrada además del
+    // peso, dos señales frente a una—, abrir este diálogo sería contradecir en un
+    // modal lo que Hoy está diciendo en su aviso. El invariante
+    // `recalibracion_unica` existe justo para eso, y hasta ahora no gobernaba
+    // nada porque nadie llamaba a `coordinate()`.
     const verdict = recalibrate.check();
-    if (verdict.offer) recalibrate.offer(verdict, () => route(roots));
+    const coordinated = coordinate(collectOffers(recalibrate.sources()));
+    if (verdict.offer && coordinated.primary?.source === 'weightDeviation') {
+        recalibrate.offer(verdict, () => route(roots));
+    }
 }
 
 /** Muestra el asistente como única vista, sin navegación. */

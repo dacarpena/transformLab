@@ -1859,6 +1859,62 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   abrir el navegador — y una de las cinco veces se coló justo porque entre la
   edición y la prueba solo corrió `npm test`.
 
+- [x] **E15-12 · «Aplicar la recalibración» deja de ser un toast.**
+  El botón hacía `toast.success('expenditure.recalibrateComingSoon')` sobre un
+  no-op, con un comentario que lo aplazaba a V2-M10 — cerrada el 2026-08-08, con
+  la v2 declarada terminada. Felicitar al usuario por una acción que no ocurre es
+  la misma clase de defecto que M7-1 tuvo que ir a cerrar. La excusa caducó.
+
+  **Lo difícil no era cablearlo: era decidir qué significa aplicarlo.** El motor
+  obtiene el TDEE de `BMR × multiplicador` y no admite una cifra a mano, así que
+  aplicar un gasto medido significa exactamente una cosa —**corregir el nivel de
+  actividad del perfil**— y no otra. `activityLevelFor()` (puro, en
+  `core/expenditure.js`) elige el nivel cuyo multiplicador mejor lo explica, y el
+  diálogo lo dice con esas palabras en vez de «ajusto tus calorías», que sonaría
+  a magia.
+
+  **Y devuelve el residuo**, que es el punto honesto: los cinco multiplicadores
+  son una rejilla gruesa y lo medido cae entre dos escalones. Cuando lo que se
+  queda fuera supera el umbral de significación, se dice. Y cuando lo medido cae
+  en el MISMO escalón que el plan ya usa, no hay botón: se explica que el modelo
+  no tiene un peldaño más fino, porque ofrecer un botón que no movería una sola
+  caloría es la promesa incumplida por el otro lado.
+
+  Se delega en `recalibrate.js`, que es la superficie ÚNICA: archiva el plan,
+  conserva `otherLeanKg` y regenera desde el estado real. `applyRecalibration`
+  gana un parche de perfil opcional en vez de duplicarse — todo lo demás es
+  idéntico. El plan anterior queda archivado con `reason: 'expenditure'`.
+
+- [x] **E15-11 · La oferta coordinada llega por fin al producto.**
+  `core/recalibration.js` son 178 líneas con ocho tests del invariante
+  `recalibracion_unica` —«nunca dos ofertas vivas sobre la misma palanca»— y
+  **no lo llamaba nadie**. Su único consumidor, `renderCoordinatedOffer`, estaba
+  escrito y sin cablear. Un invariante que no gobierna nada del producto es
+  documentación, no garantía.
+
+  Hoy pinta ahora **una sola** oferta, con la acción dentro, y **nombra la
+  desplazada**: descubrir el segundo aviso una semana después sin saber por qué
+  no salió antes es peor que no darlo.
+
+  **Y el diálogo automático de `main.js` pasa a respetar la coordinación.** Antes
+  se abría en cuanto la desviación de peso procedía, sin mirar si otra fuente con
+  más evidencia decía otra cosa: un modal contradiciendo al aviso que Hoy tenía
+  debajo. Ahora solo se abre si la desviación de peso ES la oferta principal.
+  `SUPERSEDES` dice que el gasto medido la desplaza porque se apoya en dos
+  señales —ingesta registrada y peso— frente a una.
+
+  **Dos de las tres fuentes, y está escrito por qué.** La descarga de
+  entrenamiento necesita el catálogo de ejercicios —que llega por `import()`
+  asíncrono— y un informe de volumen sobre todas las sesiones. Eso no cabe en el
+  render sincrónico de la primera pantalla, y Entreno ya la enseña en su vista,
+  donde ese trabajo se está haciendo igualmente. Queda declarada en
+  `collectOffers` para cuando haya dónde encajarla.
+
+  Las fijaciones de los E2E están **medidas contra el motor**, no supuestas: hizo
+  falta un diagnóstico para descubrir que con este perfil son 1 620 kcal/día las
+  que hacen concordar el gasto, y 3 400 las que lo hacen discrepar sin que el
+  peso deje de discrepar también.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1934,16 +1990,19 @@ con 17 check-ins, 111 días de ingesta y 68 sesiones, y Progreso pasa de un esta
 vacío a enseñar desviación, racha de 17 semanas, calendario de adherencia y las
 escalas subjetivas.
 
-**Estado de E15:** cerradas E15-0, 1, 1b, 2, 3, 3b, 4, 5, 6, 7, 8, 9 y 10. Queda
-el bloque de deuda previa al backend: **E15-11** (cablear `renderCoordinatedOffer`
-en Hoy) y **E15-12** (que «Aplicar la recalibración» del gasto haga algo, hoy es
-un `toast.success` sobre un no-op) — los dos van juntos, porque ofrecer
-coordinadamente algo que luego no se aplica sería la misma promesa incumplida
-multiplicada por tres. Después: **E15-13** (`dayAtPixel`/`pixelsPerDay` en vez del
-inexistente `scaleX`), **E15-14** (fuga de instancias en Analizar y `tokenCache`),
-**E15-15** (los cinco módulos sin test unitario, empezando por `recalibrate.js`,
-que reescribe el perfil), **E15-16** (el último `schemaVersion` literal) y
-**E15-17** (los hitos en Proyección). Y luego M8 y M9.
+**2026-08-21 · E15-11 y E15-12.** Cerradas. `activityLevelFor` en el core con 4
+tests, `applyRecalibration` con parche de perfil, `sources()` en `recalibrate.js`,
+la oferta con acción en `plan-summary.js`, el modal de `main.js` respetando la
+coordinación, y `test/e2e/recalibration.spec.js` con 6 casos. De paso, cerrada la
+carrera de píxeles de `release.spec.js`, hermana de la de `csp.spec.js`.
+**899 unitarios y 230 E2E** (dos pasadas seguidas), typecheck limpio.
+
+**Estado de E15:** cerradas E15-0, 1, 1b, 2, 3, 3b, 4, 5, 6, 7, 8, 9, 10, 11 y 12.
+Quedan: **E15-13** (`dayAtPixel`/`pixelsPerDay` en vez del inexistente `scaleX`),
+**E15-14** (fuga de instancias en Analizar y `tokenCache`), **E15-15** (los cinco
+módulos sin test unitario, empezando por `recalibrate.js`, que reescribe el
+perfil), **E15-16** (el último `schemaVersion` literal) y **E15-17** (los hitos en
+Proyección). Y luego M8 y M9.
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa
