@@ -2356,9 +2356,52 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   guarda que aplica al servidor **la lección de E15**: nada de `functions/_lib/`
   puede estar exportado y sin cablear — una función de seguridad que nadie
   invoca parece una defensa y no lo es. Cazó una a la primera (`ALLOWED_METHODS`).
-- [ ] **M8-5 · El llavero.** DK, los dos envoltorios (PRF y kit de recuperación),
-  la pantalla del kit, la regla dura de no subir nada sin vía de vuelta, y la
-  vista **Cuenta**.
+- [x] **M8-5a · El núcleo criptográfico del cliente.** `src/data/crypto.js`: la
+  DK, los dos envoltorios y el kit de recuperación. Puro —ni red, ni
+  `localStorage`, ni IndexedDB—, así que se prueba entero desde Node.
+
+  **La DK vive no extraíble.** Se genera extraíble porque hay que envolverla —una
+  clave no extraíble no se puede exportar ni para cifrarla—, y acto seguido se
+  cambia por una copia importada con `extractable: false`. Es la mejor propiedad
+  que un navegador puede dar: un XSS puede USARLA mientras la página está abierta
+  —eso no lo evita nadie— pero no puede leerla ni sacarla. La diferencia entre
+  «descifran lo que haya en pantalla mientras dure el ataque» y «se llevan la
+  clave y descifran todo para siempre».
+
+  **HKDF para el PRF, PBKDF2 para el kit**, y la asimetría tiene razón: la salida
+  del PRF ya son 32 bytes de alta entropía, y estirar por tiempo lo que ya es
+  aleatorio no compra nada y hace más lento cada login. El kit son 160 bits de
+  `getRandomValues`, así que en rigor tampoco lo necesita; lleva PBKDF2 con
+  600 000 iteraciones como defensa en profundidad barata —un segundo, una vez—
+  para los casos en que el supuesto no se cumple: un código anotado a medias, un
+  generador débil, un formato futuro con menos entropía. Corre en el navegador
+  porque en un Worker sería imposible: el plan gratuito da 10 ms de CPU y esto
+  son ~1 000.
+
+  **El AAD ata cada criptograma a su fila.** Sin él, quien pudiera escribir en el
+  servidor barajaría filas —poner el peso de enero en la de marzo— sin romper
+  ningún tag y sin que el cliente se enterase. Con él, un sobre movido no
+  descifra. Es la pieza que M9 va a necesitar y que es mucho más barato poner
+  ahora que retrofitar sobre datos ya cifrados.
+
+  **El kit se puede copiar de papel.** Base32 de Crockford —sin `I`, `L`, `O` ni
+  `U`, que son los caracteres que se confunden a mano— en nueve grupos de cuatro,
+  con veinte bits de comprobación al final. La comprobación no aporta seguridad:
+  evita que una errata se lleve por delante un segundo de PBKDF2 para acabar
+  diciendo «no». Al leer se perdonan minúsculas, espacios, guiones de más o de
+  menos y las cuatro letras excluidas; no se perdona nada más, porque eso ya no
+  es una errata previsible sino otro código.
+
+  22 tests, y el que justifica el módulo entero es el último: generar, envolver
+  con el kit, **perderlo todo**, y recuperar exactamente los mismos bytes. Si eso
+  fallara, el usuario perdería sus datos de forma irreversible y no habría a
+  quién pedírselos.
+
+- [ ] **M8-5b · La DK en el dispositivo y los endpoints de cuenta.**
+  `src/data/keys-db.js` (IndexedDB, como `photos-db.js`), guardar el envoltorio
+  de recuperación, alta y baja de passkeys, y la **regla dura**.
+- [ ] **M8-5c · La vista Cuenta y la pantalla del kit**, con i18n en los dos
+  diccionarios, teclado, 320 px y E2E.
 
 #### Bitácora M8
 
