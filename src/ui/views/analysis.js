@@ -43,7 +43,7 @@ import { exercisesOf } from '../../data/training.js';
 import { MAX_SERIES, PROVENANCE_STYLE } from '../series-style.js';
 import { attachGestures, clampWindow } from '../chart-gestures.js';
 import { pathOf, sample, windowRect } from '../spark.js';
-import { buildMarks, MARK_CATEGORIES } from '../marks.js';
+import { buildMarks, MARK_CATEGORIES, openMarkCard } from '../marks.js';
 
 /** @typedef {import('../../core/series-catalog.js').ResolvedSeries} ResolvedSeries */
 
@@ -701,7 +701,7 @@ async function redraw(/** @type {HTMLElement} */ container) {
         range,
         normalize: effectiveNormalize(),
         marks,
-        onMark: (group) => openMarkCard(group),
+        onMark: (group) => openMarkCard(group, data.projection.daily[group.dayIndex]?.dateISO ?? null),
         onMarksThinned: (hidden) => renderMarksNote(container, hidden),
         // A 320 px, ocho rótulos en el eje X se solapan.
         ...(isNarrow() ? { maxTicks: 4 } : {})
@@ -947,32 +947,6 @@ function renderContextStrip(container, data) {
     `);
 }
 
-/**
- * La ficha de un marcador: qué pasa ese día, y de dónde sale cada cosa.
- *
- * Un modal y no un tooltip porque lo que hay dentro es texto que se lee —el
- * umbral, su fuente, la advertencia de que el IMC no distingue músculo— y un
- * tooltip que se va al mover el ratón no se puede leer ni alcanzar con teclado.
- * @param {import('../chart.js').MarkGroup} group
- */
-function openMarkCard(group) {
-    const fecha = plans.get()?.projection?.daily?.[group.dayIndex]?.dateISO;
-    modal.open({
-        titleKey: 'analysis.marks.cardTitle',
-        body: html`
-            ${fecha ? html`<p class="muted">${longDate(fecha)}</p>` : ''}
-            <ul class="mark-card">
-                ${group.marks.map((m) => html`
-                    <li class="mark-card__item is-mark-${m.kind}">
-                        <span class="badge badge--outline">${t(`analysis.marks.kind.${m.kind}`)}</span>
-                        <p class="mark-card__label">${m.label}</p>
-                        ${m.detail ? html`<p class="muted">${m.detail}</p>` : ''}
-                    </li>
-                `)}
-            </ul>
-        `
-    });
-}
 
 /**
  * Dice cuántos marcadores no cupieron. Nunca se calla un recorte: una gráfica

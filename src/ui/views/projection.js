@@ -26,6 +26,7 @@
 import { html, raw, render, on, safeUrl } from '../dom.js';
 import { t, getLocale } from '../../i18n/i18n.js';
 import * as plans from '../plan-state.js';
+import { MARK_CATEGORIES } from '../marks.js';
 import * as chart from '../chart.js';
 import { drawPlanChart } from '../plan-chart.js';
 import * as toast from '../components/toast.js';
@@ -264,6 +265,21 @@ function renderChart(/** @type {*} */ data) {
                 ], preset)}
                 <button type="button" class="btn btn--sm" data-png>${t('action.downloadPng')}</button>
             </div>
+            <div class="chart-toolbar">
+                <!-- Los hitos NO son excluyentes: interruptores sueltos, no un
+                     grupo de radio disfrazado. Mismo control que en Analizar,
+                     porque es el mismo carril (E15-17). -->
+                <div class="control-group">
+                    <span class="control-group__label" id="pj-marks">${t('analysis.marks.label')}</span>
+                    <div class="chip-row" role="group" aria-labelledby="pj-marks">
+                        ${MARK_CATEGORIES.map((c) => html`
+                            <button type="button" class="chip chip--mark is-mark-${c}" data-mark-cat="${c}"
+                                    aria-pressed="${markCategories.has(c) ? 'true' : 'false'}">${t(`analysis.marks.${c}`)}</button>
+                        `)}
+                    </div>
+                </div>
+                <p class="field__hint" data-marks-note hidden></p>
+            </div>
 
             <div class="chart-wrap chart-wrap--tall" data-chart-host>
                 <canvas data-canvas role="img" tabindex="0"
@@ -310,7 +326,12 @@ function renderLegend(hasCheckins) {
         items.push({ dot: 'dot--accent', label: t('chart.expected') });
         if (metric === 'weight') items.push({ dot: 'dot--band', label: t('chart.band') });
         if (hasCheckins) items.push({ dot: 'dot--real', label: t('checkin.title') });
-        items.push({ dot: 'dot--warning', label: t('chart.milestoneModalTitle') });
+        // Los hitos YA NO están en la leyenda (E15-17). Prometían un punto
+        // naranja sobre la línea que ya no existe: ahora viven en el carril de
+        // arriba, cada familia con su color, y sus propios interruptores dicen
+        // cuál es cuál mucho mejor que un punto suelto aquí abajo. Una leyenda
+        // que anuncia algo que el lienzo no dibuja es la clase de mentira que
+        // E13-5 y E15-4 fueron a cerrar en Analizar.
     }
     return html`${items.map((i) => html`
         <li class="phase-legend__item"><span class="phase-legend__dot ${i.dot}" aria-hidden="true"></span>${i.label}</li>
@@ -599,6 +620,20 @@ function redrawTimeline(/** @type {*} */ container) {
     render(/** @type {HTMLElement} */ (host), renderTimeline(data, today));
 }
 
+/**
+ * Qué familias de hito se enseñan (E15-17b).
+ *
+ * Las cuatro encendidas por omisión: quien abre Proyección quiere ver su plan
+ * entero, y esconderle los hitos de salud —que llevan su umbral y su fuente— por
+ * defecto sería decidir por él qué le importa. Se apagan sueltos, no son
+ * excluyentes.
+ *
+ * En memoria y no en `settings`: el estado de esta vista ya vive así (métrica,
+ * granularidad, ventana), y persistirlo obligaría a un campo de esquema para una
+ * preferencia que se cambia en el momento y se mira ahí mismo.
+ */
+let markCategories = new Set(MARK_CATEGORIES);
+
 /** @param {HTMLElement} container */
 function draw(container) {
     const data = plans.get();
@@ -703,7 +738,18 @@ async function drawMuscleGrid(/** @type {*} */ container) {
 async function redraw(/** @type {*} */ container) {
     const data = plans.get();
     if (!data) return;
-    const { ok, checkinCount, chart: instance } = await drawPlanChart(container, { metric, grain, range: windowBounds });
+    const { ok, checkinCount, chart: instance } = await drawPlanChart(container, {
+        metric, grain, range: windowBounds,
+        markCategories: [...markCategories],
+        // Nunca se calla un recorte: una gráfica que enseña doce de treinta
+        // hitos sin decirlo se lee como «hay doce».
+        onMarksThinned: (hidden) => {
+            const nodo = /** @type {HTMLElement | null} */ (container.querySelector('[data-marks-note]'));
+            if (!nodo) return;
+            nodo.textContent = hidden > 0 ? t('analysis.marks.hidden', { count: hidden }) : '';
+            nodo.hidden = hidden <= 0;
+        }
+    });
     if (instance) chartInstance = instance;
     if (!ok) return;
 
@@ -742,6 +788,19 @@ export function mount(container) {
     on(container, 'click', '[data-metric]', (_event, target) => {
         metric = /** @type {Metric} */ (target.getAttribute('data-metric'));
         refreshPressed(container, 'data-metric', metric);
+        void redraw(container);
+    });
+
+    on(container, 'click', '[data-mark-cat]', (_event, target) => {
+        const cat = /** @type {'phase'|'body'|'health'|'aesthetic'|null} */ (
+            /** @type {*} */ (target.getAttribute('data-mark-cat')));
+        if (!cat || !MARK_CATEGORIES.includes(cat)) return;
+        // Apagar la última no deja la gráfica sin explicación: el propio botón
+        // queda sin pulsar, que es la señal. No se impide, porque quitarlos
+        // todos es una petición legítima cuando se mira una serie fina.
+        if (markCategories.has(cat)) markCategories.delete(cat);
+        else markCategories.add(cat);
+        target.setAttribute('aria-pressed', markCategories.has(cat) ? 'true' : 'false');
         void redraw(container);
     });
 

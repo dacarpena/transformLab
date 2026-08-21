@@ -17,6 +17,9 @@
  */
 
 import { t, getLocale } from '../i18n/i18n.js';
+import { html } from './dom.js';
+import { longDate } from './dates.js';
+import * as modal from './components/modal.js';
 import { milestoneLabel } from './chart.js';
 import { num } from './format.js';
 import { aestheticMilestonesFor, textOf } from '../core/milestones.js';
@@ -131,4 +134,35 @@ export function buildMarks(data, todayIndex, options = {}) {
     }
 
     return out.sort((a, b) => a.dayIndex - b.dayIndex);
+}
+
+/**
+ * La ficha de un grupo de hitos.
+ *
+ * Vive aquí, junto al vocabulario de hitos, y no dentro de una vista: hasta
+ * E15-17 solo la tenía Analizar, y Proyección enseñaba sus hitos de otra forma
+ * —puntos sobre la línea, con su propio modal—. Dos mecanismos son dos cosas que
+ * mantener y dos que pueden divergir, y divergieron: por los puntos solo cabían
+ * los del motor, así que Proyección no enseñaba ni los estéticos ni los de
+ * salud.
+ *
+ * @param {import('./chart.js').MarkGroup} group
+ * @param {string | null} [dateISO] la fecha de ese día, si el llamante la sabe
+ */
+export function openMarkCard(group, dateISO = null) {
+    modal.open({
+        titleKey: 'analysis.marks.cardTitle',
+        body: html`
+            ${dateISO ? html`<p class="muted">${longDate(dateISO)}</p>` : ''}
+            <ul class="mark-card">
+                ${group.marks.map((m) => html`
+                    <li class="mark-card__item is-mark-${m.kind}">
+                        <span class="badge badge--outline">${t(`analysis.marks.kind.${m.kind}`)}</span>
+                        <p class="mark-card__label">${m.label}</p>
+                        ${m.detail ? html`<p class="muted">${m.detail}</p>` : ''}
+                    </li>
+                `)}
+            </ul>
+        `
+    });
 }

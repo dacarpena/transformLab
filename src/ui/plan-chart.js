@@ -20,14 +20,11 @@
  * que la vista pueda moverle el cursor, la ventana o pedirle el PNG.
  */
 
-import { html } from './dom.js';
-import { t } from '../i18n/i18n.js';
 import * as plans from './plan-state.js';
 import * as chart from './chart.js';
-import * as modal from './components/modal.js';
+import { buildMarks, MARK_CATEGORIES, openMarkCard } from './marks.js';
 import * as checkins from '../data/checkins.js';
 import { muscleUnitsOf } from './muscle-units.js';
-import { longDate } from './dates.js';
 import { evaluateSeries } from '../core/tracking.js';
 import * as intakeLog from '../data/intake-log.js';
 import * as stepsLog from '../data/steps.js';
@@ -68,6 +65,10 @@ export function chartFor(canvas) {
  * @property {'day'|'week'|'month'} [grain] por omisión, la que decida `chart.js`
  * @property {(data: *, todayIndex: number) => { from: number, to: number }} [range]
  *   ventana visible; por omisión, el plan entero
+ * @property {ReadonlyArray<string>} [markCategories] qué familias de hito se
+ *   enseñan; por omisión, las cuatro
+ * @property {(hidden: number) => void} [onMarksThinned] cuántos marcadores no
+ *   cupieron a este nivel de zoom
  */
 
 /**
@@ -151,16 +152,25 @@ export async function drawPlanChart(container, options = {}) {
             ? options.range(data, today.dayIndex)
             : { from: 0, to: data.plan.totalDays },
         checkins: checkinPoints,
-        onMilestone: (/** @type {*} */ m) => {
-            modal.open({
-                titleKey: 'chart.milestoneModalTitle',
-                size: 'sm',
-                body: html`
-                    <p>${chart.milestoneLabel(m, muscle)}</p>
-                    <p class="muted">${t('chart.milestoneDay', { day: m.dayIndex, date: longDate(m.dateISO) })}</p>
-                `
-            });
-        }
+        // Los hitos, en el carril y con TODAS las familias que el llamante pida
+        // (E15-17). Antes esto solo podía enseñar los del motor, porque los
+        // dibujaba como puntos anclados a la serie: los estéticos y los de salud
+        // no tenían dónde colgarse. Por omisión se enseñan las cuatro; Proyección
+        // deja elegir.
+        marks: buildMarks(data, today.dayIndex, {
+            muscle,
+            checkins: evaluations.map((e) => {
+                const record = checkins.findByDate(e.dateISO);
+                return {
+                    dayIndex: e.dayIndex,
+                    measuresCm: record?.measuresCm ?? {},
+                    subjective: record?.subjective ?? {}
+                };
+            }),
+            categories: options.markCategories ?? MARK_CATEGORIES
+        }),
+        onMark: (/** @type {*} */ group) => openMarkCard(group, data.projection.daily[group.dayIndex]?.dateISO ?? null),
+        ...(options.onMarksThinned ? { onMarksThinned: options.onMarksThinned } : {})
     });
 
     if (!ok) {

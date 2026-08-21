@@ -167,8 +167,6 @@ export const es = {
     'chart.unavailableTitle': 'No se ha podido cargar la gráfica',
     'chart.retry': 'Reintentar',
     'chart.unavailableBody': 'La librería de gráficos no está disponible. El resto de la aplicación funciona con normalidad y tus datos están intactos.',
-    'chart.milestoneModalTitle': 'Hito',
-    'chart.milestoneDay': 'Día {day} · {date}',
 
     // Proyección (E12)
     'projection.title': 'Proyección',

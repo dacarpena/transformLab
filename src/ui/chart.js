@@ -51,7 +51,7 @@ import { planAxes, axisIdFor, styleFor, rebase, axisSpan, MAX_SERIES } from './s
  * @property {number} [maxTicks]
  * @property {number} [clickDatasetIndex] dataset cuyos puntos abren ficha; -1 = ninguno
  * @property {(index: number) => void} [onPointClick]
- * @property {Array<{ x: number, group: MarkGroup }>} [markHitBoxes] los rellena `marksPlugin`
+ * @property {Array<{ x: number, group: MarkGroup, top?: number, bottom?: number }>} [markHitBoxes] los rellena `marksPlugin`
  * @property {(group: MarkGroup) => void} [onMarkClick]
  *
  * @typedef {Object} RenderedSeries
@@ -371,7 +371,7 @@ const MARK_HIT_PX = 12;
  * DÍA, que es lo único que el hito sabe de verdad.
  *
  * @param {() => MarkGroup[]} getGroups
- * @param {Array<{ x: number, group: MarkGroup }>} hitBoxes se rellena al dibujar
+ * @param {Array<{ x: number, group: MarkGroup, top?: number, bottom?: number }>} hitBoxes se rellena al dibujar
  * @param {((hiddenCount: number) => void) | undefined} onThinned
  */
 function marksPlugin(getGroups, hitBoxes, onThinned) {
@@ -424,7 +424,12 @@ function marksPlugin(getGroups, hitBoxes, onThinned) {
                 ctx.closePath();
                 ctx.fill();
                 ctx.restore();
-                hitBoxes.push({ x, group });
+                // La caja lleva su TECHO y su SUELO, no solo la X (E15-17). Sin
+                // el límite vertical, un clic en cualquier punto de la columna
+                // —sobre la curva incluida— abría la ficha del hito de arriba.
+                // El carril es una banda de unos 20 px pegada al borde superior;
+                // fuera de ella el clic es de la gráfica, no del hito.
+                hitBoxes.push({ x, group, top: chartArea.top - GLYPH, bottom: chartArea.top + GLYPH * 3.2 });
             }
         }
     };
@@ -732,7 +737,7 @@ export function createChart() {
 
 /**
      * Dibuja la gráfica.
-     * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle'|'kcal', todayIndex: number, range: {from: number, to: number}, onMilestone: (m: import('../core/generator.js').Milestone) => void, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, scaleMuscleKg?: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month' }} options
+     * @param {{ canvas: HTMLCanvasElement, readout: HTMLElement, projection: Projection, metric: 'weight'|'fatPct'|'muscle'|'kcal', todayIndex: number, range: {from: number, to: number}, checkins?: Array<{dayIndex: number, actualKg: number, fatPct: number|null, scaleMuscleKg?: number|null, signal: string}>, muscle?: MuscleUnits, grain?: 'day'|'week'|'month', marks?: ChartMark[], onMark?: (group: MarkGroup) => void, onMarksThinned?: (hidden: number) => void }} options
      * @returns {boolean} false si Chart.js no está disponible
      */
     function draw(options) {
@@ -879,31 +884,26 @@ export function createChart() {
             });
         }
     
-        // Hitos como puntos sobre la línea. Sin filtrar por ventana: recorta la
-        // escala. Filtrarlos aquí obligaba a redibujar en cada movimiento y, peor,
-        // desalineaba `visibleMilestones` con el índice que devuelve el clic.
+        // LOS HITOS VAN EN EL CARRIL, no como puntos sobre la línea (E15-17).
         //
-        // En la métrica de calorías NO se dibujan: sus umbrales son de peso, grasa
-        // y músculo, y `pick` los anclaría con la unidad equivocada — un hito
-        // flotando en mitad de un eje de kcal señala un sitio que no existe.
-        const visibleMilestones = projection.milestones;
-        if (metric !== 'kcal') {
-            datasets.push({
-                label: t('chart.milestoneModalTitle'),
-                data: visibleMilestones.map((m) => ({
-                    x: m.dayIndex,
-                    y: pick(projection.daily[m.dayIndex])
-                })),
-                showLine: false,
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                pointBackgroundColor: cssVar('--color-warning'),
-                pointBorderColor: cssVar('--color-bg'),
-                pointBorderWidth: 2,
-                order: 0
-            });
-        }
-        const milestoneDatasetIndex = metric === 'kcal' ? -1 : datasets.length - 1;
+        // Había DOS mecanismos de hito en el producto: aquí, puntos anclados a la
+        // serie; en Analizar, un carril de marcadores encima del área. Dos
+        // mecanismos son dos cosas que mantener, dos que probar y dos que pueden
+        // divergir — y de hecho divergieron: por los puntos solo cabían los hitos
+        // del MOTOR, así que Proyección no enseñaba ni los estéticos ni los de
+        // salud, que es justo lo que el usuario pidió ver.
+        //
+        // El carril además resuelve dos cosas que los puntos no podían: agrupa
+        // los del mismo día —cinco triángulos en la misma columna de píxeles
+        // dibujan una mancha, no cinco cosas— y descarta por prioridad diciendo
+        // cuántos quedaron fuera.
+        //
+        // Y desaparece la razón por la que la métrica de calorías no podía
+        // tenerlos: los puntos había que anclarlos a un valor del eje —`pick`—, y
+        // un umbral de peso flotando en un eje de kcal señala un sitio que no
+        // existe. El carril solo necesita el día.
+        const markGroups = groupMarks(options.marks ?? []);
+        /** @type {Array<{ x: number, group: MarkGroup, top?: number, bottom?: number }>} */ const markHitBoxes = [];
 
         const ok = drawSeries({
             canvas: options.canvas,
@@ -925,12 +925,13 @@ export function createChart() {
                 const point = projection.daily[Number(items[0]?.parsed?.x ?? 0)];
                 return point ? `${point.dateISO} · ${t('phase.' + point.phaseType)}` : '';
             },
-            extraPlugins: [phaseBandsPlugin(projection), todayLinePlugin(() => options.todayIndex)],
-            clickDatasetIndex: milestoneDatasetIndex,
-            onPointClick: (index) => {
-                const milestone = visibleMilestones[index];
-                if (milestone) options.onMilestone(milestone);
-            }
+            extraPlugins: [
+                phaseBandsPlugin(projection),
+                todayLinePlugin(() => options.todayIndex),
+                marksPlugin(() => markGroups, markHitBoxes, options.onMarksThinned)
+            ],
+            markHitBoxes,
+            onMarkClick: options.onMark
         });
         if (!ok) return false;
 
@@ -1029,7 +1030,7 @@ export function createChart() {
         });
 
         const markGroups = groupMarks(options.marks ?? []);
-        /** @type {Array<{ x: number, group: MarkGroup }>} */ const markHitBoxes = [];
+        /** @type {Array<{ x: number, group: MarkGroup, top?: number, bottom?: number }>} */ const markHitBoxes = [];
 
         const ok = drawSeries({
             canvas: options.canvas,
@@ -1305,9 +1306,17 @@ export function createChart() {
                     if (options.onMarkClick && options.markHitBoxes?.length) {
                         const px = /** @type {*} */ (event).x
                             ?? /** @type {*} */ (event).native?.offsetX;
+                        const py = /** @type {*} */ (event).y
+                            ?? /** @type {*} */ (event).native?.offsetY;
                         if (Number.isFinite(px)) {
                             const cerca = options.markHitBoxes
                                 .filter((b) => Math.abs(b.x - px) <= MARK_HIT_PX)
+                                // Y DENTRO DE LA BANDA del carril: sin esto, un
+                                // clic sobre la curva abría la ficha del hito que
+                                // tuviera encima, a media pantalla de distancia.
+                                .filter((b) => !Number.isFinite(py)
+                                    || b.top === undefined || b.bottom === undefined
+                                    || (py >= b.top && py <= b.bottom))
                                 .sort((a, b) => Math.abs(a.x - px) - Math.abs(b.x - px))[0];
                             if (cerca) {
                                 options.onMarkClick(cerca.group);

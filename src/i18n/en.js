@@ -167,8 +167,6 @@ export const en = {
     'chart.unavailableTitle': 'The chart could not be loaded',
     'chart.retry': 'Try again',
     'chart.unavailableBody': 'The charting library is unavailable. The rest of the app works normally and your data is intact.',
-    'chart.milestoneModalTitle': 'Milestone',
-    'chart.milestoneDay': 'Day {day} · {date}',
 
     // Projection (E12)
     'projection.title': 'Projection',

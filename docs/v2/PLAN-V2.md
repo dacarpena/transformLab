@@ -2007,6 +2007,47 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   `SIN_TEST_UNITARIO` con su motivo escrito. Queda una sola excepción,
   `muscle-grid.js`, que es presentación pura sobre un informe que sí tiene tests.
 
+- [x] **E15-17 · Un solo mecanismo de hito, y Proyección enseña los suyos.**
+  Cierra lo que E14 pidió y no pudo dar: «deben poder verse los hitos estéticos,
+  de energía y de salud». No se veían porque había **dos mecanismos de hito en el
+  producto**: Proyección los dibujaba como puntos anclados a la serie; Analizar,
+  en un carril de marcadores. Y por los puntos solo cabían los del MOTOR —había
+  que anclarlos a un valor del eje—, así que los estéticos y los de salud no
+  tenían dónde colgarse. `core/health-milestones.js` calculaba 337 líneas de
+  umbrales con sus fuentes (OMS, ACE, NIH) que la vista del plan no enseñaba.
+
+  Ahora `draw()` usa el mismo carril que `drawMulti`, y el camino de los puntos
+  desaparece. Tres consecuencias, todas buenas:
+
+  - **La métrica de calorías también tiene hitos.** No los tenía porque un umbral
+    de peso anclado a un eje de kcal señala un sitio que no existe. El carril solo
+    necesita el DÍA.
+  - **Se agrupan y se adelgazan por prioridad**, con el recuento de lo que no
+    cupo. Cinco triángulos en la misma columna de píxeles no dibujan cinco cosas.
+  - **La ficha es la misma**, extraída a `marks.js`. Antes había dos modales
+    distintos para lo mismo.
+
+  Y Proyección gana los interruptores de familia que Analizar ya tenía (E15-17b),
+  con las cuatro encendidas por omisión: esconderle a alguien sus hitos de salud
+  por defecto sería decidir por él qué le importa.
+
+  **Dos mentiras de leyenda cayeron por el camino**: la leyenda prometía un punto
+  naranja «Hito» sobre la línea que ya no existe, y con él se fueron dos claves
+  i18n que no usaba nadie.
+
+  **Y el test destapó un defecto real que llevaba desde E14-3**: la prueba de
+  impacto del carril **solo miraba la X**. Un clic en cualquier punto de la
+  columna de un hito —sobre la curva, a media pantalla de distancia— abría su
+  ficha. Estaba también en Analizar. Las cajas de impacto llevan ahora su banda
+  vertical.
+
+  Los E2E de esta etapa costaron cuatro intentos, y la lección se queda escrita:
+  barrer el carril a clics era lento y frágil; el clic sintético despachado en la
+  página no llega igual a Chart.js; y contar píxeles de UN marcador sobre un fondo
+  con franjas de fase cae dentro del ruido de medida. Lo que funciona es preguntar
+  a la escala dónde está el marcador, pulsarlo con el ratón de verdad, y afirmar
+  por COMPORTAMIENTO —si responde o no— en vez de por píxeles.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -2096,7 +2137,11 @@ carrera de píxeles de `release.spec.js`, hermana de la de `csp.spec.js`.
 
 **2026-08-21 · E15-15.** Cerrada. **939 unitarios y 233 E2E**, typecheck limpio.
 
-Queda: **E15-17** (los hitos en Proyección). Y luego M8 y M9.
+**2026-08-21 · E15-17.** Cerrada, **y con ella la épica E15 entera**.
+**939 unitarios y 236 E2E** (tres pasadas seguidas), typecheck limpio.
+
+Lo siguiente es **M8** (identidad con passkeys) y **M9** (sincronización
+cifrada), con el plan escrito arriba.
 
 **2026-08-21 · E15-16.** Cerrada. **905 unitarios y 233 E2E**, typecheck limpio.
 
