@@ -17,8 +17,16 @@
  */
 
 import { onRequest as health } from './_handlers/health.js';
+import { registerStart, registerFinish, loginStart, loginFinish } from './_handlers/auth.js';
 
 /** @type {readonly import('./_lib/router.js').Route[]} */
 export const ROUTES = Object.freeze([
-    { method: 'GET', path: '/api/health', handler: health, auth: false }
+    { method: 'GET', path: '/api/health', handler: health, auth: false },
+
+    // Autenticación. `auth: false` en las cuatro por definición: son las rutas
+    // que EXISTEN para conseguir una sesión, así que exigirla sería un bucle.
+    { method: 'POST', path: '/api/auth/register/start', handler: registerStart, auth: false },
+    { method: 'POST', path: '/api/auth/register/finish', handler: registerFinish, auth: false },
+    { method: 'POST', path: '/api/auth/login/start', handler: loginStart, auth: false },
+    { method: 'POST', path: '/api/auth/login/finish', handler: loginFinish, auth: false }
 ]);

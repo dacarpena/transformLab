@@ -2255,8 +2255,57 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   añadió otro que ata el fixture, para que si Chrome cambia de comportamiento los
   tests del contador se pongan en rojo en vez de dejar de probar en silencio.
 
-- [ ] **M8-3b · Los cuatro endpoints de registro y login**, con los retos de un
-  solo uso en `challenges` y la emisión de la primera sesión.
+- [x] **M8-3b · Los cuatro endpoints de registro y login.**
+
+  **El registro no pide NADA.** El cuerpo de `POST /api/auth/register/start` es
+  `{}`: ni correo, ni nombre, ni contraseña. Hasta el `user.name` y el
+  `user.displayName` que WebAuthn exige llevan el nombre de la aplicación, no el
+  de la persona — no lo sabemos y no queremos saberlo. Ésa es la propiedad que
+  hace que este servidor no tenga nada que filtrar.
+
+  **El reto es de un solo uso de verdad.** Se guarda su SHA-256, no él, así que
+  una lectura de la tabla no permite responder a un reto en vuelo; y se consume
+  con `DELETE … RETURNING`, que en SQLite es atómico. Un `SELECT` seguido de un
+  `DELETE` dejaría una ventana en la que dos peticiones simultáneas con el mismo
+  reto ganan las dos — que es exactamente la ventana que un reto de un solo uso
+  existe para cerrar. Además el reto **no viaja en el cuerpo**: se saca del
+  `clientDataJSON`, que es lo que el autenticador firmó, así que no hay forma de
+  que el servidor busque un reto distinto del que se firmó.
+
+  **Ni un oráculo.** Reto desconocido, caducado, de otro propósito o ya gastado
+  dan los cuatro `challenge.invalid`; credencial desconocida y firma mala dan los
+  dos `auth.failed`. Distinguirlos solo le sirve a quien está probando la puerta,
+  y hay un test que los recorre y exige que el conjunto de errores tenga un solo
+  elemento. Con `allowCredentials: []` tampoco hay nada que enumerar: no existe
+  el ataque de «¿está esta cuenta registrada?».
+
+  **La cuenta y la credencial entran en un LOTE.** Si la credencial fallara, una
+  cuenta sin credencial es una cuenta en la que nadie puede entrar nunca — y que
+  el usuario no puede rehacer, porque el id ya está ocupado.
+
+  La sesión se abre aquí (`__Host-tl_sid`, `HttpOnly; Secure; SameSite=Strict;
+  Path=/`) y el token **no se guarda**: en la base va su SHA-256, así que un
+  volcado de la tabla de sesiones no permite entrar en ninguna cuenta. `Max-Age`
+  y no `Expires`, porque `Expires` es una fecha absoluta que el navegador compara
+  con SU reloj. La rotación, la detección de reuso y la revocación son M8-4.
+
+  `challenges` gana `pending_user_id`, sin clave foránea: WebAuthn hornea el
+  `user.id` DENTRO de la credencial y es lo que vuelve como `userHandle` en el
+  login descubrible, así que lo tiene que decidir el servidor **antes** de
+  firmar, cuando la cuenta todavía no existe. La alternativa —crear la fila de
+  `users` al emitir el reto— dejaría una cuenta huérfana por cada registro
+  abandonado. La migración `0001` se **enmienda** en vez de añadir una `0002`:
+  no se ha aplicado en ninguna parte, y arrastrar un parche de un esquema que
+  nunca corrió sería peor.
+
+  16 tests sobre la tubería real de Pages con el D1 de `node:sqlite` y las
+  respuestas grabadas de Chrome, más una pasada contra **workerd y un D1 local de
+  verdad**: el reto queda guardado como hash de 32 bytes con TTL de 300 s, y
+  `pending_user_id` solo en el registro.
+
+  Aviso de desarrollo que queda escrito en el código: hay que entrar por
+  `http://localhost:8788`, no por la IP — el `rpId` sale del `hostname`, y
+  WebAuthn no acepta una IP como `rpId`.
 - [ ] **M8-4 · Sesiones y autorización por fila.** Rotación con detección de reuso,
   revocación, `openUserScope` y los cinco tests estáticos que hacen imposible
   escribir una consulta sin `WHERE user_id = ?`.

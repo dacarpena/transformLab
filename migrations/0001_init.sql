@@ -101,11 +101,27 @@ CREATE INDEX credentials_by_user ON credentials(user_id);
 -- justo el efecto que se busca —no hay campo «usuario» que enumerar—, y por eso
 -- la columna no puede ser NOT NULL.
 CREATE TABLE challenges (
-    hash        BLOB    PRIMARY KEY,
-    purpose     TEXT    NOT NULL,            -- 'register' | 'login' | 'add-credential'
-    user_id     TEXT    REFERENCES users(id) ON DELETE CASCADE,
-    created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL
+    hash             BLOB    PRIMARY KEY,
+    purpose          TEXT    NOT NULL,       -- 'register' | 'login' | 'add-credential'
+
+    -- La cuenta a la que pertenece el reto, cuando ya existe: solo en
+    -- 'add-credential'. Nulo en 'login' —ver arriba— y también en 'register'.
+    user_id          TEXT    REFERENCES users(id) ON DELETE CASCADE,
+
+    -- El id que TENDRÁ la cuenta si el registro llega a término. Se genera al
+    -- emitir el reto porque WebAuthn hornea el `user.id` DENTRO de la
+    -- credencial, y es lo que el autenticador devuelve como `userHandle` en el
+    -- login descubrible: tiene que decidirlo el servidor, y antes de firmar.
+    --
+    -- Sin clave foránea, y no es un descuido: en este momento la cuenta todavía
+    -- no existe. Crear la fila de `users` al emitir el reto sí permitiría la FK,
+    -- pero dejaría una cuenta huérfana por cada registro abandonado —y los
+    -- registros se abandonan— con su tarea de limpieza detrás. Un reto caduca en
+    -- cinco minutos y se borra solo.
+    pending_user_id  TEXT,
+
+    created_at       INTEGER NOT NULL,
+    expires_at       INTEGER NOT NULL
 ) STRICT;
 
 CREATE INDEX challenges_by_expiry ON challenges(expires_at);

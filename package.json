@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
     "sw:bump": "node tools/sw-version.mjs --bump",
-    "serve:api": "wrangler pages dev . --port 8788 --ip 127.0.0.1",
+    "serve:api": "wrangler pages dev . --port 8788",
     "vectors:webauthn": "node tools/record-webauthn-vectors.mjs"
   },
   "devDependencies": {
