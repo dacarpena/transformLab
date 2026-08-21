@@ -1,6 +1,7 @@
 // @ts-check
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { checkProfile, checkComposition, checkTarget, LIMITS, isValidSex } from '../src/core/ranges.js';
 
 const PROFILE_OK = { sex: 'male', age: 30, heightCm: 180, activityLevel: 'moderate', trainingStatus: 'intermediate' };
@@ -80,6 +81,55 @@ test('perder músculo es un objetivo válido con aviso (MOT-10)', () => {
     const r = checkTarget(initial, { fatPct: 15, muscleKg: 35 }, 'male');
     assert.equal(r.errors.length, 0);
     assert.ok(has(r.warnings, 'target.muscleLoss'));
+});
+
+test('un objetivo que no gana músculo se AVISA, y el aviso lo ve todo perfil ya guardado (E15-2)', () => {
+    // El caso real medido en producción: 32,487 → 32,500 kg de músculo en 155
+    // días. Trece gramos. E14-1 arregló la cifra por defecto del asistente, pero
+    // los perfiles YA creados seguían con su objetivo degenerado y nadie se lo
+    // decía. Ahora lo dice el motor, así que el aviso viaja en `plan.warnings` y
+    // Hoy lo pinta en el siguiente arranque.
+    const initial = { weightKg: 85, fatPct: 22, muscleKg: 32.487, leanKg: 66.3 };
+
+    const real = checkTarget(initial, { fatPct: 14, muscleKg: 32.5 }, 'male');
+    assert.equal(real.errors.length, 0, 'no es un error: el objetivo es del usuario');
+    assert.ok(has(real.warnings, 'target.muscleNoGain'));
+    // En gramos, no en kilos: «0,0 kg» no dice nada, «13 g» sí.
+    assert.equal(real.warnings.find((w) => w.code === 'target.muscleNoGain')?.params?.grams, 13);
+
+    // Delta exactamente cero: el caso más degenerado posible.
+    assert.ok(has(checkTarget(initial, { fatPct: 14, muscleKg: 32.487 }, 'male').warnings, 'target.muscleNoGain'));
+
+    // Justo por debajo y justo por encima del umbral de 200 g.
+    assert.ok(has(checkTarget(initial, { fatPct: 14, muscleKg: 32.687 }, 'male').warnings, 'target.muscleNoGain'),
+        '199 g siguen siendo «no ganar nada»');
+    assert.ok(!has(checkTarget(initial, { fatPct: 14, muscleKg: 32.688 }, 'male').warnings, 'target.muscleNoGain'),
+        'a partir de 200 g ya es un objetivo');
+
+    // Y un objetivo normal no lo dispara.
+    assert.ok(!has(checkTarget(initial, { fatPct: 14, muscleKg: 35 }, 'male').warnings, 'target.muscleNoGain'));
+});
+
+test('«no ganar nada» y «perder músculo» son ramas excluyentes, nunca las dos', () => {
+    const initial = { weightKg: 90, fatPct: 18, muscleKg: 38, leanKg: 73.8 };
+    const perdiendo = checkTarget(initial, { fatPct: 15, muscleKg: 37 }, 'male');
+    assert.ok(has(perdiendo.warnings, 'target.muscleLoss'));
+    assert.ok(!has(perdiendo.warnings, 'target.muscleNoGain'),
+        'perder músculo ya se dice con su propio aviso: dos avisos sobre lo mismo son ruido');
+});
+
+test('el umbral de «no ganar nada» tiene UNA sola definición', () => {
+    // Vivía duplicado en `onboarding.js`, y por eso el aviso solo existía en el
+    // asistente. `LIMITS` es la fuente única que el motor y la interfaz comparten
+    // (B9), y el asistente lee de ahí.
+    assert.equal(typeof LIMITS.targetMuscleGain.noGainKg, 'number');
+    assert.ok(LIMITS.targetMuscleGain.noGainKg > 0);
+
+    const onboarding = readFileSync(new URL('../src/ui/views/onboarding.js', import.meta.url), 'utf8');
+    assert.match(onboarding, /LIMITS\.targetMuscleGain\.noGainKg/,
+        'el asistente debe leer el umbral de LIMITS, no declararlo otra vez');
+    assert.ok(!/NO_GAIN_THRESHOLD_KG\s*=\s*0\.\d/.test(onboarding),
+        'el umbral no puede volver a estar escrito a mano en la interfaz');
 });
 
 test('todos los issues llevan código y ninguno lleva texto en prosa (i18n-ready)', () => {

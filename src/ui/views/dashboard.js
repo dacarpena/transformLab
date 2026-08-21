@@ -191,6 +191,13 @@ function renderPlan(data) {
                 <p class="notice notice--warning">
                     <span class="notice__icon" aria-hidden="true">⚠</span>
                     <span>${warningText(w)}</span>
+                    ${w.code === 'target.muscleNoGain'
+                        // Este aviso, y solo éste, tiene una salida: es el único
+                        // que el usuario puede resolver ahora mismo cambiando un
+                        // número. Un aviso sin salida es la misma falta que
+                        // arregló E15-1 (ficha H-013).
+                        ? html`<button type="button" class="btn btn--sm" data-edit-target>${t('action.editTarget')}</button>`
+                        : ''}
                 </p>
             `)}
             <p class="muted">${t('today.plan.phaseDays', { name: t('onboarding.preview.duration'), days: total })}</p>
@@ -297,6 +304,10 @@ export function mount(container) {
         if (onGoToCheckin) onGoToCheckin();
     });
 
+    on(container, 'click', '[data-edit-target]', () => {
+        if (onEditProfile) onEditProfile();
+    });
+
     // Cada línea del plan integral lleva a la vista de su módulo. Se delega al
     // router en vez de a un callback por módulo: siete `setOnGoToX` serían
     // exactamente el coste que M7-3 quitó de en medio.
@@ -304,6 +315,18 @@ export function mount(container) {
         const viewId = target.getAttribute('data-go-module');
         if (viewId && onGoToModule) onGoToModule(viewId);
     });
+}
+
+/** @type {(() => void) | null} */
+let onEditProfile = null;
+
+/**
+ * Abrir el asistente para corregir el objetivo. Lo cablea `main.js` al mismo
+ * `editProfile` que ya usa Ajustes: una sola puerta a la edición del perfil.
+ * @param {() => void} fn
+ */
+export function setOnEditProfile(fn) {
+    onEditProfile = fn;
 }
 
 /** @type {((viewId: string) => void) | null} */

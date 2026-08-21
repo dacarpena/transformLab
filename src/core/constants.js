@@ -233,11 +233,22 @@ export const ABSOLUTE_MAX_FAT_PCT = 60;
  * Un +40 % en esquelético son solo ~+21 % en unidades de báscula, porque el
  * offset entre ambas no crece. Comparar cifras de báscula contra este umbral
  * es exactamente el defecto que hundió la v4.0.
- * @type {Readonly<{ambitiousPct: number, implausiblePct: number}>}
+ * @type {Readonly<{ambitiousPct: number, implausiblePct: number, noGainKg: number}>}
  */
 export const TARGET_MUSCLE_GAIN_LIMITS = Object.freeze({
     ambitiousPct: 20,
-    implausiblePct: 40
+    implausiblePct: 40,
+    /**
+     * Por debajo de esto, un objetivo de músculo no es un objetivo: es
+     * conservar. 200 g en meses están dentro del error de cualquier método de
+     * medida, así que un plan construido sobre esa diferencia no proyecta una
+     * ganancia, proyecta ruido.
+     *
+     * Vivía duplicado en `src/ui/views/onboarding.js` (E14-1) y solo actuaba en
+     * el asistente, así que un perfil YA guardado con un objetivo degenerado no
+     * se enteraba nunca. Aquí lo ve también el motor (E15-2).
+     */
+    noGainKg: 0.2
 });
 
 /**

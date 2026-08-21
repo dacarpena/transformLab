@@ -42,7 +42,9 @@ export const LIMITS = Object.freeze({
         minSafe: MIN_SAFE_FAT_PCT,
         max: MAX_FAT_PCT,
         absoluteMax: ABSOLUTE_MAX_FAT_PCT
-    })
+    }),
+    /** Umbrales del objetivo de músculo. El asistente lee `noGainKg` de aquí. */
+    targetMuscleGain: TARGET_MUSCLE_GAIN_LIMITS
 });
 
 /**
@@ -218,6 +220,20 @@ export function checkTarget(initial, target, sex) {
             warnings.push({ code: 'target.muscleGainAmbitious', params: { deltaKg: round1(deltaKg) } });
         } else if (deltaKg < 0) {
             warnings.push({ code: 'target.muscleLoss', params: { deltaKg: round1(Math.abs(deltaKg)) } });
+        } else if (deltaKg < TARGET_MUSCLE_GAIN_LIMITS.noGainKg) {
+            // El objetivo no gana nada: el plan proyectará una línea plana y la
+            // gráfica autoescalará el eje sobre el ruido de la báscula, de modo
+            // que 0,4 kg de oscilación se leen como un desplome. Medido en
+            // producción con un perfil real: 32,487 → 32,500 kg en 155 días.
+            //
+            // Se AVISA, no se corrige (B9): el objetivo es del usuario. Y se
+            // avisa desde AQUÍ y no desde el asistente porque los warnings
+            // viajan en `plan.warnings`, que Hoy ya pinta en cada arranque: así
+            // lo ve también quien creó su perfil antes de que esto existiera.
+            //
+            // En gramos y no en kilos a propósito: `round1(0.013)` es «0,0 kg»,
+            // que no dice nada. «13 g» sí.
+            warnings.push({ code: 'target.muscleNoGain', params: { grams: Math.round(deltaKg * 1000) } });
         }
     }
     return { errors, warnings };

@@ -1558,6 +1558,34 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   atiende al botón de Gasto — y la primera versión de este test, que solo miraba
   un conjunto global, daba por bueno exactamente ese fallo.
 
+- [x] **E15-2 · El objetivo que pedía ganar trece gramos.**
+  Medido en producción sobre un perfil real: `initial.muscleKg` 32,487 →
+  `target.muscleKg` 32,500. **Trece gramos en 155 días.** El plan proyecta una
+  línea plana, Chart.js autoescala el eje Y a `[32,10 – 32,50]`, y 0,4 kg de
+  oscilación —que es el ruido de cualquier báscula— llenan el lienzo y se leen
+  como un desplome muscular catastrófico. Es la mitad de «la gráfica no
+  funciona»: la gráfica dibujaba fielmente unos datos sin señal.
+
+  E14-1 arregló la cifra que el ASISTENTE propone por defecto, y con eso los
+  perfiles nuevos. No podía arreglar los **ya guardados**, que son los de todo el
+  que creó su perfil antes — y no había forma de enterarse.
+
+  El aviso se mueve al motor: `core/ranges.js#checkTarget` gana
+  `target.muscleNoGain` cuando `0 ≤ Δ < 0,2 kg`. Eso lo cambia todo, porque los
+  warnings del motor viajan en `plan.warnings` y `dashboard.js` ya los pinta y
+  los traduce en cada arranque: **todo perfil degenerado ya guardado lo ve al
+  siguiente arranque, sin migración y sin tocar sus datos.** Se avisa, nunca se
+  corrige (B9): el objetivo es del usuario.
+
+  El umbral tenía DOS definiciones —`NO_GAIN_THRESHOLD_KG` en `onboarding.js`—, y
+  por eso el aviso solo existía en el asistente. Ahora vive en
+  `TARGET_MUSCLE_GAIN_LIMITS.noGainKg` y llega a los dos por `LIMITS`, con un
+  test que impide volver a escribirlo a mano en la interfaz.
+
+  En **gramos y no en kilos**: `round1(0,013)` es «0,0 kg», que no dice nada;
+  «13 g» sí. Y el aviso lleva un botón al asistente, porque un aviso sin salida es
+  la misma falta que cerró E15-1 (H-013).
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1584,11 +1612,19 @@ cuesta una línea de CSS; la segunda va al BACKLOG.
 `css/app.css` + `test/css-hidden.test.js`. 843/843 en verde, typecheck limpio,
 `sw:bump` ejecutado.
 
-Siguiente paso concreto: **E15-2**, el objetivo de músculo degenerado —
-`core/ranges.js#checkTarget` gana `target.muscleNoGain` para `0 ≤ Δ < 0,2 kg`, el
-aviso viaja por `plan.warnings` (que `dashboard.js` ya pinta y traduce, así que
-todo perfil ya guardado lo verá al siguiente arranque) y su botón lleva al
-asistente. Nunca corrección silenciosa (B9).
+**2026-08-21 · E15-2.** Cerrada. `noGainKg` en `constants.js` expuesto por
+`LIMITS`, rama nueva en `checkTarget`, botón «Ajustar el objetivo» en Hoy
+cableado al mismo `editProfile` que Ajustes, tres claves i18n en los dos
+diccionarios. 846/846 unitarios, 206 E2E, typecheck limpio. `test/e2e/no-gain-target.spec.js`
+comprobado que falla al quitar la rama del motor. Verificado en navegador con el
+perfil real de producción reproducido: el aviso sale en Hoy y su botón abre el
+asistente.
+
+Siguiente paso concreto: **E15-3**, el suelo de rango del eje Y. `minSpan` por
+unidad en `UNITS` (`core/series-catalog.js`), junto a `decimals` y
+`zeroMeaningful`; `axisSpan(min, max, minSpan)` puro en `series-style.js`; y
+`chart.js#drawSeries` lo aplica al extent real de cada eje. Debajo de ese suelo,
+el eje dibuja error de medida, no señal.
 
 #### Hallazgos de la verificación de E15-1
 

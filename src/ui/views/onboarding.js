@@ -150,9 +150,12 @@ const DEFAULT_HORIZON_DAYS = 182;
 
 /**
  * Por debajo de esto, un objetivo de músculo no es un objetivo: es conservar.
- * 200 g en meses está dentro del error de cualquier método de medida.
+ * La cifra vive en `core/constants.js` y llega por `LIMITS`, que es la fuente
+ * única de rangos que el motor Y el asistente comparten (B9). Estaba duplicada
+ * aquí, y por eso el aviso solo existía en el asistente: un perfil ya guardado
+ * con un objetivo degenerado no se enteraba nunca (E15-2).
  */
-const NO_GAIN_THRESHOLD_KG = 0.2;
+const NO_GAIN_THRESHOLD_KG = LIMITS.targetMuscleGain.noGainKg;
 
 /**
  * Objetivo de músculo efectivo **en la unidad que ve el usuario**: el tecleado

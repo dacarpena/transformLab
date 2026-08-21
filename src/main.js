@@ -313,6 +313,9 @@ async function boot() {
     // El plan integral (V2-M10) navega a la vista de cualquier módulo con un
     // solo cableado, en vez de siete `setOnGoToX`.
     dashboard.setOnGoToModule((viewId) => router.navigate(viewId));
+    // El aviso «tu objetivo no gana músculo» lleva al asistente, que es donde se
+    // corrige. Mismo `editProfile` que Ajustes: una sola puerta (E15-2).
+    dashboard.setOnEditProfile(() => editProfile(roots));
 
     // 5 · a rodar
     await route(roots);
