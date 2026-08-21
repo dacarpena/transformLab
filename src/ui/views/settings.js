@@ -15,6 +15,7 @@ import * as storage from '../../data/storage.js';
 import * as profiles from '../../data/profiles.js';
 import * as backup from '../../data/backup.js';
 import * as importWeights from '../../data/import-weights.js';
+import * as demoProfile from '../../data/demo-profile.js';
 import * as checkins from '../../data/checkins.js';
 import * as plans from '../plan-state.js';
 import * as router from '../router.js';
@@ -78,7 +79,11 @@ function renderProfilesSection() {
             </ul>
             <div class="btn-row">
                 <button type="button" class="btn" data-new-profile>${t('settings.newProfile')}</button>
+                ${demoProfile.isInstalled() ? '' : html`
+                    <button type="button" class="btn" data-demo-create>${t('demo.try')}</button>
+                `}
             </div>
+            ${demoProfile.isInstalled() ? '' : html`<p class="muted">${t('demo.tryHint')}</p>`}
         </section>
     `;
 }
@@ -459,6 +464,22 @@ export function mount(container) {
     // Importar un histórico de pesos (E15-9). Mismo contrato de dos pasos que el
     // import de backups: `inspect` mira y NO escribe, se enseña qué se ha
     // entendido y qué se descarta, y solo entonces se escribe.
+    // Crear el perfil de ejemplo (E15-10). Es la ÚNICA puerta junto con la del
+    // asistente: nunca se instala solo.
+    on(container, 'click', '[data-demo-create]', () => {
+        const creado = demoProfile.install({
+            todayISO: plans.todayISO(),
+            nowISO: new Date().toISOString()
+        });
+        if (!creado.ok) {
+            toast.error(creado.error);
+            return;
+        }
+        toast.success('demo.created');
+        // `route()` recarga el plan del perfil recién activado y pinta la banda.
+        if (onProfilesChanged) onProfilesChanged();
+    });
+
     on(container, 'change', '[data-import-weights]', (event) => {
         const input = /** @type {HTMLInputElement} */ (event.target);
         const file = input.files?.[0];

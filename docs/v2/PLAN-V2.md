@@ -1815,6 +1815,50 @@ contradice la premisa en su parte técnica y la confirma en la de producto:
   pasó a engancharse **antes** del primer `draw`: engancharlo después dejaba una
   ventana corta pero real en la que el resorte ya estaba en el DOM y el oyente no.
 
+- [x] **E15-10 · Un perfil de ejemplo, no «datos de ejemplo».**
+  Cierra el bloque de la causa raíz. Un usuario nuevo abría la aplicación y veía
+  estados vacíos en todas partes: no había forma de saber qué hace Progreso, ni
+  Analizar, ni Entreno, hasta haber tecleado dos meses de datos. Esto enseña la
+  aplicación llena antes de pedirle nada a nadie.
+
+  **La ficha H-035 gobierna el diseño entero**, y por eso no son «datos de
+  ejemplo» sueltos sino un PERFIL:
+
+  1. **Lo genera el motor de verdad.** `planPhases` + `generateProjection` con
+     semilla fija, y los check-ins se muestrean de esa proyección con su ruido de
+     báscula. Nada dibujado a mano para que salga bonito — hay un test que rehace
+     el cálculo por fuera y exige que cada peso caiga junto al proyectado.
+  2. **Vive en su PROPIO namespace.** `storage.js` inyecta
+     `tl.<v>.<profileId>.`, así que el ejemplo es **estructuralmente incapaz** de
+     tocar los datos reales. No por convención: por construcción. Su id es fijo
+     (`demo`) y `profiles.nextId` solo produce `pN`, así que no pueden colisionar.
+     Un test estático exige que **ningún módulo fuera de `demo-profile.js`
+     escriba ese id a mano**, porque esa garantía se cae en cuanto alguien empieza
+     a comparar por su cuenta.
+  3. **La banda vive en el ARMAZÓN**, no en las vistas: es la única forma de que
+     ninguna vista pueda olvidarse de decir que los datos son simulados. No
+     depende de que diecisiete ficheros se acuerden; depende de uno. Y no se puede
+     descartar.
+  4. **Acotado a propósito**: perfil, check-ins, ingesta, pasos y sesiones. Sin
+     fotos, recetas, despensa ni logros — esos módulos enseñan su estado vacío
+     normal, que también es información cierta.
+  5. **Adherencia realista**, no del cien por cien: nadie apunta ciento diecinueve
+     días seguidos, y un ejemplo perfecto enseña una aplicación que no existe.
+
+  Y el objetivo del ejemplo **gana músculo de verdad** (+4,2 kg), con test: un
+  ejemplo degenerado enseñaría el defecto que E15-2 cerró en vez del producto.
+
+  **Verificar esto destapó la trampa que más veces ha mordido el proyecto.** Un
+  comentario HTML con una palabra entre acentos graves dentro de una plantilla
+  `html` **cierra la plantilla**, y el módulo deja de parsear con un
+  `SyntaxError` que no dice ni el fichero ni por qué. Ya lo documentaron E14-4 y
+  `checkin.js`, y volvió a pasar **cinco veces en esta sesión**. Se convierte en
+  test: `test/html-template-backticks.test.js` parsea cada fichero de `src/` con
+  el propio parser de Node y además señala fichero y línea del comentario
+  culpable. `typecheck` también lo caza, pero solo si alguien lo ejecuta antes de
+  abrir el navegador — y una de las cinco veces se coló justo porque entre la
+  edición y la prueba solo corrió `npm test`.
+
 #### Bitácora E15
 
 **2026-08-21 · E15-0.** Cerrada. `swPolicy` + `cleanup()` en `pwa.js`, `caches.match`
@@ -1881,14 +1925,25 @@ idiomas, y tres E2E que suben un CSV de verdad. **884 unitarios y 219 E2E** (tre
 pasadas seguidas), typecheck limpio. Verificado en el navegador con un CSV
 español de siete filas: entra 4, descarta 3 y lo dice desglosado por motivo.
 
-Siguiente paso concreto: **E15-10**, el perfil de ejemplo. `storage.js` inyecta
-el prefijo `tl.<v>.<profileId>.`, así que un ejemplo en su propio namespace es
-**estructuralmente incapaz** de contaminar el almacén real — no por convención,
-por construcción. Generado por el motor de verdad (`planPhases` +
-`generateProjection` con semilla fija), nunca dibujado a mano, que es lo que
-prohíbe la ficha H-035. Banda persistente y no descartable en el ARMAZÓN, para
-que ninguna vista pueda olvidarse de decir que es simulado, y borrable de un
-clic.
+**2026-08-21 · E15-10.** Cerrada, y **con ella el bloque de la causa raíz**.
+`src/core/demo.js` (puro, 9 tests), `src/data/demo-profile.js`, la banda en el
+armazón, la puerta en Ajustes, 11 claves i18n y `test/e2e/demo.spec.js` con 5
+casos. Más el guardián de acentos graves. **895 unitarios y 224 E2E** (dos
+pasadas seguidas), typecheck limpio. Verificado en el navegador: el ejemplo llega
+con 17 check-ins, 111 días de ingesta y 68 sesiones, y Progreso pasa de un estado
+vacío a enseñar desviación, racha de 17 semanas, calendario de adherencia y las
+escalas subjetivas.
+
+**Estado de E15:** cerradas E15-0, 1, 1b, 2, 3, 3b, 4, 5, 6, 7, 8, 9 y 10. Queda
+el bloque de deuda previa al backend: **E15-11** (cablear `renderCoordinatedOffer`
+en Hoy) y **E15-12** (que «Aplicar la recalibración» del gasto haga algo, hoy es
+un `toast.success` sobre un no-op) — los dos van juntos, porque ofrecer
+coordinadamente algo que luego no se aplica sería la misma promesa incumplida
+multiplicada por tres. Después: **E15-13** (`dayAtPixel`/`pixelsPerDay` en vez del
+inexistente `scaleX`), **E15-14** (fuga de instancias en Analizar y `tokenCache`),
+**E15-15** (los cinco módulos sin test unitario, empezando por `recalibrate.js`,
+que reescribe el perfil), **E15-16** (el último `schemaVersion` literal) y
+**E15-17** (los hitos en Proyección). Y luego M8 y M9.
 
 Y al BACKLOG: queda un test intermitente, `analysis.spec.js` «pulsar un marcador
 abre su ficha», que falla ~1 de cada 4 ejecuciones **solo en modo serie** y pasa

@@ -398,6 +398,17 @@ export const es = {
     'checkin.entry': '{date} · {weight} kg',
 
     // Desviación
+    'demo.tag': 'Perfil de ejemplo',
+    'demo.body': 'Todo lo que ves aquí son datos simulados, generados por el motor. Tus datos están intactos en tu perfil.',
+    'demo.exit': 'Salir y borrarlo',
+    'demo.try': 'Ver un ejemplo con datos',
+    'demo.tryHint': 'Crea un perfil aparte, lleno de datos simulados, para ver cómo se comporta la aplicación con historial. No toca tus datos y se borra de un clic.',
+    'demo.created': 'Perfil de ejemplo creado.',
+    'demo.removed': 'Perfil de ejemplo borrado.',
+    'demo.contextInvalid': 'No se ha podido generar el ejemplo.',
+    'demo.compositionFailed': 'No se ha podido generar el ejemplo.',
+    'demo.planFailed': 'No se ha podido generar el ejemplo.',
+    'demo.projectionFailed': 'No se ha podido generar el ejemplo.',
     'deviation.within': 'Según el plan',
     'deviation.above': 'Por encima del plan',
     'deviation.below': 'Por debajo del plan',

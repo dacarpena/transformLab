@@ -104,11 +104,21 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 /* ---------------- Armazón ---------------- */
 
-.app {
+/* El contenedor reparte la altura entre la banda del ejemplo —cuando está— y
+   la aplicación. Sin esto, `min-height: 100dvh` en `.app` más la banda encima
+   dan una pantalla y pico y aparece una barra de desplazamiento que no debería. */
+#app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
     min-height: 100dvh;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 
 .app__main {
@@ -340,6 +350,32 @@ ul { margin: 0; padding: 0; list-style: none; }
     grid-template-columns: 1fr;
     gap: var(--space-4);
 }
+
+/* La banda del perfil de ejemplo (E15-10). Va en el armazón, encima de todo, y
+   NO se puede descartar: mientras el ejemplo esté activo, lo que se ve son datos
+   simulados y eso tiene que decirse siempre. Color de aviso, no de error: no ha
+   fallado nada, solo hay que saber dónde se está. */
+.demo-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface-2);
+    border-bottom: 2px solid var(--color-warning);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+}
+
+.demo-banner__tag {
+    font-weight: var(--weight-bold);
+    color: var(--color-warning);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: var(--text-xs);
+}
+
+.demo-banner__text { flex: 1 1 12rem; min-width: 0; }
 
 /* El detalle plegable del check-in (E15-8). El formulario pedía dieciséis campos
    cada semana y por eso el almacén estaba vacío: ahora se ven fecha y peso, y el

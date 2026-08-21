@@ -11,6 +11,7 @@
 
 import * as storage from './data/storage.js';
 import * as profiles from './data/profiles.js';
+import * as demoProfile from './data/demo-profile.js';
 import * as migrate from './data/migrate.js';
 import * as migrations from './data/migrations.js';
 import { validateCollection } from './data/schema.js';
@@ -49,6 +50,15 @@ function renderShell() {
     if (!app) throw new Error('falta #app');
     render(app, html`
         <a class="skip-link" href="#main">${t('app.skipToContent')}</a>
+        <!-- La banda del perfil de ejemplo vive en el ARMAZÓN, no en las vistas
+             (E15-10): es la única forma de que ninguna vista pueda olvidarse de
+             decir que los datos son simulados. No depende de que diecisiete
+             ficheros se acuerden; depende de uno.
+
+             Y va FUERA de «.app», no dentro: a partir de 768 px «.app» pasa a
+             «flex-direction: row» para poner la barra lateral, y ahí dentro la
+             banda se convertía en una COLUMNA que partía la pantalla en dos. -->
+        <div class="demo-banner" data-demo-banner hidden role="status"></div>
         <div class="app">
             <nav class="app__nav" aria-label="${t('nav.label')}" data-nav hidden></nav>
             <main class="app__main" id="main" tabindex="-1" data-view></main>
@@ -56,8 +66,31 @@ function renderShell() {
     `);
     return {
         viewRoot: /** @type {HTMLElement} */ (app.querySelector('[data-view]')),
-        navRoot: /** @type {HTMLElement} */ (app.querySelector('[data-nav]'))
+        navRoot: /** @type {HTMLElement} */ (app.querySelector('[data-nav]')),
+        demoRoot: /** @type {HTMLElement} */ (app.querySelector('[data-demo-banner]'))
     };
+}
+
+/**
+ * Pinta —o esconde— la banda del perfil de ejemplo.
+ *
+ * NO se puede descartar: mientras el ejemplo esté activo, lo que se ve en
+ * pantalla son datos simulados y eso tiene que decirse siempre. La ficha H-035
+ * nació de una demo que se hacía pasar por real.
+ * @param {{ demoRoot: HTMLElement, viewRoot: HTMLElement, navRoot: HTMLElement }} roots
+ */
+function renderDemoBanner(roots) {
+    const activo = demoProfile.isDemo(storage.getActiveProfile());
+    roots.demoRoot.hidden = !activo;
+    if (!activo) {
+        render(roots.demoRoot, '');
+        return;
+    }
+    render(roots.demoRoot, html`
+        <span class="demo-banner__tag">${t('demo.tag')}</span>
+        <span class="demo-banner__text">${t('demo.body')}</span>
+        <button type="button" class="btn btn--sm" data-demo-exit>${t('demo.exit')}</button>
+    `);
 }
 
 /** Aplica el idioma guardado en el perfil activo, si lo hay. */
@@ -146,7 +179,7 @@ async function startOnboarding(/** @type {*} */ roots, /** @type {*} */ seed = u
  * Vive en el módulo (y no dentro de `boot`) porque ahora lo llaman dos sitios
  * que ocurren en momentos distintos: la tarjeta de Hoy y el `afterLoad` de
  * ajustes, que puede pasar minutos después de arrancar.
- * @param {{viewRoot: HTMLElement, navRoot: HTMLElement}} roots
+ * @param {{viewRoot: HTMLElement, navRoot: HTMLElement, demoRoot: HTMLElement}} roots
  */
 function editProfile(roots) {
     const data = plans.get();
@@ -191,10 +224,13 @@ function editProfile(roots) {
 
 /**
  * Carga el plan del perfil activo y decide qué mostrar.
- * @param {{viewRoot: HTMLElement, navRoot: HTMLElement}} roots
+ * @param {{viewRoot: HTMLElement, navRoot: HTMLElement, demoRoot: HTMLElement}} roots
  */
 async function route(roots) {
     applyStoredLocale();
+    // En CADA paso por aquí, no solo al arrancar: se llega a `route` tras
+    // cambiar de perfil, tras importar un backup y tras crear el ejemplo.
+    renderDemoBanner(roots);
 
     if (!hasCompletedProfile()) {
         await startOnboarding(roots);
@@ -236,7 +272,7 @@ async function route(roots) {
 }
 
 async function boot() {
-    /** @type {{viewRoot: HTMLElement, navRoot: HTMLElement}} */
+    /** @type {{viewRoot: HTMLElement, navRoot: HTMLElement, demoRoot: HTMLElement}} */
     let roots;
     try {
         roots = renderShell();
@@ -244,6 +280,20 @@ async function boot() {
         console.error('[main] no se pudo pintar el armazón', err);
         return;
     }
+
+    // La banda del ejemplo se cablea UNA vez sobre el armazón, que no se
+    // reemplaza nunca: las vistas van y vienen debajo.
+    roots.demoRoot.addEventListener('click', (event) => {
+        if (!(event.target instanceof Element) || !event.target.closest('[data-demo-exit]')) return;
+        const quitado = demoProfile.uninstall();
+        if (!quitado.ok) {
+            toast.fromErrorCode(String(quitado.error).split(':')[0]);
+            return;
+        }
+        plans.clear();
+        toast.success('demo.removed');
+        void route(roots);
+    });
 
     // 0 · migración de ESQUEMA (v5 → v6), y va la primera de todas.
     //
