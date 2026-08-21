@@ -118,6 +118,13 @@ let announced = false;
 /** Esta pestaña pidió la actualización: su recarga ya está en marcha. */
 let skipWaitingSent = false;
 
+/** La última instalación se descartó: el precache no se completó. */
+let installFailed = false;
+
+/** La registración viva, para poder buscar actualización a la orden. */
+/** @type {ServiceWorkerRegistration | null} */
+let current = null;
+
 /**
  * Avisa de que hay una versión nueva lista y deja recargar al usuario.
  *
@@ -154,21 +161,46 @@ function announceUpdate(waiting) {
     });
 }
 
+/**
+ * Vigila una instalación en curso y avisa cuando quede lista —o cuando falle.
+ *
+ * @param {ServiceWorker} worker
+ */
+function watchInstalling(worker) {
+    const mirar = () => {
+        // `controller` distingue una actualización de la primera instalación: en
+        // la primera no hay nada que avisar.
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            announceUpdate(worker);
+            return;
+        }
+        // `redundant` sin haber pasado por `installed` es un precache que ha
+        // fallado: `addAll` es todo-o-nada y basta una petición mala para
+        // descartar la actualización ENTERA. Antes eso era un `console.error`
+        // dentro del service worker, o sea invisible, y quien lo sufría se
+        // quedaba en la versión vieja sin enterarse y sin nada que reintentar.
+        if (worker.state === 'redundant' && navigator.serviceWorker.controller) {
+            installFailed = true;
+        }
+    };
+    mirar();
+    worker.addEventListener('statechange', mirar);
+}
+
 /** @param {ServiceWorkerRegistration} registration */
 function watchForUpdate(registration) {
     if (registration.waiting && navigator.serviceWorker.controller) {
         announceUpdate(registration.waiting);
     }
+    // TAMBIÉN el que ya está instalándose, y no solo el que espera. Entre que
+    // `register()` resuelve y esta línea corre, el navegador puede haber
+    // disparado ya `updatefound`: ese evento no se vuelve a emitir, así que sin
+    // esto la actualización se instalaba y NADIE avisaba. Es una carrera
+    // estrecha y explica exactamente el síntoma de quedarse en la versión vieja.
+    if (registration.installing) watchInstalling(registration.installing);
+
     registration.addEventListener('updatefound', () => {
-        const installing = registration.installing;
-        if (!installing) return;
-        installing.addEventListener('statechange', () => {
-            // `controller` distingue una actualización de la primera
-            // instalación: en la primera no hay nada que avisar.
-            if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-                announceUpdate(installing);
-            }
-        });
+        if (registration.installing) watchInstalling(registration.installing);
     });
 }
 
@@ -222,6 +254,7 @@ export async function register() {
             scope: './',
             updateViaCache: 'none'
         });
+        current = registration;
         watchForUpdate(registration);
 
         // Si la actualización la aplica OTRA pestaña, esta se queda ejecutando
@@ -246,4 +279,91 @@ export async function register() {
         console.warn('[pwa] service worker no registrado', err);
         registered = false;
     }
+}
+
+/* ── Saber en qué versión estás, y poder cambiarla ───────────────────────── */
+
+/**
+ * La versión que este dispositivo está EJECUTANDO.
+ *
+ * Sale del nombre de la caché, que es la fuente real: de ahí salen los módulos
+ * que la página está corriendo ahora mismo, no de lo que diga el servidor.
+ *
+ * Existe porque hasta ahora **no había forma de saberlo**. Cuando alguien dice
+ * «sigo viendo la versión vieja» no hay nada que mirar: ni él puede comprobarlo
+ * ni yo puedo pedírselo, y el diagnóstico se convierte en adivinar.
+ *
+ * @returns {Promise<string | null>}
+ */
+export async function runningVersion() {
+    if (typeof caches === 'undefined') return null;
+    try {
+        return (await caches.keys()).find((k) => k.startsWith('tl-')) ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * La versión PUBLICADA, leída del `sw.js` del servidor.
+ *
+ * Con `cache: 'reload'`, porque preguntarle a la caché del navegador qué hay
+ * publicado es preguntarle justo al problema.
+ *
+ * @returns {Promise<string | null>}
+ */
+export async function publishedVersion() {
+    try {
+        const r = await fetch('sw.js', { cache: 'reload' });
+        if (!r.ok) return null;
+        return (await r.text()).match(/tl-[0-9a-f]{12}/)?.[0] ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/** @typedef {'unsupported' | 'uptodate' | 'ready' | 'installing' | 'failed'} UpdateState */
+
+/**
+ * Busca actualización AHORA, porque alguien lo ha pedido.
+ *
+ * El navegador ya comprueba por su cuenta, pero a su ritmo y sin decir nada. Un
+ * botón que devuelve una respuesta —«al día», «instalando», «no se pudo»— es la
+ * diferencia entre poder arreglar el problema y tener que esperar a ver.
+ *
+ * @returns {Promise<{ state: UpdateState, running: string | null, published: string | null }>}
+ */
+export async function checkForUpdate() {
+    const running = await runningVersion();
+    const published = await publishedVersion();
+
+    if (!('serviceWorker' in navigator)) return { state: 'unsupported', running, published };
+    const registration = current ?? (await navigator.serviceWorker.getRegistration()) ?? null;
+    if (!registration) return { state: 'unsupported', running, published };
+
+    installFailed = false;
+    try {
+        await registration.update();
+    } catch {
+        return { state: 'failed', running, published };
+    }
+
+    if (registration.waiting) {
+        announceUpdate(registration.waiting);
+        return { state: 'ready', running, published };
+    }
+    if (registration.installing) {
+        watchInstalling(registration.installing);
+        return { state: 'installing', running, published };
+    }
+    if (installFailed) return { state: 'failed', running, published };
+
+    // Sin nada instalándose ni esperando: o está al día, o la instalación se
+    // descartó y el navegador no lo cuenta. Comparar con lo publicado es lo
+    // único que distingue las dos cosas, y la diferencia importa: una es «no
+    // hagas nada» y la otra es «esto no se está pudiendo actualizar».
+    if (running !== null && published !== null && running !== published) {
+        return { state: 'failed', running, published };
+    }
+    return { state: 'uptodate', running, published };
 }

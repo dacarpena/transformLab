@@ -310,3 +310,57 @@ test('el service worker sirve SOLO de la caché de su versión, nunca de la bús
     // Y que de verdad se abre la caché versionada antes de responder.
     assert.match(swSource, /caches\.open\(CACHE_VERSION\)/);
 });
+
+/* ── Poder ver la versión, y poder cambiarla ─────────────────────────────── */
+
+test('la carrera de `updatefound`: también se vigila lo que YA se está instalando', () => {
+    // Entre que `register()` resuelve y `watchForUpdate` engancha su oyente, el
+    // navegador puede haber disparado ya `updatefound`. Ese evento NO se vuelve
+    // a emitir: sin mirar `registration.installing` en el momento de enganchar,
+    // la actualización se instalaba y nadie avisaba. Es una carrera estrecha y
+    // explica exactamente el síntoma de quedarse en la versión vieja.
+    const fuente = readFileSync(new URL('../src/ui/pwa.js', import.meta.url), 'utf8');
+    const cuerpo = fuente.slice(fuente.indexOf('function watchForUpdate'));
+    const hasta = cuerpo.slice(0, cuerpo.indexOf('\nexport'));
+    assert.match(hasta, /if \(registration\.installing\)/,
+        'watchForUpdate no mira `installing` al enganchar: la carrera sigue abierta');
+    assert.match(hasta, /registration\.waiting/, 'ya no se mira `waiting`');
+});
+
+test('una instalación descartada NO se traga: `redundant` se registra', () => {
+    // `addAll` es todo-o-nada y basta una petición mala para descartar la
+    // actualización entera. Eso era un `console.error` DENTRO del service
+    // worker, o sea invisible, y quien lo sufría se quedaba en la versión vieja
+    // sin enterarse y sin nada que reintentar.
+    const fuente = readFileSync(new URL('../src/ui/pwa.js', import.meta.url), 'utf8');
+    assert.match(fuente, /state === 'redundant'/, 'no se detecta una instalación descartada');
+    assert.match(fuente, /installFailed = true/, 'detectarla no cambia nada');
+});
+
+test('se puede saber qué versión se ejecuta y cuál hay publicada', () => {
+    // Sin esto, «sigo viendo la versión vieja» no se puede ni confirmar ni
+    // desmentir: ni el usuario puede comprobarlo ni nadie puede pedírselo.
+    const fuente = readFileSync(new URL('../src/ui/pwa.js', import.meta.url), 'utf8');
+    for (const nombre of ['runningVersion', 'publishedVersion', 'checkForUpdate']) {
+        assert.ok(fuente.includes(`export async function ${nombre}(`),
+            `pwa.js ya no exporta ${nombre}`);
+    }
+    // La publicada se lee SALTÁNDOSE la caché: preguntarle a la caché del
+    // navegador qué hay publicado es preguntarle justo al problema.
+    assert.match(fuente, /fetch\('sw\.js', \{ cache: 'reload' \}\)/,
+        'la versión publicada se lee de la caché, que es lo que puede estar viejo');
+});
+
+test('Ajustes enseña la versión y ofrece buscar actualización', () => {
+    const settings = readFileSync(new URL('../src/ui/views/settings.js', import.meta.url), 'utf8');
+    assert.match(settings, /data-version-running/, 'no se enseña la versión en marcha');
+    assert.match(settings, /data-version-check/, 'no hay botón para buscar actualización');
+
+    // Y cada resultado tiene su texto: un botón que no dice nada deja a alguien
+    // sin saber si funcionó, que es el estado del que se venía.
+    const es = readFileSync(new URL('../src/i18n/es.js', import.meta.url), 'utf8');
+    for (const clave of ['settings.version.running', 'settings.version.check',
+        'settings.version.found', 'settings.version.uptodate', 'settings.version.failed']) {
+        assert.ok(es.includes(`'${clave}'`), `falta el texto ${clave}`);
+    }
+});

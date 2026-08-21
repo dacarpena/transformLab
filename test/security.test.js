@@ -149,7 +149,13 @@ test('todo lo que habla con la red está DECLARADO, y solo api.js manda datos', 
     const PERMITIDOS = {
         'src/data/api.js': 'la única puerta por la que salen datos del usuario',
         'src/data/exercises-db.js': 'lee `vendor/data/exercises.json`, catálogo del propio origen',
-        'src/data/foods-db.js': 'lee el catálogo de alimentos vendorizado, ídem'
+        'src/data/foods-db.js': 'lee el catálogo de alimentos vendorizado, ídem',
+        // `pwa.js` lee su PROPIO `sw.js` para saber qué versión hay publicada y
+        // poder compararla con la que se está ejecutando. Es un GET de un
+        // fichero estático del mismo origen y no manda nada: ni cuerpo, ni
+        // cabeceras, ni credenciales. Está aquí porque la lista es explícita a
+        // propósito —lo que no se declara, no sale— y no porque sea inocuo.
+        'src/ui/pwa.js': 'lee su propio `sw.js` para comparar versiones; no manda nada'
     };
 
     const culpables = FILES

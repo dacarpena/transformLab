@@ -34,6 +34,7 @@ import { bytes as formatBytes, num } from '../format.js';
 import { longDate } from '../dates.js';
 import * as recalibrate from '../recalibrate.js';
 import * as accountPanel from '../account-panel.js';
+import * as pwa from '../pwa.js';
 
 /** @type {(() => void) | null} */
 let onProfilesChanged = null;
@@ -278,6 +279,52 @@ function renderPlanHistorySection() {
     `;
 }
 
+/**
+ * Qué versión está corriendo este dispositivo, y un botón para cambiarla.
+ *
+ * Existe por una conversación que no se pudo tener: «sigo viendo la versión
+ * vieja» no se podía ni confirmar ni desmentir, porque **no había forma de saber
+ * qué versión ejecutaba nadie**. Ni el usuario podía comprobarlo ni yo podía
+ * pedírselo, así que el diagnóstico era adivinar.
+ *
+ * El cuerpo lo rellena `mount`: leer la versión es asíncrono —sale del nombre de
+ * la caché— y `draw` es síncrono a propósito.
+ */
+function renderVersionSection() {
+    return html`
+        <section class="card" aria-labelledby="set-version">
+            <h2 id="set-version" class="card__title">${t('settings.section.version')}</h2>
+            <div data-version-body>
+                <p class="secondary">${t('state.loading')}</p>
+            </div>
+        </section>
+    `;
+}
+
+/** Pinta el estado de la versión. Se llama al montar y tras buscar. */
+async function pintarVersion(/** @type {HTMLElement} */ container, { buscando = false } = {}) {
+    const hueco = container.querySelector('[data-version-body]');
+    if (!(hueco instanceof HTMLElement)) return;
+
+    if (buscando) {
+        render(hueco, html`<p class="secondary">${t('settings.version.checking')}</p>`);
+        return;
+    }
+    const corriendo = await pwa.runningVersion();
+    if (!container.isConnected) return;
+
+    render(hueco, html`
+        <p class="secondary">
+            ${t('settings.version.running')}
+            <code data-version-running>${corriendo ?? t('settings.version.unknown')}</code>
+        </p>
+        <div class="btn-row">
+            <button type="button" class="btn" data-version-check>${t('settings.version.check')}</button>
+        </div>
+        <p class="muted">${t('settings.version.hint')}</p>
+    `);
+}
+
 function renderDangerSection() {
     const active = profiles.getActive();
     const list = profiles.list();
@@ -307,6 +354,7 @@ function draw(container) {
         ${accountPanel.renderSection()}
         ${renderDataSection()}
         ${renderPlanHistorySection()}
+        ${renderVersionSection()}
         ${renderLegalSection()}
         ${renderDangerSection()}
     `);
@@ -337,6 +385,19 @@ export function mount(container) {
     // UNA vez, sobre el contenedor estable: `draw` reconstruye el cuerpo entero
     // en cada repintado, y un oyente colgado del panel se perdería en el primero.
     accountPanel.mount(container);
+    void pintarVersion(container);
+
+    on(container, 'click', '[data-version-check]', async () => {
+        await pintarVersion(container, { buscando: true });
+        const r = await pwa.checkForUpdate();
+        await pintarVersion(container);
+        // Cada estado tiene su texto: un botón que se limita a no hacer nada
+        // visible es exactamente lo que deja a alguien sin saber si funcionó.
+        if (r.state === 'ready' || r.state === 'installing') toast.success('settings.version.found');
+        else if (r.state === 'uptodate') toast.success('settings.version.uptodate');
+        else if (r.state === 'unsupported') toast.error('settings.version.unsupported');
+        else toast.error('settings.version.failed');
+    });
     // Cuando la sincronía trae un perfil que este dispositivo no conocía, la
     // aplicación entera tiene que redibujarse: si no, el perfil recuperado está
     // en el almacén y no aparece en ninguna lista. Es el mismo camino que

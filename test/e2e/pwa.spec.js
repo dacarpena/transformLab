@@ -12,6 +12,8 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { VIEW_IDS } from '../../src/ui/views/_manifest.js';
 
 async function completeOnboarding(page) {
@@ -207,4 +209,97 @@ test('un toque sobre el aviso no activa el control que queda debajo', async ({ b
     } finally {
         await context.close();
     }
+});
+
+/* ── Que una versión nueva LLEGUE ────────────────────────────────────────── */
+
+/**
+ * El recorrido que faltaba, y es el que decide si esto se puede arreglar en
+ * producción: instalada la versión A, se publica la B, y **el usuario tiene que
+ * acabar ejecutando la B**.
+ *
+ * Todo lo demás de este fichero prueba que el service worker instala y sirve sin
+ * red. Nada probaba que se pueda SUSTITUIR, que es justo donde alguien se queda
+ * clavado: «recargo y sigo viendo la de siempre».
+ *
+ * El despliegue se simula **cambiando `sw.js` en disco**, porque es literalmente
+ * lo que hace un despliegue y porque no hay otra forma: Playwright no intercepta
+ * la petición del script del service worker —lo comprobé—, así que `route()` no
+ * sirve para esto. El fichero se restaura pase lo que pase, y estos dos tests
+ * corren en serie para no pisarse entre ellos.
+ */
+test.describe.serial('actualización', () => {
+    const SW = fileURLToPath(new URL('../../sw.js', import.meta.url));
+    /** @type {string} */ let original;
+
+    test.beforeEach(() => { original = readFileSync(SW, 'utf8'); });
+    test.afterEach(() => { writeFileSync(SW, original); });
+
+    /** Publica una «versión nueva»: mismo código, otro `CACHE_VERSION`. */
+    function publicar(version) {
+        writeFileSync(SW, original.replace(/tl-[0-9a-f]{12}/g, version));
+    }
+
+    test('una versión nueva llega al usuario: aviso, un clic, y está ejecutándola', async ({ page }) => {
+        await page.goto('/');
+        await completeOnboarding(page);
+        await esperarPrecache(page);
+
+        publicar('tl-000000000000');
+        await page.reload();
+        await expect(page.locator('#today-title')).toBeVisible({ timeout: 20000 });
+
+        // El aviso aparece SOLO. Sin él, no hay forma de saber que hay algo
+        // nuevo y uno se queda en la versión vieja indefinidamente.
+        const aviso = page.locator('.toast', { hasText: /versión nueva/i });
+        await expect(aviso, 'no se avisó de que había una versión nueva')
+            .toBeVisible({ timeout: 25000 });
+
+        // Y un clic basta: la página vuelve ejecutando la nueva, y la vieja se
+        // ha ido —dos cachés conviviendo es media aplicación de cada una—.
+        // El clic RECARGA —es lo que se busca—, así que hay que esperar a que la
+        // página vuelva antes de preguntarle nada: sondear a través de una
+        // navegación revienta con «execution context was destroyed», que es un
+        // fallo del test disfrazado de fallo del producto.
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'load', timeout: 30000 }),
+            aviso.getByRole('button').click()
+        ]);
+        await expect(page.locator('#today-title')).toBeVisible({ timeout: 20000 });
+
+        await expect.poll(async () => page.evaluate(async () => {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg?.active?.state !== 'activated') return null;
+            return (await caches.keys()).filter((k) => k.startsWith('tl-'));
+        }), { timeout: 30000, message: 'la versión nueva no llegó a activarse' })
+            .toEqual(['tl-000000000000']);
+    });
+
+    test('Ajustes dice qué versión se está ejecutando, y sabe buscar otra', async ({ page }) => {
+        // Sin esto, «sigo viendo la versión vieja» no se puede ni confirmar ni
+        // desmentir: no había NINGUNA forma de saber qué versión corría nadie.
+        await page.goto('/');
+        await completeOnboarding(page);
+        await esperarPrecache(page);
+
+        const entrada = page.locator('[data-nav] [data-view="settings"]');
+        if (!(await entrada.first().isVisible())) await page.locator('[data-nav-more]').click();
+        await entrada.first().click();
+
+        const version = page.locator('[data-version-running]');
+        await expect(version).toBeVisible({ timeout: 20000 });
+        await expect(version).toHaveText(/^tl-[0-9a-f]{12}$/);
+
+        // Al día: el botón lo dice, en vez de no hacer nada visible.
+        await page.locator('[data-version-check]').click();
+        await expect(page.locator('.toast')).toContainText(/última versión/i, { timeout: 25000 });
+
+        // Y con una publicada de verdad, la encuentra a la orden en vez de
+        // esperar al ritmo del navegador.
+        publicar('tl-222222222222');
+        await page.locator('[data-version-check]').click();
+        await expect(page.locator('.toast', { hasText: /versión nueva/i }),
+            'buscar actualización no encontró la que acababa de publicarse')
+            .toBeVisible({ timeout: 30000 });
+    });
 });
