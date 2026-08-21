@@ -953,8 +953,6 @@ export const es = {
     // ---- Vista Analizar (E13) ----
     'nav.analysis': 'Analizar',
     'analysis.title': 'Analizar',
-    'analysis.intro': 'Superpón hasta cuatro series y compáralas en el mismo periodo.',
-    'analysis.series.title': 'Series',
     'analysis.series.count': '{count} de {max} series',
     'analysis.series.countEmpty': '· {count} sin datos',
     'analysis.series.choose': 'Elegir series…',
@@ -969,7 +967,6 @@ export const es = {
     'analysis.series.noData': 'sin datos todavía',
     'analysis.series.dropped': '{count} series guardadas ya no están disponibles y se han quitado.',
     'analysis.group.count': '{count}',
-    'analysis.chart.title': 'La comparación',
     'analysis.chart.label': 'Comparación de {count} series a lo largo del plan.',
     'analysis.window.label': 'Periodo',
     'analysis.grain.label': 'Detalle',
@@ -1044,8 +1041,6 @@ export const es = {
     'health.source.aceFat': 'Franjas de porcentaje de grasa del American Council on Exercise. Son categorías de población, no un diagnóstico.',
     'health.source.whoWaist': 'Umbral de la OMS (consulta de expertos, 2008) con los cortes del NIH. Son cortes para población europea: en poblaciones del sur y este de Asia el riesgo aparece antes.',
     'health.source.selfReported': 'Sale de la energía que has anotado tú en tus check-ins.',
-    'health.kind.gain': 'Logro',
-    'health.kind.risk': 'Aviso',
 // --- Marcadores de hito sobre la gráfica (E14-3)
     'analysis.marks.label': 'Hitos',
     'analysis.marks.phase': 'Fases',

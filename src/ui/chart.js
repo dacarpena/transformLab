@@ -939,7 +939,8 @@ export function createChart() {
     }
 
 /**
-     * Dibuja hasta cuatro series arbitrarias del catálogo.
+     * Dibuja hasta `MAX_SERIES` series arbitrarias del catálogo (ocho desde
+     * E13-10; el JSDoc decía «cuatro» y se quedó en la cifra vieja).
      *
      * HERMANA de `draw()`, no su implementación: las dos construyen sus
      * datasets y las dos delegan en `drawSeries`. Reexpresar `draw` sobre esta

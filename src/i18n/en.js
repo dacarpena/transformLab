@@ -953,8 +953,6 @@ export const en = {
     // ---- Analyse view (E13) ----
     'nav.analysis': 'Analyse',
     'analysis.title': 'Analyse',
-    'analysis.intro': 'Overlay up to four series and compare them over the same period.',
-    'analysis.series.title': 'Series',
     'analysis.series.count': '{count} of {max} series',
     'analysis.series.countEmpty': '· {count} with no data',
     'analysis.series.choose': 'Choose series…',
@@ -969,7 +967,6 @@ export const en = {
     'analysis.series.noData': 'no data yet',
     'analysis.series.dropped': '{count} saved series are no longer available and have been removed.',
     'analysis.group.count': '{count}',
-    'analysis.chart.title': 'The comparison',
     'analysis.chart.label': 'Comparison of {count} series across the plan.',
     'analysis.window.label': 'Period',
     'analysis.grain.label': 'Detail',
@@ -1043,8 +1040,6 @@ export const en = {
     'health.source.aceFat': 'Body fat bands from the American Council on Exercise. They are population categories, not a diagnosis.',
     'health.source.whoWaist': 'WHO threshold (expert consultation, 2008) using the NIH cut-offs. These are cut-offs for European populations: in South and East Asian populations risk appears earlier.',
     'health.source.selfReported': 'Comes from the energy you logged in your own check-ins.',
-    'health.kind.gain': 'Achievement',
-    'health.kind.risk': 'Heads-up',
 // --- Milestone markers on the chart (E14-3)
     'analysis.marks.label': 'Milestones',
     'analysis.marks.phase': 'Phases',
