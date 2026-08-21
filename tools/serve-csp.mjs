@@ -41,6 +41,68 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = Number(process.argv[2]) || 8081;
 
+/**
+ * `--api` monta las Pages Functions REALES en este mismo proceso, con el D1 de
+ * `node:sqlite` detrás (M8-5d).
+ *
+ * POR QUÉ ESTO Y NO `wrangler pages dev`: el E2E de la cuenta necesita un
+ * servidor con `/api/*` vivo, y meter `wrangler` en el arranque de Playwright
+ * traería workerd, un D1 en disco y un paso de migraciones a CI. Aquí se
+ * ejecutan **el middleware y el enrutador de verdad** —el mismo código que
+ * despliega Pages— sobre el mismo doble de D1 que usan los tests unitarios. Lo
+ * único sustituido es el runtime, y eso se verifica aparte, a mano, con
+ * `npm run serve:api`.
+ *
+ * Sin la bandera no se carga nada de esto: los servidores 8081 y 8082 siguen
+ * siendo exactamente lo que eran.
+ */
+const WITH_API = process.argv.includes('--api');
+
+/** @type {null | ((req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>)} */
+let apiHandler = null;
+
+if (WITH_API) {
+    const [{ onRequest: middleware }, { onRequest: enrutador }, { createD1 }] = await Promise.all([
+        import('../functions/_middleware.js'),
+        import('../functions/api/[[path]].js'),
+        import('../test/helpers/d1-fake.js')
+    ]);
+    const { db } = createD1();
+    const env = { DB: db, PHOTOS: null };
+
+    apiHandler = async (req, res) => {
+        const cuerpo = await new Promise((resolve) => {
+            /** @type {Buffer[]} */ const trozos = [];
+            req.on('data', (c) => trozos.push(c));
+            req.on('end', () => resolve(Buffer.concat(trozos)));
+        });
+
+        const request = new Request(`http://localhost:${PORT}${req.url}`, {
+            method: req.method,
+            headers: /** @type {*} */ (req.headers),
+            body: req.method === 'GET' || req.method === 'HEAD' ? undefined : cuerpo
+        });
+
+        const ctx = {
+            request, env, params: {}, data: {},
+            waitUntil: (/** @type {Promise<unknown>} */ p) => { Promise.resolve(p).catch(() => {}); },
+            next: () => enrutador({ ...ctx, request })
+        };
+        const respuesta = await middleware(/** @type {*} */ (ctx));
+
+        /** @type {Record<string, string | string[]>} */ const cabeceras = {};
+        respuesta.headers.forEach((v, k) => {
+            // `Set-Cookie` puede repetirse; `headers.forEach` las junta con
+            // coma, y una cookie con coma es una cookie rota.
+            cabeceras[k] = k.toLowerCase() === 'set-cookie'
+                ? /** @type {*} */ (respuesta.headers.getSetCookie?.() ?? [v])
+                : v;
+        });
+        res.writeHead(respuesta.status, cabeceras);
+        res.end(Buffer.from(await respuesta.arrayBuffer()));
+    };
+}
+
 const TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -102,6 +164,15 @@ for (const [ruta, h] of SECTIONS) {
 createServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
+    if (apiHandler && url.pathname.startsWith('/api/')) {
+        apiHandler(req, res).catch((error) => {
+            console.error('api', error);
+            if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end('{"error":"internal"}');
+        });
+        return;
+    }
+
     // Cloudflare Pages responde 308 a /index.html y redirige a /. Se imita
     // aquí porque esa redirección es la que rompe el service worker: una
     // respuesta redirigida devuelta a una navegación la rechaza el navegador.
@@ -136,4 +207,4 @@ createServer((req, res) => {
         'Content-Type': TYPES[extname(filePath)] ?? 'application/octet-stream'
     });
     res.end(readFileSync(filePath));
-}).listen(PORT, () => console.log(`\nCSP real en http://localhost:${PORT}`));
+}).listen(PORT, () => console.log(`\nCSP real en http://localhost:${PORT}${WITH_API ? ' (con /api/*)' : ''}`));

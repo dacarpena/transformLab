@@ -2478,8 +2478,74 @@ Dos advertencias que constan por escrito, según §1 de `CLAUDE.md`:
   cadena «undefined» y pasa siempre. Se descubrió porque **se reintrodujo el
   defecto a propósito** y el test siguió en verde.
 
-- [ ] **M8-5d · La vista Cuenta y la pantalla del kit**, con i18n en los dos
-  diccionarios, teclado, 320 px y E2E con el autenticador virtual de Chrome.
+- [x] **M8-5d · La vista Cuenta y la pantalla del kit.** `src/ui/account-panel.js`,
+  cableada en Ajustes, con 96 claves nuevas en los dos diccionarios.
+
+  **El defecto de diseño que destapó una captura de pantalla.** La primera
+  versión subía el sobre de recuperación en el alta y marcaba la cuenta como
+  protegida. Al mirar la pantalla, el panel decía «tu cuenta tiene vía de
+  vuelta»… aunque el usuario hubiera cerrado el diálogo sin apuntar el código,
+  que en ese momento **ya no existe en ninguna parte**. `protected_at` significa
+  «hay vía de vuelta», así que eso era una mentira que solo se descubre el día
+  que hace falta recuperar. Ahora `register()` devuelve el código y una función
+  `commitRecoveryKit` que **no sube nada** hasta que el usuario confirma. El
+  sobre que espera ya está cifrado, así que retenerlo no empeora nada. Hay un
+  E2E que cierra el diálogo sin confirmar y exige que el aviso siga ahí.
+
+  **La segunda mentira, también vista en la captura:** el texto decía «la
+  sincronía está activa» y **M9 no existe**. Reescrito para decir lo que es
+  cierto hoy y seguirá siéndolo después: «tu cuenta tiene vía de vuelta». El E2E
+  afirma ahora que el aviso **no** contiene la palabra «sincroniza».
+
+  **Nadie sale a la red sin haberlo pedido.** El panel consultaba
+  `GET /api/session` al abrir Ajustes — a todo el mundo, incluido quien nunca va
+  a crear cuenta— y en un despliegue sin API eso era además un 404 en consola.
+  Lo cazó un E2E que ya existía, «todas las vistas montan sin error de consola»;
+  mi propio test de «funciona entera sin cuenta» no lo vio porque registraba el
+  oyente DESPUÉS de abrir Ajustes. Ahora hay una huella local
+  (`ui.accountSeen`) y el oyente va antes de nada.
+
+  El kit se enseña en nueve grupos de cuatro, monoespaciado —se copia a papel, y
+  con fuente proporcional la vista pierde el sitio—, con `user-select: all` por
+  grupo. No se puede confirmar sin marcar la casilla, y si la subida falla el
+  diálogo **no se cierra**: perdería el único ejemplar que existe.
+
+  Seis E2E con el **autenticador virtual de Chrome** contra el servidor 8790,
+  que monta las Pages Functions reales en proceso con el D1 de `node:sqlite`
+  detrás. El que vale por todos: crear cuenta, guardar el kit, **borrar
+  `tl-keys` de IndexedDB y las cookies** —perder el dispositivo—, entrar otra vez
+  con la passkey, fallar con un código equivocado y desbloquear con el bueno
+  tecleado en minúsculas y sin guiones.
+
+  Al hilo, un test flojo arreglado: `pwa.spec.js` leía los píxeles del lienzo
+  justo tras `toBeVisible()`, y el lienzo es visible a 300×150 antes de que
+  Chart.js exista. Era una carrera latente que se volvió determinista al engordar
+  el montaje de Ajustes. Con `expect.poll`, tres pasadas seguidas en verde.
+
+#### Bitácora M8
+
+**2026-08-21 · M8 CERRADA.** Las seis etapas (M8-0 a M8-5d) en un día.
+**1 151 unitarios y 242 E2E**, typecheck limpio, tres pasadas seguidas.
+
+Lo que existe ahora: identidad con passkeys sin una sola dependencia, sesiones
+con rotación y detección de reuso, autorización por fila que un manejador no
+puede saltarse, y cifrado extremo a extremo con kit de recuperación imprimible.
+**No sale del dispositivo ni un byte de datos del usuario**: lo único que viaja
+son claves públicas y sobres cifrados.
+
+**Lo que falta para poder desplegarlo, y necesita permiso de Dani:** crear los
+recursos en su cuenta de Cloudflare. Los enlaces de `wrangler.toml` están
+comentados hasta que exista el `database_id`.
+
+```
+npx wrangler d1 create transformlab --location=weur
+npx wrangler r2 bucket create transformlab-photos --jurisdiction=eu
+```
+
+Siguiente milestone: **M9**, la sincronización cifrada. Empieza por M9-1, el
+salto a esquema v7 con ids opacos de perfil — la única operación irreversible
+sobre datos existentes de todo el plan, y por eso va sola y sin servidor de por
+medio.
 
 #### Bitácora M8
 

@@ -1917,3 +1917,55 @@ button.timeline__event:hover {
     font-size: var(--text-xs);
     margin-top: var(--space-1);
 }
+
+/* ── Cuenta y sincronía (M8-5d) ──────────────────────────────────────────── */
+
+/* Aviso en positivo. Solo cambia el color del borde, como `notice--warning`:
+   el fondo y el texto siguen siendo los del `.notice` base, que ya cumplen
+   contraste AA. */
+.notice--ok { border-color: var(--color-success); }
+
+.account-points {
+    margin: var(--space-3) 0;
+    padding-left: var(--space-4);
+    color: var(--color-text-secondary);
+}
+.account-points li { margin-bottom: var(--space-1); }
+
+.account-devices { list-style: none; margin: var(--space-2) 0; padding: 0; }
+
+.account-devices__item {
+    display: flex;
+    /* `wrap` y no `nowrap`: a 320 px el nombre del dispositivo y el botón no
+       caben en una línea, y sin esto el botón se sale de la tarjeta. */
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.account-devices__item:last-child { border-bottom: 0; }
+
+/* La clave de recuperación.
+
+   Monoespaciada porque se copia a mano de la pantalla al papel: con una fuente
+   proporcional, un `1` y una `l` ocupan distinto y la vista pierde el sitio.
+   `user-select: all` para que un solo clic seleccione el grupo entero. */
+.kit-code {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    letter-spacing: 0.08em;
+}
+
+.kit-code__group {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    user-select: all;
+}

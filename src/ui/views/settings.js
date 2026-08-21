@@ -4,6 +4,13 @@
  * Ajustes: perfil, idioma, multiperfil, copia de seguridad, privacidad y zona
  * de peligro (decisión C6 y M3-6).
  *
+ * Desde M8-5d incluye el panel de **Cuenta y sincronía**, que vive en
+ * `../account-panel.js` porque son trescientas líneas con cinco estados propios
+ * y esta vista ya tenía seiscientas. Se monta UNA vez sobre el contenedor
+ * estable y se repinta solo: `draw()` reconstruye el cuerpo entero de Ajustes, y
+ * volver a pedirle el estado al servidor en cada repintado sería una petición
+ * por cada cambio de idioma.
+ *
  * La zona de peligro está separada visualmente y su acción exige teclear el
  * nombre del perfil. Esa comprobación NO vive aquí sino en `profiles.remove`,
  * de modo que no se puede saltar desde ningún otro punto de la aplicación.
@@ -26,6 +33,7 @@ import * as toast from '../components/toast.js';
 import { bytes as formatBytes, num } from '../format.js';
 import { longDate } from '../dates.js';
 import * as recalibrate from '../recalibrate.js';
+import * as accountPanel from '../account-panel.js';
 
 /** @type {(() => void) | null} */
 let onProfilesChanged = null;
@@ -296,6 +304,7 @@ function draw(container) {
         ${renderProfilesSection()}
         ${renderLanguageSection()}
         ${renderReminderSection()}
+        ${accountPanel.renderSection()}
         ${renderDataSection()}
         ${renderPlanHistorySection()}
         ${renderLegalSection()}
@@ -303,6 +312,11 @@ function draw(container) {
     `);
     const select = /** @type {HTMLSelectElement | null} */ (container.querySelector('[data-locale]'));
     if (select) select.value = getLocale();
+
+    // El panel de Cuenta acaba de perder su cuerpo en el `render` de arriba, así
+    // que hay que repintarlo con lo que ya sabe. Sin esto, cambiar de idioma
+    // dejaría un «Cargando…» permanente.
+    accountPanel.repaint();
 }
 
 /** Descarga un texto como fichero, sin dependencias. */
@@ -320,6 +334,9 @@ function download(/** @type {*} */ filename, /** @type {*} */ text) {
 /** @param {HTMLElement} container */
 export function mount(container) {
     draw(container);
+    // UNA vez, sobre el contenedor estable: `draw` reconstruye el cuerpo entero
+    // en cada repintado, y un oyente colgado del panel se perdería en el primero.
+    accountPanel.mount(container);
 
     // El permiso se pide DENTRO del clic: es el gesto que el navegador exige,
     // y pedirlo al cargar es la vía rápida a que lo bloqueen para siempre.

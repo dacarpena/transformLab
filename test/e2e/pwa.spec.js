@@ -95,19 +95,26 @@ test('sin red, la aplicación abre y se puede recorrer entera', async ({ page, c
             ).toBeVisible();
         }
 
-        // Y la gráfica dibuja: Chart.js sale del precache, no de la red
+        // Y la gráfica dibuja: Chart.js sale del precache, no de la red.
+        //
+        // `expect.poll` y no una lectura suelta tras `toBeVisible()`. El lienzo
+        // es VISIBLE a su tamaño por defecto (300×150) antes de que Chart.js
+        // exista, así que la primera muestra sale a cero y el test acusa de un
+        // fallo que no hay. Era una carrera latente —el recorrido de vistas de
+        // arriba tarda distinto según lo que pese cada una— y se volvió
+        // determinista al engordar el montaje de Ajustes en M8-5d. La misma
+        // corrección que ya se hizo en `csp.spec.js`.
         await page.locator('[data-view="today"]').click();
         await expect(page.locator('canvas')).toBeVisible();
-        const pintado = await page.evaluate(() => {
+        await expect.poll(() => page.evaluate(() => {
             const c = /** @type {HTMLCanvasElement} */ (document.querySelector('canvas'));
             const ctx = c?.getContext('2d');
-            if (!ctx) return 0;
+            if (!ctx || !c.width) return 0;
             const d = ctx.getImageData(0, 0, c.width, c.height).data;
             let n = 0;
             for (let i = 3; i < d.length; i += 400) if (d[i] > 0) n += 1;
             return n;
-        });
-        expect(pintado, 'la gráfica no dibujó sin red').toBeGreaterThan(100);
+        }), { message: 'la gráfica no dibujó sin red', timeout: 15000 }).toBeGreaterThan(100);
     } finally {
         await context.setOffline(false);
     }

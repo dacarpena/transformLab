@@ -17,6 +17,8 @@ export const en = {
     'nav.less': 'Less',
 
     // Actions
+    'action.done': 'Done',
+    'action.retry': 'Try again',
     'action.close': 'Close',
     'action.cancel': 'Cancel',
     'action.back': 'Back',
@@ -1093,4 +1095,76 @@ export const en = {
     'analysis.marks.kind.aesthetic': 'Aesthetics',
     'analysis.marks.hidden': '{count} more markers do not fit at this zoom level. Zoom in to see them.',
     'analysis.controls.toggle': 'View settings',
+
+    // Account (M8). All of this is OPTIONAL: the app works fully without it.
+    'account.section': 'Account and sync',
+    'account.intro': 'You can sync your data across devices. It is optional: without an account, TransformLab works exactly the same and everything stays in this browser.',
+    'account.point.optional': 'Genuinely optional: if you skip it, nothing changes.',
+    'account.point.e2e': 'End-to-end encrypted: the server stores data it cannot read.',
+    'account.point.noPassword': 'No password and no email: you sign in with your device fingerprint or face.',
+    'account.create': 'Create account',
+    'account.login': 'I already have an account',
+    'account.logout': 'Sign out',
+    'account.logoutAll': 'Sign out everywhere',
+    'account.logoutAllConfirm': 'You will be signed out on every device, including this one. You will need to sign in again with your key on each.',
+    'account.loggedIn': 'Signed in',
+    'account.loggedOut': 'Signed out',
+    'account.unlocked': 'Data unlocked',
+    'account.protected': 'Your account has a way back in: you can recover your data even if you lose this device.',
+    'account.loadFailed': 'Could not check your account status. Your data on this device is untouched.',
+    'account.unsupported': 'This browser does not support passkeys, so you cannot create an account here. Your data keeps working normally on this device.',
+
+    // The hard rule: no way back in, nothing gets uploaded.
+    'account.unprotected.title': 'Your account has no way back in',
+    'account.unprotected.body': 'Your data is encrypted with a key that exists only on this device. If you lose it, nobody could recover the data: not you, not us. Save your recovery key.',
+
+    // Recovery kit
+    'account.kit.title': 'Recovery key',
+    'account.kit.get': 'Get my recovery key',
+    'account.kit.introFirst': 'This is the only way to recover your data if you lose every device. Write it on paper or store it in your password manager.',
+    'account.kit.intro': 'Store this key on paper or in your password manager. It replaces any previous recovery key.',
+    'account.kit.warning': 'It is not stored anywhere and you will not be able to see it again. If you lose it and lose your devices, your synced data cannot be recovered.',
+    'account.kit.aria': 'Recovery key, nine groups of four characters',
+    'account.kit.copy': 'Copy',
+    'account.kit.copied': 'Key copied',
+    'account.kit.copyFailed': 'Could not copy. Copy it by hand from the screen.',
+    'account.kit.confirm': 'I have stored it somewhere safe',
+    'account.kit.saved': 'Recovery key saved',
+
+    // Unlock
+    'account.locked': 'You are signed in, but the key to your data is not on this device. Enter your recovery key to unlock it.',
+    'account.unlock': 'Unlock with my key',
+    'account.unlock.intro': 'Type the recovery key you saved. Case does not matter, and the dashes are optional.',
+    'account.unlock.label': 'Recovery key',
+
+    // Devices
+    'account.devices': 'Your passkeys',
+    'account.device.current': 'This device',
+    'account.device.other': 'Another device',
+    'account.device.remove': 'Remove',
+    'account.device.removeConfirm': 'This key will stop working for signing in. You will still be able to sign in with the others.',
+    'account.device.removed': 'Key removed',
+    'account.device.lastHint': 'This is your only key, so it cannot be removed: you would be locked out. Add another one first.',
+
+    // Errors, one per expected code (see ERROR_KEYS in account-panel.js)
+    'account.error.generic': 'Something went wrong. Your data on this device is untouched.',
+    'account.error.account.unsupported': 'This browser does not support passkeys.',
+    'account.error.account.cancelled': 'You cancelled. Nothing happened.',
+    'account.error.account.authenticatorFailed': 'Your device could not complete the operation. Try again.',
+    'account.error.account.badRecoveryKit': 'That recovery key is not correct. Check it and try again.',
+    'account.error.account.noRecoveryKit': 'This account has no recovery key stored. Sign in from a device that already has your data.',
+    'account.error.account.needsSecondPasskey': 'Your device cannot generate a recovery key. Add a second passkey to protect the account.',
+    'account.error.account.locked': 'Your data is locked on this device. Unlock it with your recovery key.',
+    'account.error.api.offline': 'No connection. Your data on this device is untouched.',
+    'account.error.api.timeout': 'The server took too long. Try again.',
+    'account.error.api.badResponse': 'The server response is not valid. If you are on public wifi, check that you have signed in to it.',
+    'account.error.api.badPath': 'Invalid request.',
+    'account.error.api.unknown': 'Something went wrong. Your data on this device is untouched.',
+    'account.error.credential.last': 'You cannot remove your only key: you would be locked out.',
+    'account.error.credential.notFound': 'That key no longer exists.',
+    'account.error.auth.required': 'Your session expired. Sign in again.',
+    'account.error.auth.failed': 'Could not verify your key. Try again.',
+    'account.error.challenge.invalid': 'The operation took too long. Start again.',
+    'account.error.body.tooLarge': 'The data sent is too large.',
+    'account.error.body.malformed': 'The data sent is not valid.',
 };

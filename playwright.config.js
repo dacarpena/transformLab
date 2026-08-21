@@ -15,6 +15,13 @@ import { defineConfig, devices } from '@playwright/test';
  * el servidor lo lee, así que la política que se prueba es literalmente la que
  * despliega Cloudflare Pages, no una copia que se desincroniza.
  *
+ * **8790 · con `/api/*`.** El E2E de la cuenta necesita la API viva, y este
+ * servidor monta las Pages Functions REALES en su propio proceso con el D1 de
+ * `node:sqlite` detrás (`--api`). Se accede por `localhost` y no por la IP: el
+ * `rpId` de WebAuthn sale del `hostname`, y una IP no es un `rpId` válido — el
+ * navegador rechazaría la llamada antes de que llegara al servidor. Lo único que
+ * se sustituye es workerd, y eso se verifica aparte con `npm run serve:api`.
+ *
  * **8082 · sin cabeceras.** `dom-security.spec.js` tiene que demostrar que
  * `dom.js` se defiende SOLO. Bajo la CSP, `script-src 'self'` ya bloquea los
  * esquemas `javascript:` y los handlers inline, así que un resultado limpio no
@@ -33,12 +40,28 @@ export default defineConfig({
         trace: 'on-first-retry'
     },
     projects: [
-        { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
+        {
+            name: 'chromium',
+            use: { ...devices['Desktop Chrome'] },
+            // La cuenta va en su propio proyecto: necesita otro origen.
+            testIgnore: /account\.spec\.js/
+        },
+        {
+            name: 'account',
+            testMatch: /account\.spec\.js/,
+            use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:8790' }
+        }
     ],
     webServer: [
         {
             command: 'node tools/serve-csp.mjs 8081',
             url: 'http://127.0.0.1:8081/',
+            reuseExistingServer: !process.env.CI,
+            timeout: 30000
+        },
+        {
+            command: 'node tools/serve-csp.mjs 8790 --api',
+            url: 'http://localhost:8790/api/health',
             reuseExistingServer: !process.env.CI,
             timeout: 30000
         },

@@ -89,7 +89,28 @@ export async function hasLocalPasskey() {
 /**
  * Crea una cuenta: una passkey, una clave de datos y ni un dato personal.
  *
- * @returns {Promise<Ok<{ userId: string, protected: boolean, prf: boolean }> | Err>}
+ * **El kit de recuperación se genera AQUÍ**, dentro del alta, y no en un paso
+ * aparte. La razón es técnica y manda: envolver la clave exige tenerla en crudo,
+ * y solo la hay en crudo en este instante — un segundo después vive no
+ * extraíble, que es la propiedad que se quiere. Hacerlo después obligaría a
+ * sacarla del sobre del PRF, y **muchos autenticadores no dan PRF**: sería un
+ * alta que a veces no puede protegerse.
+ *
+ * Devuelve el código **una sola vez**, y **NO lo sube todavía**. La subida va en
+ * `commitRecoveryKit`, que la interfaz llama cuando el usuario confirma que lo ha
+ * guardado.
+ *
+ * Esa separación es el corazón de la regla dura: `protected_at` significa «hay
+ * vía de vuelta», y si el código se generó pero el usuario cerró el diálogo sin
+ * apuntarlo, **no la hay** — el código ya no existe en ninguna parte. Subirlo
+ * antes de la confirmación marcaría la cuenta como protegida mintiendo, y la
+ * mentira solo se descubriría el día que hiciera falta recuperar.
+ *
+ * El sobre que espera a confirmarse ya está CIFRADO, así que retenerlo no
+ * empeora nada: sin el código no lo abre nadie.
+ *
+ * @returns {Promise<Ok<{ userId: string, protected: boolean, prf: boolean,
+ *                       recoveryCode: string, commitRecoveryKit: () => Promise<Ok<{ saved: true }> | Err> }> | Err>}
  */
 export async function register() {
     if (!isSupported()) return err('account.unsupported');
@@ -161,11 +182,54 @@ export async function register() {
     }
 
     await keys.put(fin.value.userId, await importDataKey(raw));
+
+    // El kit, con la clave todavía en crudo. Ver la cabecera de la función.
+    const kit = await prepareRecoveryKit(raw);
     raw.fill(0);
 
-    // `protected: false` SIEMPRE en el alta: la interfaz tiene que llevar al
-    // usuario al kit de recuperación antes de sincronizar nada.
-    return { ok: true, value: { userId: fin.value.userId, protected: false, prf: conPrf } };
+    return {
+        ok: true,
+        value: {
+            userId: fin.value.userId,
+            // SIEMPRE falso en el alta: hasta que el usuario confirme que ha
+            // guardado el código, no hay vía de vuelta.
+            protected: false,
+            prf: conPrf,
+            recoveryCode: kit.code,
+            commitRecoveryKit: kit.commit
+        }
+    };
+}
+
+/**
+ * Prepara un kit: genera el código, envuelve la clave y devuelve una función que
+ * SUBE el sobre. Nada sale a la red hasta que se la llama.
+ *
+ * @param {Uint8Array} rawKey
+ * @returns {Promise<{ code: string, commit: () => Promise<Ok<{ saved: true }> | Err> }>}
+ */
+async function prepareRecoveryKit(rawKey) {
+    const { code } = await generateRecoveryCode();
+    const salt = crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_BYTES));
+    const kek = await deriveRecoveryKek(code, salt);
+    // Imposible: el código lo acabamos de generar con el formato correcto.
+    if (!kek) throw new Error('kit recién generado ilegible');
+
+    const extraible = await crypto.subtle.importKey(
+        'raw', /** @type {ArrayBuffer} */ (rawKey.buffer.slice(rawKey.byteOffset, rawKey.byteOffset + rawKey.byteLength)),
+        { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+    const sobre = await wrapDataKey(kek, extraible);
+
+    return {
+        code,
+        commit: async () => {
+            const guardado = await request('/api/account/keys', {
+                method: 'POST',
+                body: { recovery: { wrapped: b64u(sobre), salt: b64u(salt) } }
+            });
+            return guardado.ok ? { ok: /** @type {true} */ (true), value: { saved: /** @type {true} */ (true) } } : err(guardado.error);
+        }
+    };
 }
 
 /* ── Entrada ─────────────────────────────────────────────────────────────── */
@@ -270,41 +334,19 @@ export async function unlockWithRecoveryKit(userId, code) {
 /* ── El kit ──────────────────────────────────────────────────────────────── */
 
 /**
- * Genera el kit de recuperación y lo sube envuelto.
+ * Genera el kit y lo sube de una vez.
  *
- * **Devuelve el código una sola vez.** No se guarda en ninguna parte —ni aquí,
- * ni en el servidor, ni en `localStorage`—, porque guardarlo anularía su
- * propósito: existe para que haya un secreto que solo esté FUERA del sistema.
- * La interfaz tiene que enseñarlo y confirmar que el usuario lo ha guardado.
- *
- * Recibe la clave EN CRUDO porque envolver exige extraerla, y la que vive en el
- * dispositivo no es extraíble a propósito. Los dos caminos que la tienen son el
- * alta —donde acaba de generarse— y `createRecoveryKitWithPasskey`, que la saca
- * del sobre del PRF para este único uso.
+ * Lo usa `createRecoveryKitWithPasskey`, donde no hay nada que confirmar antes:
+ * la cuenta ya existe y el usuario acaba de pedir un kit nuevo a propósito.
  *
  * @param {{ userId: string, rawKey: Uint8Array }} entrada
  * @returns {Promise<Ok<{ code: string }> | Err>}
  */
 export async function saveRecoveryKit({ userId, rawKey }) {
-    const { code } = await generateRecoveryCode();
-    const salt = crypto.getRandomValues(new Uint8Array(RECOVERY_SALT_BYTES));
-    const kek = await deriveRecoveryKek(code, salt);
-    if (!kek) return err('account.badRecoveryKit');
-
-    // Se importa como EXTRAÍBLE solo para envolverla, y el handle se suelta al
-    // salir de esta función.
-    const extraible = await crypto.subtle.importKey(
-        'raw', /** @type {ArrayBuffer} */ (rawKey.buffer.slice(rawKey.byteOffset, rawKey.byteOffset + rawKey.byteLength)),
-        { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
-    const sobre = await wrapDataKey(kek, extraible);
-
-    const guardado = await request('/api/account/keys', {
-        method: 'POST',
-        body: { recovery: { wrapped: b64u(sobre), salt: b64u(salt) } }
-    });
+    const kit = await prepareRecoveryKit(rawKey);
+    const guardado = await kit.commit();
     if (!guardado.ok) return err(guardado.error);
-
-    return { ok: true, value: { code } };
+    return { ok: true, value: { code: kit.code } };
 }
 
 /**

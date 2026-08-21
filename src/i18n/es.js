@@ -17,6 +17,8 @@ export const es = {
     'nav.less': 'Menos',
 
     // Acciones
+    'action.done': 'Hecho',
+    'action.retry': 'Reintentar',
     'action.close': 'Cerrar',
     'action.cancel': 'Cancelar',
     'action.back': 'Atrás',
@@ -1094,4 +1096,76 @@ export const es = {
     'analysis.marks.kind.aesthetic': 'Estética',
     'analysis.marks.hidden': 'Hay {count} marcadores más que no caben a este nivel de zoom. Acércate para verlos.',
     'analysis.controls.toggle': 'Ajustes de la vista',
+
+    // Cuenta (M8). Todo esto es OPCIONAL: la aplicación funciona entera sin ella.
+    'account.section': 'Cuenta y sincronía',
+    'account.intro': 'Puedes sincronizar tus datos entre dispositivos. Es opcional: sin cuenta, TransformLab funciona igual y todo se queda en este navegador.',
+    'account.point.optional': 'Opcional de verdad: si no creas cuenta, nada cambia.',
+    'account.point.e2e': 'Cifrado de extremo a extremo: el servidor guarda datos que no puede leer.',
+    'account.point.noPassword': 'Sin contraseña y sin correo: entras con la huella o la cara de tu dispositivo.',
+    'account.create': 'Crear cuenta',
+    'account.login': 'Ya tengo cuenta',
+    'account.logout': 'Cerrar sesión',
+    'account.logoutAll': 'Cerrar en todos los dispositivos',
+    'account.logoutAllConfirm': 'Se cerrará la sesión en todos tus dispositivos, incluido éste. Tendrás que volver a entrar con tu llave en cada uno.',
+    'account.loggedIn': 'Sesión iniciada',
+    'account.loggedOut': 'Sesión cerrada',
+    'account.unlocked': 'Datos desbloqueados',
+    'account.protected': 'Tu cuenta tiene vía de vuelta: podrás recuperar tus datos aunque pierdas este dispositivo.',
+    'account.loadFailed': 'No se ha podido consultar el estado de tu cuenta. Tus datos de este dispositivo están intactos.',
+    'account.unsupported': 'Este navegador no admite llaves de acceso, así que aquí no se puede crear cuenta. Tus datos siguen funcionando con normalidad en este dispositivo.',
+
+    // La regla dura: sin vía de vuelta, no se sube nada.
+    'account.unprotected.title': 'Tu cuenta no tiene vía de vuelta',
+    'account.unprotected.body': 'Tus datos están cifrados con una clave que solo existe en este dispositivo. Si lo pierdes, nadie podría recuperarlos: ni tú, ni nosotros. Guarda tu clave de recuperación.',
+
+    // El kit de recuperación
+    'account.kit.title': 'Clave de recuperación',
+    'account.kit.get': 'Obtener mi clave de recuperación',
+    'account.kit.introFirst': 'Ésta es la única forma de recuperar tus datos si pierdes todos tus dispositivos. Apúntala en papel o guárdala en tu gestor de contraseñas.',
+    'account.kit.intro': 'Guarda esta clave en papel o en tu gestor de contraseñas. Sustituye a cualquier clave de recuperación anterior.',
+    'account.kit.warning': 'No se guarda en ningún sitio y no vas a poder volver a verla. Si la pierdes y pierdes tus dispositivos, tus datos sincronizados no se pueden recuperar.',
+    'account.kit.aria': 'Clave de recuperación, nueve grupos de cuatro caracteres',
+    'account.kit.copy': 'Copiar',
+    'account.kit.copied': 'Clave copiada',
+    'account.kit.copyFailed': 'No se ha podido copiar. Cópiala a mano de la pantalla.',
+    'account.kit.confirm': 'La he guardado en un sitio seguro',
+    'account.kit.saved': 'Clave de recuperación guardada',
+
+    // Desbloqueo
+    'account.locked': 'Has iniciado sesión, pero la clave de tus datos no está en este dispositivo. Introduce tu clave de recuperación para desbloquearlos.',
+    'account.unlock': 'Desbloquear con mi clave',
+    'account.unlock.intro': 'Escribe la clave de recuperación que guardaste. Da igual que uses mayúsculas o minúsculas, y los guiones son opcionales.',
+    'account.unlock.label': 'Clave de recuperación',
+
+    // Dispositivos
+    'account.devices': 'Tus llaves de acceso',
+    'account.device.current': 'Este dispositivo',
+    'account.device.other': 'Otro dispositivo',
+    'account.device.remove': 'Dar de baja',
+    'account.device.removeConfirm': 'Esta llave dejará de servir para entrar. Podrás seguir entrando con las demás.',
+    'account.device.removed': 'Llave dada de baja',
+    'account.device.lastHint': 'Es tu única llave, así que no se puede dar de baja: te quedarías fuera de la cuenta. Añade otra antes.',
+
+    // Errores, uno por código previsto (ver ERROR_KEYS en account-panel.js)
+    'account.error.generic': 'Algo no ha salido bien. Tus datos de este dispositivo están intactos.',
+    'account.error.account.unsupported': 'Este navegador no admite llaves de acceso.',
+    'account.error.account.cancelled': 'Has cancelado. No ha pasado nada.',
+    'account.error.account.authenticatorFailed': 'Tu dispositivo no ha podido completar la operación. Inténtalo otra vez.',
+    'account.error.account.badRecoveryKit': 'Esa clave de recuperación no es correcta. Compruébala y vuelve a intentarlo.',
+    'account.error.account.noRecoveryKit': 'Esta cuenta no tiene clave de recuperación guardada. Entra desde un dispositivo que ya tenga tus datos.',
+    'account.error.account.needsSecondPasskey': 'Tu dispositivo no puede generar una clave de recuperación. Añade una segunda llave de acceso para proteger la cuenta.',
+    'account.error.account.locked': 'Tus datos están bloqueados en este dispositivo. Desbloquéalos con tu clave de recuperación.',
+    'account.error.api.offline': 'Sin conexión. Tus datos de este dispositivo están intactos.',
+    'account.error.api.timeout': 'El servidor ha tardado demasiado. Inténtalo otra vez.',
+    'account.error.api.badResponse': 'La respuesta del servidor no es válida. Si estás en una wifi pública, comprueba que has iniciado sesión en ella.',
+    'account.error.api.badPath': 'Petición no válida.',
+    'account.error.api.unknown': 'Algo no ha salido bien. Tus datos de este dispositivo están intactos.',
+    'account.error.credential.last': 'No puedes dar de baja tu única llave: te quedarías fuera de la cuenta.',
+    'account.error.credential.notFound': 'Esa llave ya no existe.',
+    'account.error.auth.required': 'Tu sesión ha caducado. Vuelve a entrar.',
+    'account.error.auth.failed': 'No se ha podido verificar tu llave. Inténtalo otra vez.',
+    'account.error.challenge.invalid': 'La operación ha tardado demasiado. Vuelve a empezar.',
+    'account.error.body.tooLarge': 'Los datos enviados son demasiado grandes.',
+    'account.error.body.malformed': 'Los datos enviados no son válidos.',
 };
