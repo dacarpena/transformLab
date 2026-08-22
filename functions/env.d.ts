@@ -51,6 +51,18 @@ interface R2Bucket {
 interface Env {
     DB: D1Database;
     PHOTOS: R2Bucket;
+
+    /**
+     * El cliente OAuth de Google (M10).
+     *
+     * El ID es PÚBLICO —viaja en la URL a la que se manda el navegador— y vive
+     * en `wrangler.toml`. El SECRETO no: se guarda con
+     * `wrangler pages secret put GOOGLE_CLIENT_SECRET` y no está en el
+     * repositorio. Los dos son opcionales: sin ellos, entrar con Google
+     * devuelve 503 y todo lo demás sigue funcionando igual.
+     */
+    GOOGLE_CLIENT_ID?: string;
+    GOOGLE_CLIENT_SECRET?: string;
 }
 
 /** El contexto que Pages pasa a cada Function. */

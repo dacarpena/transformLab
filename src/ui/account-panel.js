@@ -161,6 +161,14 @@ export function mount(container) {
         });
     });
 
+    on(container, 'click', '[data-account-google]', () => {
+        // Navegar, no `fetch`: el flujo de OAuth es una ida y vuelta del
+        // navegador entero. Se marca ANTES de irse, porque al volver la
+        // aplicación arranca de cero y tiene que saber que aquí hubo cuenta.
+        storage.set(SEEN_KEY, true);
+        globalThis.location.assign(account.GOOGLE_START);
+    });
+
     on(container, 'click', '[data-account-login]', async () => {
         await conBoton('[data-account-login]', () => signIn());
     });
@@ -401,6 +409,10 @@ function cuerpoDe(v) {
                 <button type="button" class="btn btn--primary" data-account-create>${t('account.create')}</button>
                 <button type="button" class="btn" data-account-login>${t('account.login')}</button>
             </div>
+            <div class="btn-row">
+                <button type="button" class="btn" data-account-google>${t('account.google')}</button>
+            </div>
+            <p class="muted">${t('account.googleHint')}</p>
         `;
     }
 
@@ -497,6 +509,55 @@ function bloqueDeSincronia() {
             </div>
         `}
     `;
+}
+
+/**
+ * Recoge la vuelta de Google, si es que se viene de ahí.
+ *
+ * Devuelve `true` cuando ha atendido algo, para que quien llame sepa si tiene
+ * que redibujar. El caso que importa es `new`: una cuenta recién creada con
+ * Google **no tiene ninguna vía de vuelta** —Google autentica, no descifra—, así
+ * que se genera la clave aquí y se lleva derecho al kit. Con passkeys el kit es
+ * una de dos salidas; aquí es la única, y saltárselo sería fabricar una pérdida
+ * irreversible.
+ *
+ * @param {{ onDone?: () => void }} [opciones]
+ * @returns {Promise<boolean>}
+ */
+export async function handleGoogleReturn(opciones = {}) {
+    const vuelta = account.readGoogleReturn();
+    if (!vuelta) return false;
+
+    if (vuelta.result === 'cancel') return true;
+    if (vuelta.result === 'error') {
+        toast.error(claveDeError(vuelta.code ?? 'api.unknown'));
+        return true;
+    }
+
+    storage.set(SEEN_KEY, true);
+    const sesion = await account.session();
+    if (!sesion?.authenticated) { toast.error('account.error.generic'); return true; }
+
+    await refrescar();
+
+    if (vuelta.result === 'new') {
+        const r = await account.completeGoogleSignUp(sesion.userId);
+        if (!r.ok) { toast.error(claveDeError(r.error)); return true; }
+        await refrescar();
+        mostrarKit(r.value.recoveryCode, { primeraVez: true, alConfirmar: r.value.commitRecoveryKit });
+        return true;
+    }
+
+    // `ok`: la cuenta ya existía. Si la clave no está en ESTE dispositivo, hace
+    // falta el kit — que es exactamente el mismo sitio al que lleva una passkey
+    // en un dispositivo nuevo.
+    const material = await account.keyMaterialState(sesion.userId);
+    if (material === 'locked') abrirDesbloqueo(sesion.userId, opciones);
+    else {
+        toast.success('account.loggedIn');
+        await primeraSincronia(sesion.userId, opciones);
+    }
+    return true;
 }
 
 /**

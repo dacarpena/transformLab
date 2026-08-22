@@ -246,6 +246,87 @@ export async function register() {
 }
 
 /**
+ * ¿Puede este dispositivo descifrar los datos de esta cuenta?
+ *
+ * `unlocked` si la clave está guardada aquí; `locked` si no. Es la pregunta que
+ * decide si hay que pedir el kit, y se responde SIN salir a la red: la clave o
+ * está en este dispositivo o no está, y el servidor no tiene voz en eso.
+ *
+ * @param {string} userId
+ * @returns {Promise<'unlocked' | 'locked'>}
+ */
+export async function keyMaterialState(userId) {
+    return await keys.get(userId) ? 'unlocked' : 'locked';
+}
+
+/* ── Entrar con Google (M10) ─────────────────────────────────────────────── */
+
+/**
+ * Dónde empieza el flujo de Google.
+ *
+ * Es una NAVEGACIÓN, no un `fetch`: el navegador se va a Google y vuelve. Por
+ * eso aquí no hay nada más que una URL —no se carga ningún script de Google y la
+ * CSP no se toca— y por eso quien nunca lo use no paga ninguna relajación.
+ */
+export const GOOGLE_START = '/api/auth/google/start';
+
+/**
+ * Qué dijo el servidor al volver de Google, leído del FRAGMENTO de la URL.
+ *
+ * Del fragmento porque es lo único que **no viaja al servidor**: ni acaba en los
+ * registros de un intermediario ni se queda pegado en un enlace compartido. Y se
+ * limpia al leerlo, para que recargar la página no repita el flujo.
+ *
+ * @returns {{ result: 'new' | 'ok' | 'cancel' | 'error', code: string | null } | null}
+ */
+export function readGoogleReturn() {
+    const hash = globalThis.location?.hash ?? '';
+    if (!hash.startsWith('#auth=')) return null;
+
+    const params = new URLSearchParams(hash.slice(1));
+    const auth = params.get('auth');
+    const code = params.get('code');
+
+    // Se limpia SIEMPRE, incluso si el valor no vale: dejarlo puesto haría que
+    // cada recarga volviera a intentar lo mismo.
+    if (globalThis.history?.replaceState) {
+        globalThis.history.replaceState(null, '', globalThis.location.pathname + globalThis.location.search);
+    }
+    if (auth !== 'new' && auth !== 'ok' && auth !== 'cancel' && auth !== 'error') return null;
+    return { result: auth, code: typeof code === 'string' ? code : null };
+}
+
+/**
+ * Termina el alta con Google: genera la clave de datos y prepara el kit.
+ *
+ * **Aquí está la diferencia que hay que entender de entrar con Google.** Google
+ * dice quién eres; no puede descifrar nada, porque la clave se genera en este
+ * dispositivo y no sale de él. Con una passkey hay dos vías de vuelta —el sobre
+ * del PRF y el kit—; con Google **el kit es la única**, y por eso este camino
+ * lleva derecho a enseñarlo.
+ *
+ * La sesión ya está abierta: la abrió el `callback` con su cookie. Lo que falta
+ * es el material criptográfico, que nunca ha existido.
+ *
+ * @param {string} userId
+ * @returns {Promise<Ok<{ userId: string, recoveryCode: string, commitRecoveryKit: () => Promise<Ok<{ saved: true }> | Err> }> | Err>}
+ */
+export async function completeGoogleSignUp(userId) {
+    // La clave de datos nace AQUÍ, en el dispositivo, y no sale nunca en claro.
+    const extraible = await generateDataKey();
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', extraible));
+
+    // El kit se prepara ANTES de borrar los bytes; `guardarClaves` los borra.
+    const kit = await prepareRecoveryKit(raw);
+    await guardarClaves(userId, raw);
+
+    return {
+        ok: /** @type {true} */ (true),
+        value: { userId, recoveryCode: kit.code, commitRecoveryKit: kit.commit }
+    };
+}
+
+/**
  * Prepara un kit: genera el código, envuelve la clave y devuelve una función que
  * SUBE el sobre. Nada sale a la red hasta que se la llama.
  *

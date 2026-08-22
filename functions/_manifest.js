@@ -19,6 +19,7 @@
 import { onRequest as health } from './_handlers/health.js';
 import { registerStart, registerFinish, loginStart, loginFinish } from './_handlers/auth.js';
 import { current, logout, logoutAll } from './_handlers/session.js';
+import { start as googleStart, callback as googleCallback } from './_handlers/google.js';
 import { overview, keys, saveKeys, removeCredential, remove as removeAccount } from './_handlers/account.js';
 import { pull, push, conflicts, stats } from './_handlers/sync.js';
 import { upload, download, remove as removePhoto, inventory } from './_handlers/photos.js';
@@ -33,6 +34,12 @@ export const ROUTES = Object.freeze([
     { method: 'POST', path: '/api/auth/register/finish', handler: registerFinish, auth: false },
     { method: 'POST', path: '/api/auth/login/start', handler: loginStart, auth: false },
     { method: 'POST', path: '/api/auth/login/finish', handler: loginFinish, auth: false },
+
+    // Entrar con Google (M10). Son NAVEGACIONES del navegador, no peticiones de
+    // la aplicación: por eso son GET y por eso no se carga ni un script de
+    // Google — la CSP no se toca.
+    { method: 'GET', path: '/api/auth/google/start', handler: googleStart, auth: false },
+    { method: 'GET', path: '/api/auth/google/callback', handler: googleCallback, auth: false },
 
     // Y las que SÍ piden sesión.
     { method: 'GET', path: '/api/session', handler: current, auth: true },

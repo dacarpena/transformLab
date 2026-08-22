@@ -63,3 +63,20 @@ migrations_dir = "migrations"
 binding = "PHOTOS"
 bucket_name = "transformlab-photos"
 jurisdiction = "eu"
+
+# ── Entrar con Google (M10) ────────────────────────────────────────────────────
+#
+# El ID de cliente es PÚBLICO: viaja en la URL a la que se manda el navegador,
+# así que cualquiera que pulse «entrar con Google» lo ve. No es una credencial y
+# Cloudflare espera encontrarlo aquí, en el fichero versionado.
+#
+# El SECRETO no está aquí y no puede estarlo:
+#
+#     npx wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=transformlab
+#
+# Sin ninguno de los dos, `/api/auth/google/start` devuelve 503 y la aplicación
+# sigue funcionando entera con passkeys. Es a propósito: una integración
+# opcional que no está configurada tiene que degradar, no romper.
+
+[vars]
+GOOGLE_CLIENT_ID = "525723957048-q018dbh80p3k9d0imiruntkqgrqk20qm.apps.googleusercontent.com"

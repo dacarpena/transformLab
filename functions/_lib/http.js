@@ -105,6 +105,25 @@ export function binary(cuerpo, bytes) {
 }
 
 /**
+ * Una REDIRECCIÓN. Existe por lo mismo que `binary()`: el guardián «ningún
+ * manejador construye una Response a mano» tiene que seguir siendo cierto, y un
+ * 302 no cabe en `json()`.
+ *
+ * Es la única forma de respuesta de esta API que un NAVEGADOR sigue, no un
+ * `fetch`, y por eso vive en el flujo de OAuth y en ningún sitio más.
+ *
+ * @param {string} location
+ * @param {{ headers?: Record<string, string> }} [init]
+ * @returns {Response}
+ */
+export function redirect(location, init = {}) {
+    return new Response(null, {
+        status: 302,
+        headers: { ...API_HEADERS, ...(init.headers ?? {}), Location: location }
+    });
+}
+
+/**
  * Lee el cuerpo como JSON, sin lanzar nunca.
  *
  * @param {Request} request

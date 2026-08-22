@@ -36,7 +36,12 @@ export const ERROR_KEYS = Object.freeze([
     // Las fotos (M9-5).
     'photos.quota', 'photos.tooLarge', 'photos.notFound', 'photos.storeFailed',
     'photos.badKey', 'photos.empty', 'photos.unreadable', 'photos.undecryptable',
-    'account.photosNotDeleted'
+    'account.photosNotDeleted',
+    // Entrar con Google (M10).
+    'google.notConfigured', 'google.badRequest', 'google.badState', 'google.unreachable',
+    'google.exchangeFailed', 'google.badResponse', 'google.noIdToken', 'google.badIdToken',
+    'google.badIssuer', 'google.badAudience', 'google.badNonce', 'google.expired',
+    'google.noSubject'
 ]);
 
 /**

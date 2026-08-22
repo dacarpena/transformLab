@@ -249,3 +249,82 @@ test('el panel se maneja con teclado y cabe en 320 px', async ({ page }) => {
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
     await expect(page.locator('[data-account-kit], [data-account-create]').first()).toBeVisible();
 });
+
+/* ── Entrar con Google (M10) ─────────────────────────────────────────────── */
+
+/**
+ * Lo que se puede comprobar en un navegador SIN Google.
+ *
+ * El viaje de verdad —ida a `accounts.google.com`, vuelta con el código, canje
+ * servidor a servidor— no se puede recorrer aquí: el canje lo hace la Function
+ * contra Google con el secreto, y eso no se intercepta desde Playwright. Esa
+ * mitad tiene sus 17 pruebas en `test/functions-google.test.js`, con el
+ * `id_token` fabricado y todas las defensas ejercidas.
+ *
+ * Aquí se comprueba la mitad del cliente, que es la que se ve: que el botón
+ * lleva a donde debe, y que la vuelta se atiende — incluido cuando trae un
+ * error, que es cuando peor está la persona que lo lee.
+ */
+test('el botón de Google navega a la ruta de arranque, y no carga nada de Google', async ({ page }) => {
+    /** @type {string[]} */ const externas = [];
+    page.on('request', (r) => {
+        const h = new URL(r.url()).hostname;
+        if (h.includes('google') || h.includes('gstatic')) externas.push(r.url());
+    });
+
+    // La navegación se corta antes de salir: lo que importa es a DÓNDE va.
+    /** @type {string | null} */ let destino = null;
+    await page.route('**/api/auth/google/start', async (route) => {
+        destino = route.request().url();
+        await route.fulfill({ status: 204, body: '' });
+    });
+
+    await conPerfil(page);
+    await irAAjustes(page);
+
+    const boton = page.locator('[data-account-google]');
+    await expect(boton).toBeVisible();
+    await boton.click();
+    await expect.poll(() => destino, { timeout: 15000 }).toContain('/api/auth/google/start');
+
+    // Y NADA de Google se ha cargado en la página. Es lo que permite que la CSP
+    // siga sin tocarse, y quien nunca use Google no paga ninguna relajación.
+    expect(externas, 'la página cargó algo de Google').toEqual([]);
+});
+
+/**
+ * Vuelve «desde Google»: una carga COMPLETA del documento con el fragmento
+ * puesto, que es lo que produce el 302 del callback.
+ *
+ * Con `page.goto('/#…')` estando ya en `/` no vale: cambiar solo el fragmento es
+ * una navegación dentro del mismo documento, la página NO se recarga y el
+ * arranque no vuelve a correr. El test pasaba a medir algo que no ocurre.
+ */
+async function volverDeGoogle(page, fragmento) {
+    await page.goto('about:blank');
+    await page.goto(`/#${fragmento}`);
+}
+
+test('la vuelta de Google se atiende, y el fragmento no se queda pegado', async ({ page }) => {
+    await conPerfil(page);
+
+    // Cancelar: se vuelve a la aplicación sin ruido y sin rastro en la URL.
+    await volverDeGoogle(page, 'auth=cancel');
+    await expect(page.locator('#today-title')).toBeVisible({ timeout: 20000 });
+    await expect.poll(() => page.evaluate(() => location.hash), { timeout: 10000 }).toBe('');
+
+    // Un error trae su código, y sale con SU texto: `google.badState` a secas
+    // no le dice nada a nadie.
+    await volverDeGoogle(page, 'auth=error&code=google.badState');
+    await expect(page.locator('.toast')).toContainText(/caducado|ya se había usado/i, { timeout: 20000 });
+    await expect.poll(() => page.evaluate(() => location.hash), { timeout: 10000 }).toBe('');
+});
+
+test('un `auth` que no reconocemos no hace nada raro', async ({ page }) => {
+    await conPerfil(page);
+    await volverDeGoogle(page, 'auth=inventado');
+    await expect(page.locator('#today-title')).toBeVisible({ timeout: 20000 });
+    // Se limpia igual: dejarlo puesto haría que cada recarga volviera a
+    // intentar lo mismo.
+    await expect.poll(() => page.evaluate(() => location.hash), { timeout: 10000 }).toBe('');
+});

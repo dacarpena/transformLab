@@ -96,12 +96,32 @@ test('las cuatro colecciones generan ids opacos', () => {
         recipes.listRecipes()[0]?.id,
         nutrition.listTemplates()[0]?.id
     ];
-    for (const id of ids) {
+    const nombres = ['Press de banca', 'Arroz', 'Tortilla', 'Desayuno'];
+    for (const [i, id] of ids.entries()) {
         assert.ok(id, 'una colección no generó ningún id');
         assert.match(id, OPACO, `no es opaco: ${id}`);
-        assert.doesNotMatch(id, /_\d+_/, `sigue el formato viejo: ${id}`);
+        // El formato viejo era `<prefijo>_<n>_<slug>`, y el slug salía del
+        // NOMBRE. Eso es lo que se comprueba: que el nombre no está dentro.
+        //
+        // Antes esto era `doesNotMatch(id, /_\d+_/)` y fallaba solo el 0,4 % de
+        // las veces —medido: 745 de 200.000—, porque un id opaco puede empezar
+        // por `3_` y entonces `pantry_3_FQZ9…` casa con el patrón del formato
+        // viejo. Un id aleatorio y el formato viejo son AMBIGUOS por expresión
+        // regular, así que anclarla tampoco arreglaba nada: había que afirmar la
+        // propiedad, no su parecido.
+        const slug = nombres[i].replace(/[^A-Za-z0-9]/g, '').slice(0, 10);
+        assert.ok(!id.includes(slug), `el id lleva dentro el nombre: ${id}`);
     }
     assert.equal(new Set(ids).size, 4, 'dos colecciones generaron el mismo id');
+
+    // Y lo que de verdad arreglaron los ids opacos: dos nombres que compartían
+    // los doce primeros caracteres daban el MISMO id, y las series de uno
+    // acababan en el grupo muscular del otro.
+    recipes.addPantryItem({ name: 'Press de banca con barra', quantity: 1, unit: 'ud' });
+    recipes.addPantryItem({ name: 'Press de banca con mancuernas', quantity: 1, unit: 'ud' });
+    const despensa = recipes.listPantry().map((/** @type {*} */ it) => it.id);
+    assert.equal(new Set(despensa).size, despensa.length,
+        'dos nombres parecidos volvieron a compartir id');
 });
 
 /* ── La migración de lo que ya existe ────────────────────────────────────── */

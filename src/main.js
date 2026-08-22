@@ -448,8 +448,14 @@ async function boot() {
  * «funciona entero sin cuenta» sea comprobable en vez de prometida.
  */
 async function arrancarSincronia() {
-    const { hasAccountHere } = await import('./ui/account-panel.js');
-    if (!hasAccountHere()) return;
+    const panel = await import('./ui/account-panel.js');
+
+    // La vuelta de Google llega como una recarga con `#auth=…`, así que hay que
+    // atenderla ANTES de decidir si hay cuenta: en el alta, `ui.accountSeen`
+    // todavía no está puesto en este dispositivo.
+    if (await panel.handleGoogleReturn()) return;
+
+    if (!panel.hasAccountHere()) return;
     const account = await import('./data/account.js');
     const sesion = await account.session();
     if (!sesion?.authenticated) return;

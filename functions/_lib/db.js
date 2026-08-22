@@ -505,10 +505,10 @@ export const MAX_CHALLENGES_PER_IP = 15;
  * mundo y los usuarios legítimos se dejarían fuera unos a otros.
  *
  * @param {Env} env
- * @param {{ hash: Uint8Array, purpose: string, userId: string | null, pendingUserId: string | null, ip?: string | null, now: number, ttlMs: number }} reto
+ * @param {{ hash: Uint8Array, purpose: string, userId: string | null, pendingUserId: string | null, ip?: string | null, payload?: string | null, now: number, ttlMs: number }} reto
  * @returns {Promise<boolean>}
  */
-export async function createChallenge(env, { hash, purpose, userId, pendingUserId, ip = null, now, ttlMs }) {
+export async function createChallenge(env, { hash, purpose, userId, pendingUserId, ip = null, payload = null, now, ttlMs }) {
     const desde = truncateIp(ip);
     if (desde !== null) {
         const r = /** @type {*} */ (await env.DB.prepare(
@@ -517,9 +517,9 @@ export async function createChallenge(env, { hash, purpose, userId, pendingUserI
         if ((r?.n ?? 0) >= MAX_CHALLENGES_PER_IP) return false;
     }
     await env.DB.prepare(
-        `INSERT INTO challenges (hash, purpose, user_id, pending_user_id, created_at, expires_at, ip_trunc)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`)
-        .bind(hash, purpose, userId, pendingUserId, now, now + ttlMs, desde).run();
+        `INSERT INTO challenges (hash, purpose, user_id, pending_user_id, created_at, expires_at, ip_trunc, payload)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`)
+        .bind(hash, purpose, userId, pendingUserId, now, now + ttlMs, desde, payload).run();
     return true;
 }
 
@@ -535,7 +535,7 @@ export async function consumeChallenge(env, { hash, purpose, now }) {
     return /** @type {*} */ (await env.DB.prepare(
         `DELETE FROM challenges
           WHERE hash = ?1 AND purpose = ?2 AND expires_at > ?3
-      RETURNING pending_user_id, user_id`).bind(hash, purpose, now).first());
+      RETURNING pending_user_id, user_id, payload`).bind(hash, purpose, now).first());
 }
 
 /**
@@ -554,6 +554,57 @@ export async function createAccount(env, { userId, credentialId, publicKey, algo
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`)
             .bind(credentialId, userId, publicKey, algorithm, signCount, now)
     ]);
+}
+
+/**
+ * Busca a quién pertenece una identidad de un proveedor externo.
+ *
+ * Global por la misma razón que `findCredential`: es el paso que AVERIGUA de
+ * quién es la sesión, y por tanto corre antes de que haya ninguna.
+ *
+ * @param {Env} env
+ * @param {{ provider: string, subject: string }} id
+ */
+export async function findFederated(env, { provider, subject }) {
+    return /** @type {*} */ (await env.DB.prepare(
+        'SELECT user_id FROM federated_identities WHERE provider = ?1 AND subject = ?2')
+        .bind(provider, subject).first());
+}
+
+/**
+ * Crea una cuenta cuya primera credencial es una identidad externa.
+ *
+ * **En un solo lote, y eso importa**: una cuenta sin identidad es una cuenta en
+ * la que nadie puede entrar nunca y que su dueño no puede rehacer, porque el id
+ * ya está ocupado. Es el mismo cuidado que `createAccount` tiene con la passkey.
+ *
+ * @param {Env} env
+ * @param {{ userId: string, provider: string, subject: string, now: number }} alta
+ */
+export async function createAccountFederated(env, { userId, provider, subject, now }) {
+    await env.DB.batch([
+        env.DB.prepare('INSERT INTO users (id, created_at) VALUES (?1, ?2)').bind(userId, now),
+        env.DB.prepare(
+            `INSERT INTO federated_identities (provider, subject, user_id, created_at, last_seen_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)`)
+            .bind(provider, subject, userId, now)
+    ]);
+}
+
+/**
+ * Anota que una identidad externa se ha usado.
+ *
+ * No es cosmético: es lo único que distingue una identidad viva de una que se
+ * enlazó una vez y nadie volvió a tocar, y eso hace falta el día que alguien
+ * pregunte qué formas de entrar tiene su cuenta.
+ *
+ * @param {Env} env
+ * @param {{ provider: string, subject: string, now: number }} uso
+ */
+export async function touchFederated(env, { provider, subject, now }) {
+    await env.DB.prepare(
+        'UPDATE federated_identities SET last_seen_at = ?3 WHERE provider = ?1 AND subject = ?2')
+        .bind(provider, subject, now).run();
 }
 
 /**
