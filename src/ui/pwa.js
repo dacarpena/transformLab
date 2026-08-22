@@ -187,9 +187,68 @@ function watchInstalling(worker) {
     worker.addEventListener('statechange', mirar);
 }
 
+/**
+ * La marca de «ya recargué sola en esta pestaña».
+ *
+ * En `sessionStorage` y no en una variable: la recarga destruye el módulo, así
+ * que una variable no sobreviviría para impedir la segunda. Y en `session` y no
+ * en `local` porque el candado debe durar lo que dura la pestaña, no para
+ * siempre.
+ */
+const AUTO_KEY = 'tl.pwa.autoReloaded';
+
+/**
+ * Aplica la actualización SOLA, sin molestar, cuando es seguro hacerlo.
+ *
+ * ## Por qué esto no contradice la regla de no llamar a `skipWaiting`
+ *
+ * La regla existe por una razón concreta: cambiar el service worker a mitad de
+ * sesión deja la página ejecutando módulos viejos contra la caché nueva, y sus
+ * `import()` diferidos ya traen código nuevo. Dos versiones a la vez.
+ *
+ * Pero ese riesgo es de una sesión EN MARCHA. En una página que acaba de
+ * cargar, antes de que nadie haya tocado nada, activar el que espera y recargar
+ * una vez no puede partir ninguna sesión: no hay ninguna todavía.
+ *
+ * ## Y por qué había que hacerlo
+ *
+ * Un aviso que reaparece en cada entrada y que solo se quita pulsándolo no es
+ * un aviso: es un peaje. Quien no lo pulsa se queda en la versión vieja para
+ * siempre Y lo ve cada vez que abre la aplicación. Con esto, actualizarse deja
+ * de ser una tarea del usuario; el aviso queda solo para el caso en que la
+ * actualización llega mientras está usando la aplicación, que es cuando de
+ * verdad hay algo que decidir.
+ *
+ * @param {ServiceWorker} waiting
+ * @returns {boolean} si se ha tomado el control de la actualización
+ */
+function applySilently(waiting) {
+    // El candado va PRIMERO. Si la activación no llegara a producirse —un
+    // service worker que no atiende el mensaje, una caché a medias—, sin él
+    // esto sería un bucle de recargas, que es infinitamente peor que un aviso.
+    try {
+        if (globalThis.sessionStorage?.getItem(AUTO_KEY)) return false;
+        globalThis.sessionStorage?.setItem(AUTO_KEY, '1');
+    } catch {
+        // Sin `sessionStorage` no hay candado, y sin candado no se arriesga.
+        return false;
+    }
+
+    skipWaitingSent = true;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        globalThis.location?.reload();
+    }, { once: true });
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+    return true;
+}
+
 /** @param {ServiceWorkerRegistration} registration */
 function watchForUpdate(registration) {
     if (registration.waiting && navigator.serviceWorker.controller) {
+        // Ya estaba esperando cuando esta página cargó: se aplica sola. Es el
+        // caso de «abro la aplicación y hay algo nuevo», que es el 99 % de las
+        // veces, y no tiene por qué costarle un clic a nadie.
+        if (applySilently(registration.waiting)) return;
         announceUpdate(registration.waiting);
     }
     // TAMBIÉN el que ya está instalándose, y no solo el que espera. Entre que

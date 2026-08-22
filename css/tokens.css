@@ -3,42 +3,111 @@
    ÚNICA fuente de color, tipografía, espaciado, radios y sombras
    (CLAUDE.md D8). Ningún valor de diseño vive fuera de este fichero.
 
+   ── LA DIRECCIÓN: ESTRATOS ──────────────────────────────────
+
+   Este producto no vive en un gimnasio. Vive en la sala a oscuras
+   donde se mide un cuerpo: una báscula de bioimpedancia pasa una
+   corriente y lee lo que encuentra, y la aplicación dibuja el
+   resultado como una BANDA de escenarios — un corredor traslúcido
+   de futuros posibles que se ensancha y se estrecha.
+
+   Esa banda ya era cristal antes de que nadie lo llamara así, y es
+   de donde sale toda la estética: las superficies no son «paneles
+   esmerilados», son ESTRATOS. Capas traslúcidas que se leen unas a
+   través de otras, como un corte transversal de tejido. Cada una
+   tiene su canto especular arriba —la luz dando en el borde de un
+   vidrio curvo— y una densidad que crece hacia abajo.
+
+   ── LAS TRES REGLAS QUE LO HACEN FUNCIONAR ──────────────────
+
+   1. EL DESENFOQUE ES UN RECURSO ESCASO. Solo lo llevan las
+      superficies que FLOTAN sobre contenido: la barra de
+      navegación, los diálogos, los avisos y la cabecera pegajosa.
+      Las tarjetas de contenido llevan tinte y canto, no desenfoque.
+      Desenfocar detrás de una gráfica destruye su legibilidad y
+      cuesta fotogramas en un móvil de gama media, que es donde se
+      usa esto.
+
+   2. LAS SUPERFICIES SIGUEN SIENDO OPACAS Y MEDIBLES. El contraste
+      de esta aplicación no es una intención, es un test que corre
+      en cada commit (`test/tokens-contrast.test.js`) y que lee
+      estos tokens como hex. Un color traslúcido sobre un fondo
+      desconocido no tiene ratio, así que el cristal se expresa
+      ENCIMA de una base opaca: el gradiente modula ±2 % alrededor
+      del valor medido y el canto especular no lleva texto nunca.
+      Así la garantía sigue siendo verdad, no solo verde.
+
+   3. HAY QUIEN PIDE MENOS TRANSPARENCIA. `prefers-reduced-transparency`
+      es una preferencia real del sistema y aquí se respeta: quien la
+      active recibe superficies sólidas. Un efecto que no se puede
+      apagar es un efecto impuesto.
+
    Todos los pares de color EN USO están medidos contra WCAG 2.1:
    texto ≥ 4,5:1 (AA) y componentes no textuales ≥ 3:1 (1.4.11).
    El ratio anotado es el real, calculado, no una estimación.
-   El test test/tokens-contrast.test.js lo verifica en cada commit.
    ============================================================ */
 
 :root {
     color-scheme: dark;
 
-    /* ---- Superficies (tema oscuro único, D7) ---- */
-    --color-bg: #0a0a0f;
-    --color-surface: #14141d;
-    --color-surface-2: #1e1e2b;
+    /* ---- Estratos (tema oscuro único, D7) ----
+       Cuatro peldaños, cada uno un poco más claro y un poco más
+       violeta: el fondo de la sala, la mesa, la tarjeta, y lo que
+       flota sobre la tarjeta. Un solo tono; solo cambia la
+       luminosidad, que es lo que mantiene el espacio unido en vez
+       de partirlo en «mundos». */
+    --color-bg: #07070d;
+    --color-surface: #12121c;
+    --color-surface-2: #1b1b29;
+    --color-surface-3: #24243a;
 
     /* ---- Bordes: dos tokens con propósitos distintos ----
-       `border` es decorativo (separar tarjetas) y no necesita contraste.
-       `border-control` delimita controles de formulario, que SÍ deben
-       distinguirse del fondo: WCAG 1.4.11 exige 3:1. Un solo token no
-       podía servir a ambos sin fallar uno de los dos. */
-    --color-border: #2f2f42;
-    --color-border-control: #6a6a8a;   /* 3,52:1 sobre surface */
+       `border` es decorativo (separar estratos) y no necesita
+       contraste. `border-control` delimita controles de formulario,
+       que SÍ deben distinguirse del fondo: WCAG 1.4.11 exige 3:1.
+       Un solo token no podía servir a ambos sin fallar uno.
 
-    /* ---- Texto (ratios sobre --color-surface) ---- */
-    --color-text: #eaeaf4;             /* 15,31:1 */
-    --color-text-secondary: #bcbccc;   /*  9,76:1 */
-    --color-text-muted: #9c9cb4;       /*  6,82:1 · el legacy fallaba aquí con 3,78:1 */
+       `border-control` subió de #6a6a8a a #76769c al aparecer el
+       cuarto estrato: sobre `surface-3` el viejo se quedaba en
+       2,91:1. Medido, no ajustado a ojo. */
+    --color-border: #2a2a3e;
+    --color-border-control: #76769c;   /* 3,49:1 sobre el peor estrato */
 
-    /* ---- Marca ---- */
-    --color-accent: #4cc9f0;           /*  9,52:1 sobre surface */
+    /* ---- El cristal ----
+       No son colores: son la expresión de un material. `tint` es el
+       cuerpo del vidrio, `edge` el canto especular de arriba, y
+       `sheen` el reflejo que recorre las superficies grandes.
+       Todos en blanco puro con alfa: sobre cualquier estrato dan el
+       mismo material, que es lo que hace que el sistema se sienta
+       uno solo. */
+    --glass-tint: rgb(255 255 255 / 0.045);
+    --glass-tint-strong: rgb(255 255 255 / 0.075);
+    --glass-edge: rgb(255 255 255 / 0.10);
+    --glass-edge-strong: rgb(255 255 255 / 0.18);
+    --glass-sheen: rgb(255 255 255 / 0.028);
+    --glass-blur: 22px;
+    --glass-saturate: 155%;
+
+    /* ---- Texto (ratios sobre el estrato MÁS CLARO, el peor caso) ---- */
+    --color-text: #eef0fa;             /* 13,31:1 */
+    --color-text-secondary: #bcc0d4;   /*  8,38:1 */
+    --color-text-muted: #9ea3bd;       /*  6,07:1 · el legacy fallaba aquí con 3,78:1 */
+
+    /* ---- Marca ----
+       El cian se queda, y es una decisión, no inercia: es el color
+       de una lectura en pantalla —la línea del monitor— y ya
+       significa «esto es la medida». Además, los ocho colores de
+       serie y los seis de fase se eligieron por distancia ΔE
+       CONTRA él; moverlo obligaría a rehacer las dos búsquedas
+       enteras para ganar nada. */
+    --color-accent: #4cc9f0;           /*  7,86:1 sobre el peor estrato */
     --color-accent-hover: #7ad8f5;
     --color-on-accent: #06131a;        /*  9,79:1 sobre accent · 11,62:1 sobre accent-hover */
 
-    /* ---- Semánticos (ratios sobre --color-surface) ---- */
-    --color-success: #5ad494;          /*  9,83:1 */
-    --color-warning: #f0b350;          /*  9,82:1 */
-    --color-danger: #f4736f;           /*  6,56:1 */
+    /* ---- Semánticos (ratios sobre el peor estrato) ---- */
+    --color-success: #5ad494;          /*  8,12:1 */
+    --color-warning: #f0b350;          /*  8,12:1 */
+    --color-danger: #f4736f;           /*  5,42:1 */
 
     /* ---- Fases del plan: gráfica, insignias y bandas ---- */
     --color-phase-adaptation: #a78bfa;
@@ -57,7 +126,7 @@
 
        Medidos, no elegidos a ojo (`test/tokens-contrast.test.js` los vigila):
 
-       · Contraste ≥ 4,78:1 sobre las tres superficies (el peor es series-5).
+       · Contraste ≥ 4,78:1 sobre las superficies.
        · ΔE ≥ 30,2 entre CUALQUIER par, midiendo visión normal Y simulaciones de
          protanopía, deuteranopía y tritanopía (el peor par es 3~8 bajo
          deuteranopía).
@@ -78,17 +147,27 @@
     --color-series-7: #ef8239;
     --color-series-8: #e85e95;
 
-    /* NOTA PARA LA PRÓXIMA AUDITORÍA (M7-8). Cinco de estos tokens no los usa
-       hoy nadie: --font-mono, --weight-regular, --space-12, --shadow-sm y
-       --breakpoint-desktop. Se quedan a propósito. Los cuatro primeros son
-       PELDAÑOS de escalas completas (tres familias, tres pesos, ocho espacios,
-       tres sombras), y una escala con un hueco es una invitación a que el
-       siguiente que necesite ese peldaño se invente un valor mágico — justo lo
-       que prohíbe D8. El quinto documenta el único punto de corte del diseño;
-       las media queries no aceptan propiedades personalizadas, así que el 768px
-       de `app.css` no puede leerlo, pero sí puede señalarlo. */
+    /* NOTA PARA LA PRÓXIMA AUDITORÍA. Algunos tokens no los usa hoy nadie. Se
+       quedan a propósito: son PELDAÑOS de escalas completas (tres familias,
+       tres pesos, ocho espacios, tres sombras), y una escala con un hueco es
+       una invitación a que el siguiente que necesite ese peldaño se invente un
+       valor mágico — justo lo que prohíbe D8. `--breakpoint-desktop` documenta
+       el único punto de corte del diseño; las media queries no aceptan
+       propiedades personalizadas, así que el 768px de `app.css` no puede
+       leerlo, pero sí puede señalarlo. */
 
-    /* ---- Tipografía: 3 familias lógicas ---- */
+    /* ---- Tipografía ----
+
+       Sigue siendo la del sistema, y hay una razón dura: `font-src 'self'` y
+       `script-src 'self'`. Traer una tipografía de Google es imposible sin
+       relajar la CSP, y vendorizarla son cientos de kilobytes en el precache
+       de una aplicación que tiene que abrir sin red. La decisión es no pagarlo.
+
+       Lo que SÍ cambia es cómo se usa, que es donde de verdad se nota: cifras
+       tabulares en todo número que cambia, tracking negativo en los títulos
+       grandes —la tipografía del sistema viene suelta y a 2rem parece un
+       documento—, y micro-etiquetas en versalitas muy espaciadas. Eso da la
+       textura de un instrumento de medida, que es lo que esto es. */
     --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-heading: var(--font-ui);
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -101,12 +180,16 @@
     --text-2xl: 1.75rem;
     --text-3xl: 2.25rem;
 
-    --leading-tight: 1.2;
+    --leading-tight: 1.15;
     --leading-normal: 1.55;
 
     --weight-regular: 400;
     --weight-medium: 500;
     --weight-bold: 700;
+
+    /* El tercer eje de la jerarquía, junto al tamaño y al peso. */
+    --tracking-tight: -0.022em;   /* títulos grandes */
+    --tracking-wide: 0.09em;      /* micro-etiquetas en versalitas */
 
     /* ---- Espaciado (base 4px) ---- */
     --space-1: 4px;
@@ -117,32 +200,69 @@
     --space-8: 32px;
     --space-12: 48px;
 
-    /* ---- Radios ---- */
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 16px;
+    /* ---- Radios ----
+       Más generosos que antes: el cristal pide cantos redondeados o
+       el reflejo del borde se corta en seco. Y son una ESCALA, para
+       poder anidar concéntricamente — el radio de dentro más el
+       relleno da el de fuera, que es lo que evita ese aire de
+       «esquina dentro de esquina» que delata una interfaz sin
+       cuidar. */
+    --radius-sm: 10px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+    --radius-xl: 32px;
     --radius-full: 999px;
 
-    /* ---- Sombras ---- */
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
-    --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.5);
+    /* ---- Sombras ----
+       En oscuro una sombra difusa casi no se ve; lo que sí se ve es
+       el ANILLO. Cada peldaño es un anillo de luz —el canto del
+       vidrio— más una profundidad que solo aparece en lo que de
+       verdad flota. */
+    --shadow-sm: 0 0 0 1px rgb(255 255 255 / 0.05);
+    --shadow-md:
+        0 8px 24px -10px rgb(0 0 0 / 0.65),
+        0 0 0 1px rgb(255 255 255 / 0.06);
+    --shadow-lg:
+        0 24px 64px -20px rgb(0 0 0 / 0.75),
+        0 2px 8px -2px rgb(0 0 0 / 0.4),
+        0 0 0 1px rgb(255 255 255 / 0.09);
 
-    /* ---- Movimiento ---- */
-    --duration-fast: 150ms;
-    --duration-base: 250ms;
-    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    /* ---- Movimiento ----
+       Nunca `ease-in`: retrasa el primer fotograma, que es el que
+       el usuario está mirando, y se siente pesado. La curva de
+       entrada sale disparada y frena; la de recorrido es simétrica. */
+    --duration-fast: 140ms;
+    --duration-base: 220ms;
+    --duration-slow: 320ms;
+    --ease-standard: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
 
-    /* ---- Foco (F7: visible siempre, 10,27:1 sobre bg) ---- */
+    /* ---- Foco (F7: visible siempre, 7,86:1 sobre el peor estrato) ---- */
     --focus-ring: 2px solid var(--color-accent);
     --focus-offset: 2px;
 
     /* ---- Medidas del armazón ---- */
-    --tabbar-height: 60px;
-    --sidebar-width: 232px;
+    --tabbar-height: 64px;
+    --sidebar-width: 236px;
     --content-max: 56rem;
     /* Las vistas-instrumento (Analizar) sueltan el corsé de lectura: una
        gráfica no es un párrafo y no la limita la longitud de línea. */
     --content-max-wide: 96rem;
     --breakpoint-desktop: 768px;
+}
+
+/* ── Quien pide menos transparencia, la recibe ─────────────────
+   No es un detalle de accesibilidad marginal: hay gente a la que
+   el material traslúcido le dificulta leer, y el sistema operativo
+   ya tiene una casilla para decirlo. Aquí el cristal se vuelve
+   sólido y el desenfoque desaparece; la jerarquía la sostienen los
+   estratos y los anillos, que siguen ahí. */
+@media (prefers-reduced-transparency: reduce) {
+    :root {
+        --glass-tint: rgb(255 255 255 / 0.06);
+        --glass-tint-strong: rgb(255 255 255 / 0.09);
+        --glass-sheen: rgb(255 255 255 / 0);
+        --glass-blur: 0px;
+        --glass-saturate: 100%;
+    }
 }

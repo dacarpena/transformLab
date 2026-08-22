@@ -66,7 +66,7 @@ function renderToday(data, today, /** @type {*} */ evaluations) {
             <p class="muted">${t('today.progress', { percent })}</p>
 
             <div class="metrics">
-                <div class="metric">
+                <div class="metric metric--lead">
                     <span class="metric__value">${num(point.weightKg)} <span class="muted">${t('today.unit.kg')}</span></span>
                     <span class="metric__label">${t('today.metric.weight')}</span>
                 </div>

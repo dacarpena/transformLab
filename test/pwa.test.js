@@ -364,3 +364,42 @@ test('Ajustes enseña la versión y ofrece buscar actualización', () => {
         assert.ok(es.includes(`'${clave}'`), `falta el texto ${clave}`);
     }
 });
+
+test('la actualización que ya esperaba al cargar se aplica SOLA', () => {
+    // Un aviso que reaparece en cada entrada y que solo se quita pulsándolo no
+    // es un aviso, es un peaje: quien no lo pulsa se queda en la versión vieja
+    // para siempre Y lo ve cada vez que abre la aplicación.
+    //
+    // La regla de no llamar a `skipWaiting` existe por el riesgo de partir una
+    // sesión EN MARCHA. En una página recién cargada no hay sesión que partir,
+    // así que ahí sí se aplica sola y el aviso queda solo para la actualización
+    // que llega mientras alguien está usando la aplicación.
+    const fuente = readFileSync(new URL('../src/ui/pwa.js', import.meta.url), 'utf8');
+    assert.match(fuente, /function applySilently/, 'ya no se aplica sola');
+
+    const cuerpo = fuente.slice(fuente.indexOf('function watchForUpdate'));
+    const hasta = cuerpo.slice(0, cuerpo.indexOf('\nexport'));
+    assert.match(hasta, /applySilently\(registration\.waiting\)/,
+        'watchForUpdate ya no intenta aplicarla sola');
+    // Y el aviso sigue existiendo para el otro caso.
+    assert.match(hasta, /announceUpdate/, 'se quedó sin aviso para la sesión en marcha');
+});
+
+test('el candado contra el bucle de recargas se pone ANTES de recargar', () => {
+    // Si la activación no llegara a producirse, sin candado esto sería un bucle
+    // de recargas — infinitamente peor que un aviso. Y va en `sessionStorage`
+    // porque la recarga destruye el módulo: una variable no sobreviviría para
+    // impedir la segunda.
+    const fuente = readFileSync(new URL('../src/ui/pwa.js', import.meta.url), 'utf8');
+    const fn = fuente.slice(fuente.indexOf('function applySilently'));
+    const cuerpo = fn.slice(0, fn.indexOf('\n}'));
+
+    const posCandado = cuerpo.indexOf('setItem');
+    const posMensaje = cuerpo.indexOf('postMessage');
+    assert.ok(posCandado > 0, 'no hay candado');
+    assert.ok(posMensaje > 0, 'no se activa nada');
+    assert.ok(posCandado < posMensaje, 'el candado se pone DESPUÉS de activar: eso es el bucle');
+    assert.match(cuerpo, /sessionStorage/, 'el candado no sobrevive a la recarga');
+    // Sin `sessionStorage` no hay candado, y sin candado no se arriesga.
+    assert.match(cuerpo, /catch \{[\s\S]*?return false/, 'sin almacén de sesión se recarga igual');
+});
