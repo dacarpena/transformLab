@@ -3047,6 +3047,39 @@ relleno a múltiplos de 256 B antes de cifrar.
     subcomandos reales** — `wrangler r2 object list` no existe, y el borrador lo
     mandaba ejecutar.
 
+### M10 · Entrar con Google
+
+- [x] **Flujo de código con PKCE, todo por redirección.** No se carga ni un
+  script de Google, y eso no es estética: es lo que permite que `connect-src
+  'self'` y `script-src 'self'` sigan intactos y que quien nunca lo use no pague
+  ninguna relajación de la CSP.
+
+  **Solo se pide `openid`.** Ni correo, ni nombre, ni foto: Google responde «este
+  es el sujeto 1234» y nada más. Pedir el correo habría sido gratis y habría
+  metido un dato personal en una base que hoy no tiene ninguno; y como no es un
+  permiso sensible, la aplicación no necesita pasar la revisión de Google.
+
+  **Lo que Google no puede hacer: descifrar.** La clave se genera en el
+  dispositivo. Con passkeys el kit de recuperación es una de dos salidas —está
+  también el sobre del PRF—; **con Google es la única**, así que el alta lleva
+  derecho a enseñarlo y el texto del botón lo advierte antes de pulsarlo.
+
+  Las tres defensas, cada una contra un ataque concreto: `state` de un solo uso,
+  PKCE, y `nonce`. Más `aud`, que es el que de verdad abriría la puerta: sin
+  comprobarlo, cualquiera con un cliente de Google podría fabricar un token
+  válido para SU aplicación y entrar aquí.
+
+  La firma del `id_token` **no** se verifica, y está razonado: no llega por el
+  navegador sino en una llamada de servidor a servidor sobre TLS autenticada con
+  nuestro secreto, que es el caso que la propia documentación de Google exime.
+
+  `federated_identities` va aparte de `credentials` —una identidad de Google no
+  firma nada ni envuelve ninguna clave— y su clave primaria es (proveedor,
+  sujeto), para que el día que entre un segundo proveedor un `12345` no colisione
+  con otro `12345`.
+
+  Sin configurar, la ruta devuelve 503 y todo lo demás sigue igual.
+
 #### El primer login desde un dispositivo que ya tiene datos
 
 `backup.js` **ya es el protocolo**: `GET /api/export` devuelve exactamente su
